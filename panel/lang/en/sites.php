@@ -78,6 +78,36 @@ return [
         'dns' => 'DNS',
         'sftp' => 'SFTP',
         'backups' => 'Backups',
+        'webserver' => 'Web server',
+    ],
+
+    'webserver' => [
+        'title' => 'Own rules',
+        'headers' => 'Extra headers',
+        'headers_hint' => 'One header per line as "Name: value", at most :max. They apply to every response of the website, including images and PDFs, but only with a certificate. Letters, digits and common punctuation are allowed; $, quotes, backslashes and curly braces are not.',
+        'paths' => 'Blocked paths',
+        'paths_hint' => 'One path per line, at most :max. Ending in / it blocks the whole folder (/vendor/), otherwise exactly one file (/composer.json). Visitors get "404 Not Found".',
+        'submit' => 'Save and transfer',
+        'sync' => 'Transfer',
+        'busy' => 'The website is busy right now. Please try again in a moment.',
+        'about_title' => 'What this is for',
+        'about' => [
+            'For rules an application would otherwise have in its .htaccess or vhost, for example when moving from another panel.',
+            'OWPanel already blocks hidden files such as .env or .git, and sets X-Frame-Options, X-Content-Type-Options and Referrer-Policy itself.',
+            'Before activating them the server checks everything with nginx -t. If nginx refuses the rules, the previous ones stay.',
+            'Customers do not see this page.',
+        ],
+        'errors' => [
+            'header_format' => 'Line :line: name and value need a colon between them.',
+            'header_reserved' => 'Line :line: OWPanel sets :name itself, or it must not be set.',
+            'header_name' => 'Line :line: the name may only contain letters, digits and dashes.',
+            'header_value' => 'Line :line: the value contains a character that is not allowed, or is empty.',
+            'header_duplicate' => 'Line :line: :name is already listed above.',
+            'too_many_headers' => 'At most :max headers.',
+            'path' => 'Line :line: a path starts with / and contains only letters, digits and . _ ~ / -, without // and without parts starting with a dot.',
+            'path_duplicate' => 'Line :line: :path is already listed above.',
+            'too_many_paths' => 'At most :max paths.',
+        ],
     ],
 
     'php' => [

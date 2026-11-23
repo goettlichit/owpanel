@@ -41,6 +41,19 @@ Damit Webseiten schneller laden, komprimiert NGINX Text wie HTML, CSS, JavaScrip
 
 PHP-Sessions bekommen sichere Cookies: Sie sind für JavaScript nicht lesbar (`HttpOnly`), werden nicht bei Anfragen von fremden Seiten mitgeschickt (`SameSite=Lax`) und, sobald die Webseite ein Zertifikat hat, nur über HTTPS übertragen (`Secure`). Braucht eine Anwendung andere Werte, etwa `SameSite=None` für eine Rückkehr von einem Zahlungsanbieter per POST, setzt sie diese selbst mit `session_set_cookie_params()` oder in einer `.user.ini`.
 
+## Eigene Regeln für den Webserver
+
+Was eine Anwendung sonst in ihrer `.htaccess` oder im Vhost hätte, trägst du als Administrator unter **Webserver** ein. Kunden sehen diese Seite nicht.
+
+- **Zusätzliche Header:** ein Header pro Zeile als `Name: Wert`, etwa `Strict-Transport-Security: max-age=31536000` oder eine `Content-Security-Policy`. Sie gelten für alle Antworten der Webseite, auch für Bilder und PDFs, aber erst mit Zertifikat. `X-Frame-Options`, `X-Content-Type-Options` und `Referrer-Policy` setzt OWPanel schon selbst.
+- **Gesperrte Pfade:** ein Pfad pro Zeile. Mit `/` am Ende sperrt er einen ganzen Ordner wie `/vendor/`, sonst genau eine Datei wie `/composer.json`. Besucher bekommen „404 Nicht gefunden“. Versteckte Dateien wie `.env` oder `.git` sperrt OWPanel ohnehin.
+
+Freien NGINX-Text gibt es bewusst nicht: Jede Zeile wird geprüft, und der Server schreibt sie in einer festen Form. Vor dem Aktivieren prüft er alles mit `nginx -t`; lehnt NGINX die Regeln ab, bleiben die vorherigen.
+
+::: tip
+Besser als gesperrte Pfade ist ein Aufbau, bei dem nur öffentliche Dateien in `htdocs/public/` liegen, wie bei Laravel. Gesperrte Pfade helfen bei Anwendungen, die das nicht vorsehen.
+:::
+
 ## Platzhalterseite
 
 Solange im Ordner `htdocs/public` weder eine `index.php` noch eine `index.html` liegt, zeigt die Startseite eine schlichte Platzhalterseite mit der Domain und dem Hinweis, dass hier eine neue Webseite entsteht, auf Deutsch und Englisch. Sobald eine Indexdatei hochgeladen ist, verschwindet sie von selbst; löscht der Kunde später alles, erscheint sie wieder. Andere Ordner ohne Indexdatei antworten weiter mit 403.

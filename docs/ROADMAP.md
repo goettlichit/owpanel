@@ -202,6 +202,7 @@ Grundlage sind E-021, E-084, E-085 und E-123 bis E-130. Die API folgt in Meilens
 - [x] Schnellere Seiten: Laravel-Caches im Installer, Teile vom Server werden nachgeladen, Sperrlisten-Index im Cache (E-175)
 - [x] gzip, Browser-Cache für statische Dateien und sichere Session-Cookies für Websites (E-176, PR #108, abgenommen am 2026-11-23)
 - [x] Repository in die Organisation `goettlichit` verschoben, alle Verweise umgestellt (E-179)
+- [ ] Eigene NGINX-Regeln je Website: zusätzliche Header und gesperrte Pfade, nur für Administratoren (E-184), für den Umzug von CloudPanel
 - [ ] Externe Testnutzer
 - [x] Versionierte Releases auf GitHub: Tag `vX.Y.Z` baut, signiert und veröffentlicht Archiv, `.sha256` und `.sig` (E-068, E-167); erste Version `v0.1.0` (E-180)
 - [x] Frisches öffentliches Repository mit neuem Release-Schlüssel, altes als privates Archiv (E-181); Name bleibt OWPanel (E-182)

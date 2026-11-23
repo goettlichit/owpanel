@@ -16,6 +16,8 @@ set -euo pipefail
 source /opt/owpanel/lib/common.sh
 # shellcheck source=server/lib/site.sh
 source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/site-rules.sh
+source /opt/owpanel/lib/site-rules.sh
 
 readonly TEMPLATES="${OWP_ROOT}/templates"
 readonly SITES_ROOT="/var/www"
@@ -401,6 +403,8 @@ main() {
   names=("$domain")
   [[ "$www" -eq 0 ]] || names+=("www.${domain}")
   ensure_domain_free "$user" "${names[@]}"
+  # The configuration includes the own rules (E-184); empty until site-nginx.
+  owp_rules_ensure "$user"
   if [[ -n "$previous" ]] && change_domain "$user" "$previous" "$want_tls" "$www" "${names[@]}"; then
     certified=1
   fi

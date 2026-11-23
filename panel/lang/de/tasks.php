@@ -29,6 +29,7 @@ return [
         'unban' => 'Adresse wird entsperrt …',
         'www' => 'www wird umgestellt …',
         'php' => 'PHP wird umgestellt …',
+        'webserver' => 'Regeln werden übertragen …',
     ],
 
     'feedback' => [
@@ -47,6 +48,7 @@ return [
         'cron' => 'den Cronjobs',
         'sftp' => 'SFTP',
         'backups' => 'Backups',
+        'webserver' => 'dem Webserver',
     ],
 
     'columns' => [
@@ -111,6 +113,7 @@ return [
         'site-cron' => 'Cronjobs übertragen',
         'site-delete' => 'Webseite löschen',
         'site-logs' => 'Logs lesen',
+        'site-nginx' => 'Webserver-Regeln übertragen',
         'site-stats' => 'Besucher zählen',
         'site-suspend' => 'Webseite sperren',
         'site-unsuspend' => 'Webseite entsperren',
@@ -161,6 +164,12 @@ return [
         'mariadb_unavailable' => 'MariaDB ist auf dem Server nicht installiert oder läuft nicht.',
         'database_create_failed' => 'MariaDB konnte die Datenbank oder den Benutzer nicht anlegen.',
         'database_delete_failed' => 'MariaDB konnte die Datenbank oder den Benutzer nicht löschen.',
+        'invalid_rule' => 'Eine Regel für den Webserver hat ein ungültiges Format.',
+        'invalid_header' => 'Ein Header ist nicht erlaubt.',
+        'duplicate_header' => 'Ein Header steht doppelt in der Liste.',
+        'invalid_path' => 'Ein gesperrter Pfad ist nicht erlaubt.',
+        'duplicate_path' => 'Ein Pfad steht doppelt in der Liste.',
+        'too_many_rules' => 'Zu viele Regeln für eine Webseite.',
         'invalid_cron_job' => 'Ein Cronjob hat ein ungültiges Format.',
         'invalid_cron_schedule' => 'Ein Zeitplan ist ungültig.',
         'invalid_cron_command' => 'Ein Befehl ist ungültig.',

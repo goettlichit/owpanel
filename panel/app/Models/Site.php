@@ -89,6 +89,8 @@ class Site extends Model
             'php_upload_mb' => 'integer',
             'php_time_s' => 'integer',
             'php_display_errors' => 'boolean',
+            'nginx_headers' => 'array',
+            'nginx_blocked_paths' => 'array',
             'delete_dns_records' => 'boolean',
             'www_tls' => 'boolean',
             'admin_owned' => 'boolean',

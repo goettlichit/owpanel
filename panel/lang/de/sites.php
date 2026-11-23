@@ -78,6 +78,36 @@ return [
         'dns' => 'DNS',
         'sftp' => 'SFTP',
         'backups' => 'Backups',
+        'webserver' => 'Webserver',
+    ],
+
+    'webserver' => [
+        'title' => 'Eigene Regeln',
+        'headers' => 'Zusätzliche Header',
+        'headers_hint' => 'Ein Header pro Zeile als „Name: Wert“, höchstens :max. Sie gelten für alle Antworten der Webseite, auch für Bilder und PDFs, aber nur mit Zertifikat. Erlaubt sind Buchstaben, Ziffern und übliche Satzzeichen; $, Anführungszeichen, Backslash und geschweifte Klammern nicht.',
+        'paths' => 'Gesperrte Pfade',
+        'paths_hint' => 'Ein Pfad pro Zeile, höchstens :max. Mit / am Ende sperrt er den ganzen Ordner (/vendor/), sonst genau eine Datei (/composer.json). Besucher bekommen „404 Nicht gefunden“.',
+        'submit' => 'Speichern und übertragen',
+        'sync' => 'Übertragung',
+        'busy' => 'Die Webseite ist gerade beschäftigt. Versuche es gleich noch einmal.',
+        'about_title' => 'Wofür das ist',
+        'about' => [
+            'Für Regeln, die eine Anwendung sonst in der .htaccess oder im Vhost hätte, etwa beim Umzug von einem anderen Panel.',
+            'Versteckte Dateien wie .env oder .git sperrt OWPanel schon selbst; X-Frame-Options, X-Content-Type-Options und Referrer-Policy setzt es ebenfalls.',
+            'Vor dem Aktivieren prüft der Server alles mit nginx -t. Lehnt nginx die Regeln ab, bleiben die vorherigen.',
+            'Kunden sehen diese Seite nicht.',
+        ],
+        'errors' => [
+            'header_format' => 'Zeile :line: Name und Wert brauchen einen Doppelpunkt dazwischen.',
+            'header_reserved' => 'Zeile :line: :name setzt OWPanel selbst oder darf nicht gesetzt werden.',
+            'header_name' => 'Zeile :line: Der Name darf nur Buchstaben, Ziffern und Bindestriche enthalten.',
+            'header_value' => 'Zeile :line: Der Wert enthält ein Zeichen, das nicht erlaubt ist, oder ist leer.',
+            'header_duplicate' => 'Zeile :line: :name steht schon weiter oben.',
+            'too_many_headers' => 'Höchstens :max Header.',
+            'path' => 'Zeile :line: Ein Pfad beginnt mit / und enthält nur Buchstaben, Ziffern und . _ ~ / -, ohne // und ohne Teile mit Punkt am Anfang.',
+            'path_duplicate' => 'Zeile :line: :path steht schon weiter oben.',
+            'too_many_paths' => 'Höchstens :max Pfade.',
+        ],
     ],
 
     'php' => [

@@ -8,6 +8,7 @@ use App\Models\Database;
 use App\Models\SftpKey;
 use App\Models\Site;
 use App\Sites\Domain;
+use App\Sites\WebserverRules;
 use App\Support\IpNetwork;
 use InvalidArgumentException;
 
@@ -271,6 +272,34 @@ final readonly class ScriptCall
         }
 
         return new self(ServerScript::SiteCron, ['--user', $user], $lines);
+    }
+
+    /**
+     * Writes the own nginx rules of a website (server/bin/site-nginx,
+     * E-184). All rules go on stdin, one per line: "header", tab, name,
+     * tab, value, or "path", tab, path. Checked here and on the server.
+     *
+     * @param  list<array{name: string, value: string}>  $headers
+     * @param  list<string>  $paths
+     */
+    public static function siteNginx(string $user, array $headers, array $paths): self
+    {
+        self::assertSiteUser($user);
+        $lines = '';
+        foreach ($headers as $header) {
+            if (! WebserverRules::validHeaderName($header['name']) || ! WebserverRules::validHeaderValue($header['value'])) {
+                throw new InvalidArgumentException('Invalid header.');
+            }
+            $lines .= "header\t".$header['name']."\t".$header['value']."\n";
+        }
+        foreach ($paths as $path) {
+            if (! WebserverRules::validPath($path)) {
+                throw new InvalidArgumentException('Invalid path.');
+            }
+            $lines .= "path\t".$path."\n";
+        }
+
+        return new self(ServerScript::SiteNginx, ['--user', $user], $lines);
     }
 
     /**
