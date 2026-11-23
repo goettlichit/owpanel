@@ -1,7 +1,7 @@
 {
     "base_url": "https://owpanel.org",
     "source_url": "https://github.com/goettlichit/owpanel",
-    "source_public": false,
+    "source_public": true,
     "vendor_url": "https://goettlich.it",
     "imprint_url": "https://goettlich.it/impressum",
     "privacy_url": "https://goettlich.it/datenschutz"

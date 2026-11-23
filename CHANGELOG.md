@@ -4,6 +4,10 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 
 ## [Unreleased]
 
+### Changed
+- The documentation starts with a choice between "Documentation for administrators" (`/docs/admin/`) and "Documentation for customers" (`/docs/customer/`); the sidebar shows only the pages of one of them. The panel's "Documentation" link for administrators leads to `/docs/admin/` (E-183).
+- The website shows version 0.1 instead of "early development" and links to the source code.
+
 ## [0.1.0] - 2026-11-23
 
 First public release. It runs as a single server (standalone); the history before this release is not public (E-181).

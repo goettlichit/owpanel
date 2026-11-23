@@ -19,8 +19,8 @@
             <section>
                 <h2 class="ow-footer-title"><x-icon name="lifebuoy" />{{ __('ui.footer.help.title') }}</h2>
                 <ul class="list-unstyled mb-0">
-                    {{-- The documentation of the website in the language of the panel, else docs/ in the source (E-109). --}}
-                    <li><a href="{{ $docs ?? \App\Support\SourceCode::file('docs') }}" class="link-secondary" target="_blank" rel="noopener noreferrer">{{ __('ui.footer.help.docs') }}</a></li>
+                    {{-- The administrator documentation of the website in the language of the panel (E-183), else docs/ in the source (E-109). --}}
+                    <li><a href="{{ $docs ? $docs.'admin/' : \App\Support\SourceCode::file('docs') }}" class="link-secondary" target="_blank" rel="noopener noreferrer">{{ __('ui.footer.help.docs') }}</a></li>
                     <li><a href="{{ \App\Support\SourceCode::file('CHANGELOG.md') }}" class="link-secondary" target="_blank" rel="noopener noreferrer">{{ __('ui.footer.help.changelog') }}</a></li>
                     <li><a href="{{ \App\Support\SourceCode::issues() }}" class="link-secondary" target="_blank" rel="noopener noreferrer">{{ __('ui.footer.help.issues') }}</a></li>
                 </ul>

@@ -18,7 +18,7 @@
     },
     "docs": {
         "title": "Documentation",
-        "lead": "For administrators from installation to recovery after a failure, for customers everything about their websites in the customer area.",
+        "lead": "Two documentations: one for running OWPanel, one for customers and their websites in the customer area.",
         "menu": "Contents of the documentation",
         "on_this_page": "On this page",
         "pager": "Previous and next page",
@@ -26,6 +26,12 @@
             "admin": "For administrators",
             "customer": "For customers"
         },
+        "audience_docs": {
+            "admin": "Documentation for administrators",
+            "customer": "Documentation for customers"
+        },
+        "choose_other": "Choose documentation",
+        "open": "Open",
         "audience_leads": {
             "admin": "Installation, servers, websites, customers, backups and security: how to set up and run OWPanel.",
             "customer": "If your provider uses OWPanel: your websites, PHP, files, databases, cron jobs and backups in the customer area."
@@ -37,12 +43,12 @@
         "home": "To the start page"
     },
     "home": {
-        "status_badge": "Early development",
+        "status_badge": "Version 0.1",
         "title": "Server panel for Debian: simple, native, bilingual",
         "lead": "OWPanel sets up websites with HTTPS and HTTP/3, databases, backups and notifications on your own Debian server. No Docker, no configuration files, in English and German.",
         "cta_docs": "Read the documentation",
         "cta_install": "Installation",
-        "status_text": "OWPanel is in development and tested on servers in the Hetzner Cloud. Please do not use it in production yet.",
+        "status_text": "The first public version, tested on servers in the Hetzner Cloud. Things may still change until version 1.0.",
         "preview": {
             "title": "Websites on this server",
             "site": "Website",
@@ -89,7 +95,8 @@
                 { "state": "done", "title": "Pocket ID", "text": "Sign-in with a passkey through your own Pocket ID instance, for administrators and customers" },
                 { "state": "done", "title": "DNS through the Hetzner API", "text": "Check, create and correct the records of each website and remove them on deletion" },
                 { "state": "done", "title": "Customer area", "text": "Packages, customer access, websites, databases, cron jobs, backups, storage and suspension" },
-                { "state": "next", "title": "Public release", "text": "SSH hardening, security review, blocklists, signed releases, first public releases, then updates from the panel" },
+                { "state": "done", "title": "Public release", "text": "SSH hardening, security review, blocklists, signed releases, version 0.1" },
+                { "state": "next", "title": "Updates from the panel", "text": "Update the panel and server scripts with one click, every release with a checked signature" },
                 { "state": "planned", "title": "Multi-server", "text": "More servers behind the panel as the gateway, an IPv6 address per website, move websites together with their backups" },
                 { "state": "planned", "title": "Docker apps", "text": "Your own services such as Pocket ID as a Compose project on a server, reachable through the panel, for administrators only" },
                 { "state": "planned", "title": "API", "text": "Connect your own homepage: customers, packages, status and a note about unpaid invoices" }
