@@ -1,0 +1,25 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa
+id_ed25519
+
+# Laravel
+panel/vendor/
+panel/node_modules/
+panel/public/build/
+panel/public/hot
+panel/storage/*.key
+panel/storage/logs/*
+panel/storage/framework/cache/*
+panel/storage/framework/sessions/*
+panel/storage/framework/views/*
+
+# Local tooling
+.idea/
+.vscode/
+.DS_Store
+*.log

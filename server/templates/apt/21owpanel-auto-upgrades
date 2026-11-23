@@ -1,0 +1,5 @@
+// Managed by OWPanel. Do not edit, changes are overwritten.
+// Refresh the package lists and run unattended-upgrades once a day (E-047).
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";

@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# Writes the cron jobs of a website (E-088). The panel sends all jobs of the
+# website on stdin, one per line: the five time fields, a tab, the command.
+# The file is replaced as a whole; no line means no file. A second run with
+# the same jobs changes nothing.
+#
+#   site-cron --user ow38217   < jobs
+#
+# Jobs run as the website's user in its htdocs directory. Their output goes
+# to the journal with the tag owpanel-cron-<user>, so the panel shows it
+# under the website's logs and journald rotates it.
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+
+# Tests point these elsewhere; sudo drops them.
+OWP_CRON_DIR="${OWP_CRON_DIR:-/etc/cron.d}"
+OWP_SITES_ROOT="${OWP_SITES_ROOT:-/var/www}"
+OWP_CRON_BIN="${OWP_CRON_BIN:-/usr/sbin/cron}"
+
+readonly MAX_JOBS=50
+readonly MAX_COMMAND=1000
+
+usage() {
+  owp_die "invalid_arguments" "usage: site-cron --user <owNNNNN> < jobs"
+}
+
+# One time field: digits, *, ranges, lists and steps, as in crontab(5).
+valid_field() {
+  [[ "$1" =~ ^(\*|[0-9]{1,2}(-[0-9]{1,2})?)(/[0-9]{1,2})?(,(\*|[0-9]{1,2}(-[0-9]{1,2})?)(/[0-9]{1,2})?)*$ ]]
+}
+
+valid_schedule() {
+  local -a fields
+  read -r -a fields <<<"$1"
+  [[ ${#fields[@]} -eq 5 ]] || return 1
+  local field
+  for field in "${fields[@]}"; do
+    valid_field "$field" || return 1
+  done
+}
+
+# Printable text without control characters; cron would cut it at a % sign,
+# so % is escaped when the line is written.
+valid_command() {
+  [[ -n "${1//[[:space:]]/}" && ${#1} -le $MAX_COMMAND && ! "$1" =~ [[:cntrl:]] ]]
+}
+
+main() {
+  local user="" root file tmp line schedule command count=0
+  owp_init "site-cron"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --user)
+        [[ $# -ge 2 ]] || usage
+        user="$2"
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  owp_valid_site_user "$user" || owp_die "invalid_user" "invalid site user"
+  owp_reserved_site_user "$user" && owp_die "reserved_user" "${user} belongs to the panel"
+
+  root="${OWP_SITES_ROOT}/${user}"
+  file="${OWP_CRON_DIR}/owpanel-${user}"
+  owp_tmpdir
+  tmp="${OWP_TMPDIR}/cron"
+
+  {
+    printf '# Managed by OWPanel. Do not edit, changes are overwritten.\n'
+    # php runs in the version of the website (E-172), see site-create.
+    printf 'SHELL=/bin/sh\nPATH=/var/lib/owpanel/php/%s:/usr/local/bin:/usr/bin:/bin\nMAILTO=""\n' "$user"
+  } >"$tmp"
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    [[ "$line" == *$'\t'* ]] || owp_die "invalid_cron_job" "line $((count + 1)) has no tab"
+    schedule="${line%%$'\t'*}"
+    command="${line#*$'\t'}"
+    valid_schedule "$schedule" || owp_die "invalid_cron_schedule" "line $((count + 1)): invalid time fields"
+    valid_command "$command" || owp_die "invalid_cron_command" "line $((count + 1)): invalid command"
+    count=$((count + 1))
+    ((count <= MAX_JOBS)) || owp_die "too_many_cron_jobs" "at most ${MAX_JOBS} jobs per website"
+    printf '%s %s cd %s/htdocs && ( %s ) 2>&1 | logger -t owpanel-cron-%s\n' \
+      "$schedule" "$user" "$root" "${command//%/\\%}" "$user" >>"$tmp"
+  done
+
+  if ((count > 0)); then
+    getent passwd "$user" >/dev/null || owp_die "site_not_found" "website ${user} does not exist"
+    [[ -x "$OWP_CRON_BIN" ]] || owp_die "cron_not_installed" "cron is missing; run the base setup of the server again"
+    if [[ -f "$file" ]] && cmp -s "$tmp" "$file"; then
+      owp_log "unchanged: ${file}"
+    else
+      # cron reads /etc/cron.d by itself once a minute; mv keeps it atomic.
+      install -o root -g root -m 0644 "$tmp" "${file}.new"
+      mv -f "${file}.new" "$file"
+      owp_log "updated: ${file} (${count} jobs)"
+    fi
+  elif [[ -e "$file" ]]; then
+    rm -f "$file"
+    owp_log "removed: ${file}"
+  else
+    owp_log "no jobs"
+  fi
+
+  owp_result_ok "\"jobs\":${count}"
+}
+
+main "$@"

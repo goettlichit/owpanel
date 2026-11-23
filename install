@@ -1,0 +1,1056 @@
+#!/usr/bin/env bash
+# Installs OWPanel on a fresh Debian 13 server (E-069). Run as root from an
+# unpacked release archive:
+#
+#   sha256sum -c owpanel-<version>.tar.gz.sha256
+#   ssh-keygen -Y verify -f release-signers -I owpanel-release -n owpanel-release \
+#     -s owpanel-<version>.tar.gz.sig < owpanel-<version>.tar.gz
+#   tar -xzf owpanel-<version>.tar.gz
+#   cd owpanel-<version> && ./install
+#
+# The installer asks for the panel's domain, the host name of the server
+# (E-150), the time zone and the first administrator. The domain must already point to this server, because Let's
+# Encrypt checks it over port 80. For unattended runs every answer can be
+# given as an option:
+#
+#   ./install --domain panel.example.de --timezone Europe/Berlin \
+#     --admin-email admin@example.de --admin-first-name Alex --admin-last-name Muster \
+#     --admin-password-file /root/admin-password [--hostname srv03.example.de]
+#
+# Without --hostname an unattended run keeps the host name.
+#
+# On a first run in a terminal the installer offers to restore the panel
+# from its backup on a Hetzner Storage Box instead (E-099, see
+# docs/WIEDERHERSTELLUNG.md). Domain and accounts then come from the backup.
+#
+# A second run repairs the installation and keeps data, keys and accounts.
+# Run with a newer archive, it switches the panel to the new release.
+set -euo pipefail
+
+SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly SOURCE_ROOT
+# shellcheck source=server/lib/common.sh
+source "${SOURCE_ROOT}/server/lib/common.sh"
+# shellcheck source=server/lib/site.sh
+source "${SOURCE_ROOT}/server/lib/site.sh"
+# shellcheck source=server/lib/install.sh
+source "${SOURCE_ROOT}/server/lib/install.sh"
+# shellcheck source=server/lib/panel-restore.sh
+source "${SOURCE_ROOT}/server/lib/panel-restore.sh"
+# shellcheck source=server/lib/hostname.sh
+source "${SOURCE_ROOT}/server/lib/hostname.sh"
+
+readonly TEMPLATES="${SOURCE_ROOT}/server/templates/panel"
+readonly PANEL_USER="ow10000"
+readonly PANEL_UID=10000
+readonly PANEL_ROOT="/var/www/ow10000"
+readonly PANEL_COMMENT="OWPanel panel"
+readonly WORKER_USER="owpanel-worker"
+readonly WORKER_HOME="/var/lib/owpanel-worker"
+readonly WORKER_KEY="${WORKER_HOME}/ssh/id_ed25519"
+readonly STATE_FILE="/etc/owpanel/panel.conf"
+readonly RELEASE_KEY_FILE="/etc/owpanel/release-signers"
+readonly PANEL_NGINX="/etc/nginx/conf.d/owpanel-panel.conf"
+readonly ACME_ROOT="/var/lib/owpanel/acme"
+readonly QUEUE_UNIT="owpanel-queue.service"
+readonly QUERY_UNIT="owpanel-query.service"
+readonly SCHEDULER_SERVICE="owpanel-scheduler.service"
+readonly SCHEDULER_TIMER="owpanel-scheduler.timer"
+
+DOMAIN=""
+TIMEZONE=""
+# Host name before the run and the one chosen for it (E-150); asked only on
+# a first run, so a server already in the panel is never renamed.
+HOSTNAME_OLD=""
+HOSTNAME_NEW=""
+DOMAIN_GIVEN=0
+ADMIN_EMAIL=""
+ADMIN_FIRST_NAME=""
+ADMIN_LAST_NAME=""
+ADMIN_PASSWORD=""
+VERSION=""
+SKIP_DNS_CHECK=0
+FIRST_RUN=1
+SSH_PORT=""
+DB_PASSWORD=""
+RELEASE_DIR=""
+ASKED=0
+RESTORE_DIR=""
+RESTORE_FROM=""
+# "reboot", "no-reboot" or empty: ask when updates need a restart.
+REBOOT=""
+RESTORE_SNAPSHOT=""
+RESTORE_TIME=""
+RESTORE_CHOICES=0
+# Rebuild the websites of this server after a restore (E-106), and the time
+# (UTC, like the panel's database) from which its tasks count.
+RESTORE_SITES=0
+REBUILD_SINCE=""
+STEP=0
+STEPS=0
+
+# Colours only on a terminal, and never with NO_COLOR (no-color.org).
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  readonly C_BOLD=$'\e[1m' C_DIM=$'\e[2m' C_BLUE=$'\e[34m' C_CYAN=$'\e[36m' \
+    C_GREEN=$'\e[32m' C_YELLOW=$'\e[33m' C_RED=$'\e[31m' C_RESET=$'\e[0m'
+else
+  readonly C_BOLD="" C_DIM="" C_BLUE="" C_CYAN="" C_GREEN="" C_YELLOW="" C_RED="" C_RESET=""
+fi
+export OWP_COLOR_ERROR="${C_RED}${C_BOLD}" OWP_COLOR_RESET="$C_RESET"
+
+usage() {
+  owp_die "invalid_arguments" "usage: install [--domain <domain>] [--hostname <name>] [--timezone <zone>] [--admin-email <email>]
+       [--admin-first-name <name>] [--admin-last-name <name>] [--admin-password-file <file>]
+       [--skip-dns-check] [--reboot | --no-reboot]"
+}
+
+step() {
+  STEP=$((STEP + 1))
+  printf '\n%s%s[%d/%d]%s %s%s%s\n' "$C_BLUE" "$C_BOLD" "$STEP" "$STEPS" "$C_RESET" "$C_BOLD" "$*" "$C_RESET"
+}
+
+ok() {
+  printf '%s✓%s %s\n' "$C_GREEN" "$C_RESET" "$*"
+}
+
+banner() {
+  printf '\n%s%s  OWPanel %s%s\n' "$C_CYAN" "$C_BOLD" "$VERSION" "$C_RESET"
+  printf '%s  Installer for Debian %s · https://github.com/goettlichit/owpanel%s\n' \
+    "$C_DIM" "$OWP_DEBIAN_VERSION" "$C_RESET"
+}
+
+# Heading and explanation of a group of questions.
+section() {
+  local title="$1" line
+  shift
+  printf '\n%s%s%s\n' "$C_BOLD" "$title" "$C_RESET" >/dev/tty
+  for line in "$@"; do
+    printf '%s  %s%s\n' "$C_DIM" "$line" "$C_RESET" >/dev/tty
+  done
+}
+
+# Asks on the terminal, also when stdin is a pipe, until the answer passes
+# the check. Unattended runs without a terminal must pass every value as an
+# option. Usage: ask <prompt> <default or ""> <check function> <error text>
+ask() {
+  local prompt="$1" default="$2" check="$3" message="$4" answer
+  [[ -r /dev/tty ]] || owp_die "missing_value" "no terminal to ask: ${prompt}"
+  ASKED=1
+  while true; do
+    if [[ -n "$default" ]]; then
+      printf '  %s%s%s %s[%s]%s: ' "$C_YELLOW" "$prompt" "$C_RESET" "$C_DIM" "$default" "$C_RESET" >/dev/tty
+    else
+      printf '  %s%s%s: ' "$C_YELLOW" "$prompt" "$C_RESET" >/dev/tty
+    fi
+    IFS= read -r answer </dev/tty
+    answer="${answer:-$default}"
+    if "$check" "$answer"; then
+      printf '%s\n' "$answer"
+      return 0
+    fi
+    printf '  %s✗ %s%s\n' "$C_RED" "$message" "$C_RESET" >/dev/tty
+  done
+}
+
+ask_secret() {
+  local answer
+  printf '  %s%s%s: ' "$C_YELLOW" "$1" "$C_RESET" >/dev/tty
+  IFS= read -r -s answer </dev/tty
+  printf '\n' >/dev/tty
+  printf '%s\n' "$answer"
+}
+
+# Checks for ask(), which gets the raw answer.
+check_domain_input() { owp_valid_domain "${1,,}"; }
+check_email_input() { owp_valid_email "${1,,}"; }
+check_hostname_input() { owp_valid_hostname "${1,,}"; }
+
+# Yes or no on the terminal; an empty answer takes the default (y or n).
+ask_yes() {
+  local prompt="$1" default="$2" answer hint="[Y/n]"
+  [[ "$default" == y ]] || hint="[y/N]"
+  ASKED=1
+  while true; do
+    printf '  %s%s%s %s%s%s: ' "$C_YELLOW" "$prompt" "$C_RESET" "$C_DIM" "$hint" "$C_RESET" >/dev/tty
+    IFS= read -r answer </dev/tty
+    answer="${answer,,}"
+    case "${answer:-$default}" in
+      y | yes | j | ja) return 0 ;;
+      n | no | nein) return 1 ;;
+    esac
+    printf '  %s✗ please answer y or n%s\n' "$C_RED" "$C_RESET" >/dev/tty
+  done
+}
+
+# The host name, on a first run only (E-150). Asked when the installer asks
+# anyway; unattended runs change it only with --hostname.
+collect_hostname() {
+  HOSTNAME_OLD="$(hostname -f 2>/dev/null || hostname 2>/dev/null || true)"
+  if [[ "$FIRST_RUN" -ne 1 ]]; then
+    HOSTNAME_NEW=""
+    return 0
+  fi
+  if [[ -n "$HOSTNAME_NEW" ]]; then
+    owp_valid_hostname "$HOSTNAME_NEW" || owp_die "invalid_hostname" "invalid host name: ${HOSTNAME_NEW}"
+  elif [[ "$DOMAIN_GIVEN" -eq 0 && -r /dev/tty ]]; then
+    section "2. Server name" "The host name of this server, shown in the panel and in the shell prompt." \
+      "A short name like srv03 or a full one like srv03.example.de."
+    printf '  Current name: %s%s%s%s\n' "$C_BOLD" "$C_CYAN" "${HOSTNAME_OLD:-unknown}" "$C_RESET" >/dev/tty
+    if ! ask_yes "Keep this name?" y; then
+      HOSTNAME_NEW="$(ask "New host name" "" check_hostname_input "not a valid host name, e.g. srv03 or srv03.example.de")"
+      HOSTNAME_NEW="${HOSTNAME_NEW,,}"
+    fi
+  fi
+  [[ "$HOSTNAME_NEW" != "$HOSTNAME_OLD" ]] || HOSTNAME_NEW=""
+}
+
+renaming() { [[ -n "$HOSTNAME_NEW" ]]; }
+
+parse_arguments() {
+  local password_file=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --domain | --hostname | --timezone | --admin-email | --admin-first-name | --admin-last-name | --admin-password-file)
+        [[ $# -ge 2 ]] || usage
+        case "$1" in
+          --domain)
+            DOMAIN="$2"
+            DOMAIN_GIVEN=1
+            ;;
+          --hostname) HOSTNAME_NEW="${2,,}" ;;
+          --timezone) TIMEZONE="$2" ;;
+          --admin-email) ADMIN_EMAIL="$2" ;;
+          --admin-first-name) ADMIN_FIRST_NAME="$2" ;;
+          --admin-last-name) ADMIN_LAST_NAME="$2" ;;
+          --admin-password-file) password_file="$2" ;;
+        esac
+        shift 2
+        ;;
+      --skip-dns-check)
+        SKIP_DNS_CHECK=1
+        shift
+        ;;
+      --reboot | --no-reboot)
+        REBOOT="${1#--}"
+        shift
+        ;;
+      *) usage ;;
+    esac
+  done
+  if [[ -n "$password_file" ]]; then
+    [[ -f "$password_file" && -r "$password_file" ]] \
+      || owp_die "invalid_password_file" "cannot read ${password_file}"
+    IFS= read -r ADMIN_PASSWORD <"$password_file" || true
+  fi
+}
+
+check_release() {
+  local file
+  for file in VERSION panel/artisan panel/vendor/autoload.php panel/public/build/manifest.json \
+    server/provision/setup-agent server/bin/server-provision; do
+    [[ -e "${SOURCE_ROOT}/${file}" ]] \
+      || owp_die "not_a_release" "${file} is missing; run the installer from a release archive"
+  done
+  VERSION="$(<"${SOURCE_ROOT}/VERSION")"
+  owp_valid_version "$VERSION" || owp_die "not_a_release" "invalid VERSION file"
+}
+
+# A second run takes domain and time zone from the first one. The domain of
+# an installed panel is changed in the panel later, not here.
+load_state() {
+  local known
+  [[ -f "$STATE_FILE" ]] || return 0
+  FIRST_RUN=0
+  known="$(owp_read_setting "$STATE_FILE" DOMAIN)"
+  if [[ -n "$DOMAIN" && "$DOMAIN" != "$known" ]]; then
+    owp_die "domain_mismatch" "the panel is installed for ${known}"
+  fi
+  DOMAIN="$known"
+  [[ -n "$TIMEZONE" ]] || TIMEZONE="$(owp_read_setting "$STATE_FILE" TIMEZONE)"
+}
+
+# On a first run in a terminal: a new panel, or the old one from its backup?
+# A restore asks for the Storage Box and fetches the newest panel backup
+# right away, so a wrong password shows before anything is installed.
+offer_restore() {
+  local answer host account path password box_password
+  [[ "$FIRST_RUN" -eq 1 && -r /dev/tty && -t 1 ]] || return 0
+  section "Installation" "Install a new panel, or restore an existing one from its backup on a Hetzner" \
+    "Storage Box after a server was lost (docs/WIEDERHERSTELLUNG.md)."
+  printf '  %sRestore from a backup?%s %s[y/N]%s: ' "$C_YELLOW" "$C_RESET" "$C_DIM" "$C_RESET" >/dev/tty
+  IFS= read -r answer </dev/tty
+  [[ "${answer,,}" == y || "${answer,,}" == yes || "${answer,,}" == j || "${answer,,}" == ja ]] || return 0
+  ASKED=1
+
+  section "Backup" "Reset the password of the old panel server's subaccount in the Hetzner Console" \
+    "first (label owpanel=backup). The repository password is in the emergency data of the" \
+    "old panel (System -> Backup) and in your password manager."
+  host="$(ask "Storage Box host" "" owp_restore_valid_host "e.g. u123456.your-storagebox.de")"
+  account="$(ask "Subaccount of the old panel server" "" owp_restore_valid_account "e.g. u123456-sub1")"
+  box_password="$(ask_secret "Password of the subaccount")"
+  [[ -n "$box_password" ]] || owp_die "invalid_input" "no subaccount password"
+  path="$(ask "Repository inside the subaccount" "restic" owp_restore_valid_path "letters, digits, - and _ only; normally restic")"
+  path="$(owp_restore_repository_path "$path")"
+  password="$(ask_secret "Repository password")"
+  [[ -n "$password" ]] || owp_die "invalid_input" "no repository password"
+
+  owp_log "installing restic"
+  owp_apt_install restic jq sshpass >/dev/null
+  RESTORE_DIR="$(mktemp -d /var/tmp/owpanel-restore.XXXXXX)"
+  OWP_CLEANUP+=("$RESTORE_DIR")
+  printf '%s\n' "$password" >"${RESTORE_DIR}/repo-password"
+  printf '%s\n' "$box_password" >"${RESTORE_DIR}/box-password"
+  password=""
+  box_password=""
+
+  owp_log "signing in to ${account}@${host}"
+  case "$(owp_restore_probe "$host" "$account" "$RESTORE_DIR")" in
+    password) owp_die "restore_failed" "the Storage Box rejected the password of ${account}; reset it in the Hetzner Console and try again" ;;
+    unreachable) owp_die "restore_failed" "${host} is not reachable on port 23; check the host name, \"SSH support\" of the subaccount and, outside Hetzner, \"External reachability\"" ;;
+  esac
+
+  # Which backup: the newest is the default, older ones can be chosen.
+  owp_log "reading the panel backups of ${account}@${host}"
+  local -a backups=()
+  mapfile -t backups < <(owp_restore_list "$host" "$account" "$path" "${RESTORE_DIR}/repo-password" "$RESTORE_DIR")
+  [[ "${#backups[@]}" -gt 0 ]] \
+    || owp_die "restore_failed" "no panel backup found; check host, subaccount, directory and both passwords"
+  section "Panel backups" "Newest first, times in UTC. Enter the number of the backup to restore."
+  local i
+  for i in "${!backups[@]}"; do
+    printf '  %s%2d%s  %s UTC  %s(ID %s)%s%s\n' "$C_BOLD" "$((i + 1))" "$C_RESET" "${backups[$i]#* }" "$C_DIM" "${backups[$i]%% *}" "$C_RESET" \
+      "$([[ "$i" -eq 0 ]] && printf '  newest')" >/dev/tty
+  done
+  RESTORE_CHOICES="${#backups[@]}"
+  local choice
+  choice="$(ask "Backup" "1" valid_restore_choice "a number from 1 to ${RESTORE_CHOICES}")"
+  RESTORE_SNAPSHOT="${backups[$((choice - 1))]%% *}"
+  RESTORE_TIME="${backups[$((choice - 1))]#* }"
+
+  section "Websites" "The panel knows the websites of this server, but a new server does not have them." \
+    "The panel can build them again from their newest backups once it runs (docs/WIEDERHERSTELLUNG.md)."
+  printf '  %sRebuild the websites of this server from their backups?%s %s[Y/n]%s: ' "$C_YELLOW" "$C_RESET" "$C_DIM" "$C_RESET" >/dev/tty
+  IFS= read -r answer </dev/tty
+  if [[ -z "$answer" || "${answer,,}" == y || "${answer,,}" == yes || "${answer,,}" == j || "${answer,,}" == ja ]]; then
+    RESTORE_SITES=1
+  fi
+
+  owp_log "fetching panel backup ${RESTORE_SNAPSHOT} of ${RESTORE_TIME} UTC"
+  owp_restore_fetch "$host" "$account" "$path" "${RESTORE_DIR}/repo-password" "$RESTORE_DIR" "$RESTORE_SNAPSHOT" "${RESTORE_DIR}/files" \
+    || owp_die "restore_failed" "the backup could not be fetched; check host, subaccount and both passwords"
+  rm -f "${RESTORE_DIR}/repo-password" "${RESTORE_DIR}/box-password"
+  owp_restore_check "${RESTORE_DIR}/files" || owp_die "backup_incomplete" "the backup holds no valid panel database or .env"
+
+  RESTORE_FROM="${account}@${host}"
+  local domain timezone
+  domain="$(owp_restore_setting "${RESTORE_DIR}/files" DOMAIN)"
+  timezone="$(owp_restore_setting "${RESTORE_DIR}/files" TIMEZONE)"
+  [[ -n "$DOMAIN" || -z "$domain" ]] || DOMAIN="$domain"
+  [[ -n "$TIMEZONE" || -z "$timezone" ]] || TIMEZONE="$timezone"
+  ok "backup ${RESTORE_SNAPSHOT} of ${RESTORE_TIME} UTC fetched${domain:+ for ${domain}}"
+}
+
+valid_restore_choice() {
+  [[ "$1" =~ ^[0-9]{1,2}$ ]] && (("$1" >= 1 && "$1" <= RESTORE_CHOICES))
+}
+
+restoring() { [[ -n "$RESTORE_DIR" ]]; }
+
+collect_answers() {
+  local current repeat
+  if [[ -z "$DOMAIN" ]]; then
+    section "1. Panel domain" "The panel gets its own domain, e.g. panel.example.de. Its DNS entry" \
+      "must already point to this server, and ports 80 and 443 must be reachable."
+    DOMAIN="$(ask "Domain" "" check_domain_input "not a valid domain, e.g. panel.example.de")"
+  fi
+  DOMAIN="${DOMAIN,,}"
+  owp_valid_domain "$DOMAIN" || owp_die "invalid_domain" "invalid domain: ${DOMAIN}"
+
+  collect_hostname
+
+  if [[ -z "$TIMEZONE" ]]; then
+    current="$(timedatectl show --property=Timezone --value 2>/dev/null || true)"
+    [[ -n "$current" && "$current" != "Etc/UTC" ]] || current="Europe/Berlin"
+    section "3. Time zone" "Used by the server and for times in the panel, e.g. Europe/Berlin."
+    TIMEZONE="$(ask "Time zone" "$current" owp_valid_timezone "unknown time zone, e.g. Europe/Berlin or UTC")"
+  fi
+  owp_valid_timezone "$TIMEZONE" || owp_die "invalid_timezone" "unknown time zone: ${TIMEZONE}"
+
+  # Accounts are created once. A repair run leaves them alone, a restore
+  # brings them back.
+  [[ "$FIRST_RUN" -eq 1 ]] && ! restoring || return 0
+  if [[ -z "$ADMIN_FIRST_NAME" || -z "$ADMIN_LAST_NAME" || -z "$ADMIN_EMAIL" || -z "$ADMIN_PASSWORD" ]]; then
+    section "4. First administrator" "Signs in with e-mail and password; two-factor sign-in is set up at the first login."
+  fi
+  [[ -n "$ADMIN_FIRST_NAME" ]] \
+    || ADMIN_FIRST_NAME="$(ask "First name" "" owp_valid_person_name "letters, spaces, hyphens and apostrophes only")"
+  owp_valid_person_name "$ADMIN_FIRST_NAME" || owp_die "invalid_name" "invalid first name"
+  [[ -n "$ADMIN_LAST_NAME" ]] \
+    || ADMIN_LAST_NAME="$(ask "Last name" "" owp_valid_person_name "letters, spaces, hyphens and apostrophes only")"
+  owp_valid_person_name "$ADMIN_LAST_NAME" || owp_die "invalid_name" "invalid last name"
+  [[ -n "$ADMIN_EMAIL" ]] \
+    || ADMIN_EMAIL="$(ask "E-mail (used to sign in)" "" check_email_input "not a valid e-mail address")"
+  ADMIN_EMAIL="${ADMIN_EMAIL,,}"
+  owp_valid_email "$ADMIN_EMAIL" || owp_die "invalid_email" "invalid e-mail address"
+
+  if [[ -z "$ADMIN_PASSWORD" ]]; then
+    [[ -r /dev/tty ]] || owp_die "missing_value" "no terminal to ask for the password"
+    ASKED=1
+    while true; do
+      ADMIN_PASSWORD="$(ask_secret "Password (at least 12 characters)")"
+      if ! owp_valid_password "$ADMIN_PASSWORD"; then
+        printf '  %s✗ the password needs 12 to 255 characters%s\n' "$C_RED" "$C_RESET" >/dev/tty
+        continue
+      fi
+      repeat="$(ask_secret "Repeat password")"
+      [[ "$repeat" == "$ADMIN_PASSWORD" ]] && break
+      printf '  %s✗ the passwords do not match, please enter both again%s\n' "$C_RED" "$C_RESET" >/dev/tty
+    done
+  fi
+  owp_valid_password "$ADMIN_PASSWORD" || owp_die "invalid_password" "the password needs 12 to 255 characters"
+}
+
+# Shows the answers and asks once more before the long part starts. Runs
+# with all values given as options go ahead without asking.
+confirm_answers() {
+  local answer
+  printf '\n%sSummary%s\n' "$C_BOLD" "$C_RESET"
+  printf '  %-14s %s\n' "Version" "$VERSION" "Panel" "https://${DOMAIN}" "Time zone" "$TIMEZONE"
+  if renaming; then
+    printf '  %-14s %s%s%s %s(was %s)%s\n' "Host name" "$C_BOLD" "$HOSTNAME_NEW" "$C_RESET" "$C_DIM" "${HOSTNAME_OLD:-unknown}" "$C_RESET"
+  elif [[ -n "$HOSTNAME_OLD" ]]; then
+    printf '  %-14s %s\n' "Host name" "$HOSTNAME_OLD"
+  fi
+  if restoring; then
+    printf '  %-14s %s\n' "Mode" "restore of the panel from ${RESTORE_FROM}" \
+      "Backup" "${RESTORE_SNAPSHOT} of ${RESTORE_TIME} UTC"
+  elif [[ "$FIRST_RUN" -eq 1 ]]; then
+    printf '  %-14s %s\n' "Administrator" "${ADMIN_FIRST_NAME} ${ADMIN_LAST_NAME} <${ADMIN_EMAIL}>"
+  else
+    printf '  %-14s %s\n' "Mode" "repair or update of an existing installation"
+  fi
+  [[ "$ASKED" -eq 1 ]] || return 0
+  printf '\n  %sStart the installation?%s %s[Y/n]%s: ' "$C_YELLOW" "$C_RESET" "$C_DIM" "$C_RESET" >/dev/tty
+  IFS= read -r answer </dev/tty
+  [[ -z "$answer" || "${answer,,}" == y || "${answer,,}" == yes || "${answer,,}" == j || "${answer,,}" == ja ]] \
+    || owp_die "cancelled" "installation cancelled, nothing was changed"
+}
+
+check_domain() {
+  local rc=0 file
+  for file in /etc/nginx/owpanel-sites/*.conf; do
+    [[ -e "$file" ]] || continue
+    # Every name of the site, also www.<domain> (E-110).
+    if owp_server_names "$file" | grep -qxF "$DOMAIN"; then
+      owp_die "domain_in_use" "${DOMAIN} already belongs to the website $(basename "$file" .conf)"
+    fi
+  done
+  [[ "$SKIP_DNS_CHECK" -eq 0 ]] || return 0
+  owp_domain_points_here "$DOMAIN" || rc=$?
+  case "$rc" in
+    0) ok "DNS: ${DOMAIN} points to this server" ;;
+    2) owp_die "domain_not_resolved" "${DOMAIN} has no DNS entry yet" ;;
+    *) owp_die "domain_elsewhere" "${DOMAIN} does not point to this server (behind NAT? use --skip-dns-check)" ;;
+  esac
+}
+
+# ow10000 like a website user (E-041), but created by the installer only.
+ensure_panel_user() {
+  local entry e_uid e_gid e_comment e_home
+  if entry="$(getent passwd "$PANEL_USER")"; then
+    IFS=: read -r _ _ e_uid e_gid e_comment e_home _ <<<"$entry"
+    [[ "$e_uid" == "$PANEL_UID" && "$e_gid" == "$PANEL_UID" && "$e_comment" == "$PANEL_COMMENT" \
+      && "$e_home" == "$PANEL_ROOT" ]] \
+      || owp_die "panel_user_conflict" "${PANEL_USER} exists but was not created by OWPanel"
+  else
+    ! getent passwd "$PANEL_UID" >/dev/null || owp_die "panel_uid_conflict" "UID ${PANEL_UID} is in use"
+    if getent group "$PANEL_USER" >/dev/null || getent group "$PANEL_UID" >/dev/null; then
+      owp_die "panel_user_conflict" "group ${PANEL_USER} or GID ${PANEL_UID} exists already"
+    fi
+    groupadd --gid "$PANEL_UID" "$PANEL_USER"
+    useradd --uid "$PANEL_UID" --gid "$PANEL_UID" --no-create-home --home-dir "$PANEL_ROOT" \
+      --shell /usr/sbin/nologin --comment "$PANEL_COMMENT" "$PANEL_USER"
+  fi
+}
+
+# The queue worker gets its own user, the only one that can read the SSH key
+# (E-070, docs/SICHERHEIT.md "Geheimnisse"). It reads the code and .env
+# through the group ow10000.
+ensure_worker() {
+  if ! id "$WORKER_USER" >/dev/null 2>&1; then
+    useradd --system --user-group --no-create-home --home-dir "$WORKER_HOME" \
+      --shell /usr/sbin/nologin --comment "OWPanel queue worker" "$WORKER_USER"
+  fi
+  [[ "$(getent passwd "$WORKER_USER" | cut -d: -f6)" == "$WORKER_HOME" ]] \
+    || owp_die "worker_user_conflict" "${WORKER_USER} exists with another home directory"
+  usermod --append --groups "$PANEL_USER" "$WORKER_USER"
+
+  install -d -o root -g "$WORKER_USER" -m 0750 "$WORKER_HOME"
+  install -d -o "$WORKER_USER" -g "$WORKER_USER" -m 0700 "${WORKER_HOME}/ssh" "${WORKER_HOME}/views"
+  # A restore brings back the key the other servers already trust.
+  if restoring && owp_restore_worker_key "${RESTORE_DIR}/files" "$WORKER_USER"; then
+    owp_log "restored the SSH key of the panel"
+  fi
+  if [[ ! -f "$WORKER_KEY" ]]; then
+    ssh-keygen -q -t ed25519 -N '' -C owpanel -f "$WORKER_KEY"
+  fi
+  chown "$WORKER_USER:$WORKER_USER" "$WORKER_KEY" "${WORKER_KEY}.pub"
+  chmod 0600 "$WORKER_KEY"
+  chmod 0644 "${WORKER_KEY}.pub"
+}
+
+# Runs a server script from this archive's copy in /opt/owpanel and shows its
+# output. Fails with the script's error code.
+run_script() {
+  local name="$1" result
+  shift
+  owp_tmpdir
+  set +e
+  "$@" 2>&1 | tee "${OWP_TMPDIR}/${name}.log"
+  result="${PIPESTATUS[0]}"
+  set -e
+  [[ "$result" -eq 0 ]] || owp_die "${name//-/_}_failed" "${name} failed, see the output above"
+}
+
+setup_agent() {
+  step "Agent user and server scripts"
+  run_script setup-agent "${SOURCE_ROOT}/server/provision/setup-agent" \
+    --public-key-file "${WORKER_KEY}.pub"
+}
+
+provision() {
+  step "Base services (this takes a few minutes)"
+  if [[ "$FIRST_RUN" -eq 1 ]]; then
+    owp_log "updating the system: package lists and all pending updates"
+    owp_apt_upgrade
+  fi
+  run_script server-provision /opt/owpanel/bin/server-provision
+  if grep -q '"firewall_confirm_required":true' "${OWP_TMPDIR}/server-provision.log"; then
+    confirm_firewall
+  fi
+}
+
+# The new firewall rules are rolled back after 60 seconds unless confirmed
+# over a new SSH connection (E-044). The installer confirms like the panel
+# does: as the worker, with its key and the fixed host key.
+confirm_firewall() {
+  local known="${WORKER_HOME}/ssh/known_hosts" host_entry
+  host_entry="$(cut -d' ' -f1-2 /etc/ssh/ssh_host_ed25519_key.pub)"
+  if [[ "$SSH_PORT" == "22" ]]; then
+    printf '127.0.0.1 %s\n' "$host_entry" >"$known"
+  else
+    printf '[127.0.0.1]:%s %s\n' "$SSH_PORT" "$host_entry" >"$known"
+  fi
+  chown "$WORKER_USER:$WORKER_USER" "$known"
+  chmod 0600 "$known"
+
+  owp_log "confirming the firewall over SSH"
+  runuser -u "$WORKER_USER" -- ssh -p "$SSH_PORT" -i "$WORKER_KEY" \
+    -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+    -o UserKnownHostsFile="$known" -o ConnectTimeout=10 \
+    "${OWP_AGENT_USER}@127.0.0.1" sudo -n /opt/owpanel/bin/firewall-confirm \
+    || owp_die "firewall_not_confirmed" "SSH to the agent failed; the firewall change is rolled back in 60 seconds"
+  ok "firewall confirmed"
+}
+
+find_ssh_port() {
+  local -a ports=()
+  mapfile -t ports < <(sshd -T 2>/dev/null | owp_parse_ssh_ports)
+  [[ "${#ports[@]}" -gt 0 ]] || owp_die "ssh_port_unknown" "could not read the SSH port"
+  SSH_PORT="${ports[0]}"
+}
+
+set_timezone() {
+  step "Time zone"
+  run_script server-timezone /opt/owpanel/bin/server-timezone --zone "$TIMEZONE"
+}
+
+# Before the own server is added, so it gets the new name in the panel.
+set_hostname() {
+  renaming || return 0
+  step "Host name"
+  owp_set_hostname "$HOSTNAME_NEW"
+  ok "host name ${HOSTNAME_NEW} (was ${HOSTNAME_OLD:-unknown})"
+}
+
+# The password stays the same on a second run, it is read from .env.
+setup_database() {
+  local env_file="${PANEL_ROOT}/shared/.env" password=""
+  step "Database"
+  ! restoring || env_file="${RESTORE_DIR}/files${OWP_RESTORE_PANEL_ENV}"
+  if [[ -f "$env_file" ]]; then
+    password="$(owp_read_setting "$env_file" DB_PASSWORD)"
+  fi
+  [[ "$password" =~ ^[0-9a-f]{64}$ ]] || password="$(owp_random_hex)"
+  DB_PASSWORD="$password"
+
+  # The panel connects over TCP to 127.0.0.1; both host names are covered.
+  mariadb --protocol=socket <<SQL
+CREATE DATABASE IF NOT EXISTS owpanel CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'owpanel'@'localhost' IDENTIFIED BY '${password}';
+CREATE USER IF NOT EXISTS 'owpanel'@'127.0.0.1' IDENTIFIED BY '${password}';
+ALTER USER 'owpanel'@'localhost' IDENTIFIED BY '${password}';
+ALTER USER 'owpanel'@'127.0.0.1' IDENTIFIED BY '${password}';
+GRANT ALL PRIVILEGES ON owpanel.* TO 'owpanel'@'localhost';
+GRANT ALL PRIVILEGES ON owpanel.* TO 'owpanel'@'127.0.0.1';
+FLUSH PRIVILEGES;
+SQL
+  if restoring; then
+    owp_restore_database "${RESTORE_DIR}/files" "$SSH_PORT" "$RESTORE_SNAPSHOT" "$RESTORE_TIME"
+    ok "database owpanel restored from backup ${RESTORE_SNAPSHOT} of ${RESTORE_TIME} UTC"
+  else
+    ok "database owpanel ready"
+  fi
+}
+
+# Layout below /var/www/ow10000 (E-068):
+#   releases/<version>/  code, owned by root, read-only for the panel
+#   current              link to the active release
+#   shared/.env          settings and secrets, root:ow10000 0640
+#   shared/storage/      written by the panel
+#   tmp/                 uploads and temporary files of PHP
+prepare_directories() {
+  local dir
+  step "Panel directories"
+  [[ ! -L "$PANEL_ROOT" ]] || owp_die "unsafe_path" "${PANEL_ROOT} is a symlink"
+  install -d -o root -g root -m 0755 /var/www
+  install -d -o root -g "$PANEL_USER" -m 0750 "$PANEL_ROOT" "${PANEL_ROOT}/releases" "${PANEL_ROOT}/shared"
+  install -d -o "$PANEL_USER" -g "$PANEL_USER" -m 0700 "${PANEL_ROOT}/tmp"
+  for dir in storage storage/app storage/app/private storage/app/public storage/framework \
+    storage/framework/cache storage/framework/cache/data storage/framework/sessions \
+    storage/framework/views storage/logs storage/app/transfers; do
+    install -d -o "$PANEL_USER" -g "$PANEL_USER" -m 2770 "${PANEL_ROOT}/shared/${dir}"
+  done
+  # nginx serves the static files through the group, like for websites.
+  usermod --append --groups "$PANEL_USER" "$OWP_WEB_USER"
+  # The restored .env keeps the APP_KEY that decrypts the stored secrets.
+  if restoring; then
+    owp_restore_env "${RESTORE_DIR}/files" "$PANEL_USER"
+  fi
+}
+
+write_env() {
+  local env_file="${PANEL_ROOT}/shared/.env" tmp
+  if [[ -f "$env_file" ]]; then
+    owp_write_setting "$env_file" OWPANEL_VERSION "$VERSION"
+    owp_write_setting "$env_file" OWPANEL_TIMEZONE "$TIMEZONE"
+    owp_write_setting "$env_file" DB_PASSWORD "$DB_PASSWORD"
+    # The repository moved (E-179); a different URL (e.g. a fork) stays.
+    if [[ "$(owp_read_setting "$env_file" OWPANEL_SOURCE_URL)" == "https://github.com/goettlichal/owpanel" ]]; then
+      owp_write_setting "$env_file" OWPANEL_SOURCE_URL "https://github.com/goettlichit/owpanel"
+    fi
+    owp_log "kept: ${env_file}"
+    return 0
+  fi
+  tmp="$(mktemp "${PANEL_ROOT}/shared/.env.XXXXXX")"
+  owp_render_env "$tmp" "$DOMAIN" "$VERSION" "$TIMEZONE" "$(owp_random_app_key)" "$DB_PASSWORD" "$WORKER_KEY"
+  chown "root:${PANEL_USER}" "$tmp"
+  chmod 0640 "$tmp"
+  mv -f "$tmp" "$env_file"
+  owp_log "created: ${env_file}"
+}
+
+# Copies the panel into releases/<version>. Code belongs to root, so a hole
+# in the panel cannot change its own code. bootstrap/cache comes prebuilt
+# with the archive and stays read-only too.
+install_release() {
+  local release="${PANEL_ROOT}/releases/${VERSION}" stage
+  step "Panel ${VERSION}"
+  stage="$(mktemp -d "${PANEL_ROOT}/releases/.new.XXXXXX")"
+  cp -a "${SOURCE_ROOT}/panel" "${stage}/panel"
+  # The panel compares the release keys of its servers with this file (E-167).
+  if [[ -f "${SOURCE_ROOT}/release-signers" ]]; then
+    cp "${SOURCE_ROOT}/release-signers" "${stage}/release-signers"
+  fi
+  rm -rf "${stage}/panel/storage" "${stage}/panel/.env"
+  ln -s ../../../shared/storage "${stage}/panel/storage"
+  ln -s ../../../shared/.env "${stage}/panel/.env"
+  chown -R -h "root:${PANEL_USER}" "$stage"
+  find "$stage" -type d -exec chmod 0750 {} +
+  find "$stage" -type f -exec chmod 0640 {} +
+  chmod 0750 "$stage"
+
+  rm -rf "$release"
+  mv -T "$stage" "$release"
+  RELEASE_DIR="$release"
+}
+
+# A first installation, a restore included, owns the package system from
+# start to end: Debian's automatic updates pause, and the installer itself
+# updates the package lists and installs all pending updates before the
+# base services and once more at the end. The automatic updates stay
+# paused until the installer ends, or until the restart it offers.
+pause_updates() {
+  [[ "$FIRST_RUN" -eq 1 ]] || return 0
+  owp_apt_pause_updates
+}
+
+# The second pass at the end catches what was published meanwhile, so the
+# restart offered next covers everything. The panel checks updates and the
+# restart hint of this server anew instead of showing older results, such
+# as those from a restored database.
+final_updates() {
+  [[ "$FIRST_RUN" -eq 1 ]] || return 0
+  printf '\n'
+  owp_log "installing the updates published during the installation"
+  owp_apt_upgrade >/dev/null
+  ok "system up to date"
+  mariadb --protocol=socket owpanel -e "UPDATE servers SET updates = NULL, updates_checked_at = NULL, reboot_required = 0 WHERE host IN ('127.0.0.1', '::1', 'localhost')" \
+    || owp_warn "could not reset the update state of this server in the panel"
+}
+
+# Updates, e.g. a new kernel from unattended-upgrades on a fresh server, can
+# need a restart. Offers it at the end, so it is not due right after the
+# installation. Waits until the panel's server tasks are done (at most ten
+# minutes), then restarts a few seconds after the installer has ended.
+# Runs a query against the panel's database as root over the socket.
+panel_query() {
+  mariadb --protocol=socket -N -B owpanel -e "$1" 2>/dev/null || true
+}
+
+# Waits until the rebuild of the websites after a restore has ended (E-106):
+# the queued job that starts it and every task since the backups were
+# reconnected. Shows the progress every 30 seconds; Enter stops waiting.
+# Returns 1 if it stopped early, after at most six hours.
+wait_for_rebuild() {
+  local waited=0 interactive=0 jobs open finished failed skipped running counts
+  [[ -r /dev/tty && -t 1 ]] && interactive=1
+  printf '  %sWaiting for the rebuild of the websites; each step shows under Server -> Tasks.%s\n' "$C_DIM" "$C_RESET"
+  ((interactive == 0)) || printf '  %sPress Enter to stop waiting and restart later.%s\n' "$C_DIM" "$C_RESET"
+  while ((waited < 21600)); do
+    jobs="$(panel_query "SELECT COUNT(*) FROM jobs WHERE payload LIKE '%RebuildMissingSites%'")"
+    counts="$(panel_query "SELECT COALESCE(SUM(status IN ('pending', 'running')), 0), COALESCE(SUM(status = 'succeeded'), 0), COALESCE(SUM(status = 'failed' AND COALESCE(error, '') <> 'previous_failed'), 0), COALESCE(SUM(error = 'previous_failed'), 0) FROM server_tasks WHERE created_at >= '${REBUILD_SINCE}'")"
+    read -r open finished failed skipped <<<"${counts:-0 0 0 0}"
+    if [[ "${jobs:-0}" == 0 && "${open:-0}" == 0 ]]; then
+      if [[ "${failed:-0}" == 0 ]]; then
+        ok "websites rebuilt: ${finished} steps"
+      else
+        owp_warn "rebuild ended: ${finished} steps done, ${failed} failed, ${skipped} skipped; see Server -> Tasks"
+      fi
+      return 0
+    fi
+    if ((waited % 30 == 0)); then
+      running="$(panel_query "SELECT CONCAT(t.script, COALESCE(CONCAT(' ', s.domain), '')) FROM server_tasks t LEFT JOIN sites s ON s.id = t.site_id WHERE t.status = 'running' AND t.created_at >= '${REBUILD_SINCE}' LIMIT 1")"
+      owp_log "rebuild: ${finished} done, ${open} open${running:+, now ${running}}"
+    fi
+    if ((interactive == 1)); then
+      if IFS= read -r -t 5 _ </dev/tty; then
+        return 1
+      fi
+    else
+      sleep 5
+    fi
+    waited=$((waited + 5))
+  done
+  owp_warn "the rebuild is still running after six hours"
+  return 1
+}
+
+offer_reboot() {
+  local answer waited=0 open question="Restart now?"
+  owp_reboot_required || return 0
+  # A restart would cut off the rebuild of the websites, so it waits for it
+  # to end, however long that takes (E-106).
+  [[ "$RESTORE_SITES" -eq 0 ]] || question="Restart once the websites are rebuilt?"
+  if [[ -z "$REBOOT" ]]; then
+    if [[ -r /dev/tty && -t 1 ]]; then
+      printf '\n  %sUpdates need a restart of this server. %s%s %s[Y/n]%s: ' "$C_YELLOW" "$question" "$C_RESET" "$C_DIM" "$C_RESET" >/dev/tty
+      IFS= read -r answer </dev/tty
+      [[ -z "$answer" || "${answer,,}" == y || "${answer,,}" == yes || "${answer,,}" == j || "${answer,,}" == ja ]] && REBOOT=reboot
+    fi
+  fi
+  if [[ "$REBOOT" == reboot && "$RESTORE_SITES" -eq 1 ]] && ! wait_for_rebuild; then
+    REBOOT=""
+    printf '  %sThe rebuild goes on in the panel. Restart under Server -> Updates once it has ended.%s\n' "$C_DIM" "$C_RESET"
+    return 0
+  fi
+  if [[ "$REBOOT" != reboot ]]; then
+    printf '  %sRestart the server later; the panel shows the hint until then.%s\n' "$C_DIM" "$C_RESET"
+    return 0
+  fi
+
+  # Server tasks only, e.g. connecting the backups and the first backup of
+  # the panel that follows: a restart would cut them off, and the panel
+  # would show them as running for an hour. The queue's own short jobs,
+  # such as the status checks every minute, do not count.
+  while ((waited < 600)); do
+    open="$(mariadb --protocol=socket -N owpanel -e "SELECT GROUP_CONCAT(script SEPARATOR ', ') FROM server_tasks WHERE status IN ('pending', 'running')" 2>/dev/null || true)"
+    [[ -n "$open" && "$open" != NULL ]] || break
+    ((waited % 30 != 0)) || owp_log "waiting for tasks of the panel before the restart: ${open}"
+    sleep 5
+    waited=$((waited + 5))
+  done
+  systemd-run --quiet --on-active=10 --unit=owpanel-install-reboot systemctl reboot \
+    || owp_die "reboot_failed" "the restart could not be scheduled; restart the server by hand"
+  # The automatic updates start with the boot, not in the seconds before it.
+  export OWP_KEEP_UPDATES_PAUSED=1
+  printf '  %s↻ The server restarts in 10 seconds; the panel is back about a minute later.%s\n' "$C_YELLOW" "$C_RESET"
+}
+
+# After a restore the own server is a new machine: it gets a new key for its
+# subaccount, as "Save and connect" would do, through the queue. If wanted,
+# the panel then builds the websites of this server again (E-106).
+reconnect_backups() {
+  restoring || return 0
+  local -a options=()
+  [[ "$RESTORE_SITES" -eq 0 ]] || options+=(--rebuild-sites)
+  REBUILD_SINCE="$(date -u '+%F %T')"
+  if ! artisan owpanel:reconnect-backups "${options[@]}" >/dev/null; then
+    owp_warn "backups not reconnected; click \"Save and connect\" under Server -> Backups"
+    RESTORE_SITES=0
+  fi
+}
+
+# On an update or repair, the configuration of every website is written
+# again, so new templates reach websites created before (E-171). Tasks in
+# the queue; a website whose files are missing is left out.
+refresh_sites() {
+  [[ "$FIRST_RUN" -eq 0 ]] && ! restoring || return 0
+  if artisan owpanel:refresh-sites >/dev/null; then
+    ok "Configuration of the websites queued; each one shows under Server -> Tasks"
+  else
+    owp_warn "the websites were not refreshed; run the installer again"
+  fi
+}
+
+artisan() {
+  (cd "${RELEASE_DIR}/panel" && runuser -u "$PANEL_USER" -- php artisan "$@")
+}
+
+migrate() {
+  step "Database tables"
+  artisan migrate --force --no-interaction
+  # Blocklist entries live in the database since E-170; the migration moved
+  # what the panel user could read, the rest is fetched again.
+  rm -rf "${PANEL_ROOT}/shared/storage/app/private/blocklists"
+}
+
+# Laravel's caches for configuration, routes, events and views, so a request
+# does not read them all again. bootstrap/cache belongs to root like the
+# code; it is opened to the panel user only for this step, so nothing runs
+# as root that writes logs or compiled views into storage.
+cache_release() {
+  local cache="${RELEASE_DIR}/panel/bootstrap/cache"
+  chown "${PANEL_USER}:${PANEL_USER}" "$cache"
+  chmod 0750 "$cache"
+  if artisan optimize --no-interaction >/dev/null; then
+    ok "Laravel caches written"
+  else
+    owp_warn "the Laravel caches could not be written; the panel works without them, only slower"
+    # Only these four; the package manifests that come with the release stay.
+    local part
+    for part in config route event view; do
+      artisan "${part}:clear" --no-interaction >/dev/null 2>&1 || true
+    done
+  fi
+  chown -R -h "root:${PANEL_USER}" "$cache"
+  find "$cache" -type f -exec chmod 0640 {} +
+  chmod 0750 "$cache"
+}
+
+# Switches "current" in one step, then lets PHP-FPM drop cached code.
+activate_release() {
+  local link="${PANEL_ROOT}/current" tmp="${PANEL_ROOT}/.current.new"
+  rm -f "$tmp"
+  ln -s "releases/${VERSION}" "$tmp"
+  chown -h "root:${PANEL_USER}" "$tmp"
+  mv -T -f "$tmp" "$link"
+  ok "active release: ${VERSION}"
+}
+
+apply_pool() {
+  local php
+  step "PHP-FPM pool"
+  php="$(owp_php_version)" || owp_die "php_not_installed" "PHP is missing"
+  owp_apply_config "${TEMPLATES}/php-pool.conf" "/etc/php/${php}/fpm/pool.d/owpanel-${PANEL_USER}.conf" \
+    0644 "php${php}-fpm" reload -- "php-fpm${php}" -t \
+    || owp_die "php_pool_invalid" "PHP-FPM rejected the panel pool"
+  # A new release has new files under the same path; drop the cached ones.
+  systemctl reload "php${php}-fpm"
+}
+
+apply_nginx() {
+  local variant="$1"
+  owp_tmpdir
+  owp_render "${TEMPLATES}/nginx-${variant}.conf" "${OWP_TMPDIR}/panel.conf" "DOMAIN=${DOMAIN}"
+  owp_apply_config "${OWP_TMPDIR}/panel.conf" "$PANEL_NGINX" 0644 nginx reload -- nginx -t \
+    || owp_die "nginx_config_invalid" "nginx rejected the panel configuration"
+}
+
+certificate_covers() {
+  local cert="/etc/letsencrypt/live/${PANEL_USER}/fullchain.pem"
+  [[ -f "$cert" ]] \
+    && openssl x509 -in "$cert" -noout -checkhost "$DOMAIN" 2>/dev/null | grep -q ' does match '
+}
+
+setup_web() {
+  step "Web server and certificate"
+  if ! certificate_covers; then
+    apply_nginx http
+    certbot certonly --webroot --webroot-path "$ACME_ROOT" \
+      --cert-name "$PANEL_USER" --domain "$DOMAIN" \
+      --non-interactive --agree-tos --register-unsafely-without-email \
+      --keep-until-expiring \
+      || owp_die "certificate_failed" "Let's Encrypt did not issue a certificate for ${DOMAIN}; check DNS and port 80"
+  fi
+  apply_nginx https
+  ok "https://${DOMAIN} with HTTP/3"
+}
+
+create_admin() {
+  [[ "$FIRST_RUN" -eq 1 ]] && ! restoring || return 0
+  step "Administrator"
+  # The password goes through stdin, never through the process list.
+  printf '%s\n' "$ADMIN_PASSWORD" | artisan owpanel:create-admin --password-stdin --skip-existing \
+    --first-name="$ADMIN_FIRST_NAME" --last-name="$ADMIN_LAST_NAME" --email="$ADMIN_EMAIL" \
+    || owp_die "admin_failed" "the administrator could not be created"
+  ADMIN_PASSWORD=""
+}
+
+# The panel's own server is the first server, reached over SSH like any other
+# (docs/ARCHITEKTUR.md, "Standalone und Multi-Server").
+add_own_server() {
+  local name ipv4 ipv6
+  local -a addresses=()
+  step "Own server"
+  name="$(hostname -s 2>/dev/null || true)"
+  [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,62}$ ]] || name="server"
+  # Shown in the panel; a second run fills them in for older installations.
+  ipv4="$(owp_public_address 4)"
+  ipv6="$(owp_public_address 6)"
+  [[ -z "$ipv4" ]] || addresses+=("--public-ipv4=${ipv4}")
+  [[ -z "$ipv6" ]] || addresses+=("--public-ipv6=${ipv6}")
+  artisan owpanel:add-server --skip-existing --name="$name" --host=127.0.0.1 --port="$SSH_PORT" \
+    --host-key-file=/etc/ssh/ssh_host_ed25519_key.pub "${addresses[@]}" \
+    || owp_die "add_server_failed" "the own server could not be added"
+}
+
+# Installs a systemd unit from the templates. Returns 0 if it changed.
+install_unit() {
+  local unit="/etc/systemd/system/$1"
+  cmp -s "${TEMPLATES}/$1" "$unit" && return 1
+  install -o root -g root -m 0644 "${TEMPLATES}/$1" "$unit"
+}
+
+# Queue worker for server tasks, query worker for the database tool (E-079),
+# and the scheduler timer that checks the servers once a minute (E-075).
+start_queue() {
+  local changed=0 unit
+  step "Queue worker and scheduler"
+  for unit in "$QUEUE_UNIT" "$QUERY_UNIT" "$SCHEDULER_SERVICE" "$SCHEDULER_TIMER"; do
+    if install_unit "$unit"; then
+      changed=1
+    fi
+  done
+  [[ "$changed" -eq 0 ]] || systemctl daemon-reload
+  # Panel logs are rotated daily and kept for 14 days (E-092).
+  install -o root -g root -m 0644 "${TEMPLATES}/logrotate-owpanel" /etc/logrotate.d/owpanel
+  for unit in "$QUEUE_UNIT" "$QUERY_UNIT"; do
+    systemctl enable "$unit" >/dev/null 2>&1
+    systemctl restart "$unit"
+    systemctl is-active --quiet "$unit" || owp_die "queue_failed" "${unit} did not start"
+    ok "${unit} running"
+  done
+  systemctl enable --now "$SCHEDULER_TIMER" >/dev/null 2>&1
+  systemctl is-active --quiet "$SCHEDULER_TIMER" || owp_die "scheduler_failed" "${SCHEDULER_TIMER} did not start"
+  # First check right away, so the overview shows the server as online.
+  systemctl start --no-block "$SCHEDULER_SERVICE"
+  ok "${SCHEDULER_TIMER} active"
+}
+
+write_state() {
+  install -d -o root -g root -m 0755 "$(dirname "$STATE_FILE")"
+  printf '# Written by the OWPanel installer.\nDOMAIN=%s\nTIMEZONE=%s\nVERSION=%s\n' \
+    "$DOMAIN" "$TIMEZONE" "$VERSION" >"${STATE_FILE}.new"
+  chmod 0644 "${STATE_FILE}.new"
+  mv -f "${STATE_FILE}.new" "$STATE_FILE"
+}
+
+# Keeps the public release key of this archive for later updates of the
+# server scripts, which install only signed archives (E-167). An archive
+# without a key line leaves an existing file alone.
+write_release_key() {
+  local source="${SOURCE_ROOT}/release-signers"
+  [[ -f "$source" ]] && grep -q '^owpanel-release ' "$source" || return 0
+  install -d -o root -g root -m 0755 "$(dirname "$RELEASE_KEY_FILE")"
+  install -o root -g root -m 0644 "$source" "${RELEASE_KEY_FILE}.new"
+  mv -f "${RELEASE_KEY_FILE}.new" "$RELEASE_KEY_FILE"
+  ok "release key in ${RELEASE_KEY_FILE}"
+}
+
+main() {
+  owp_init "install"
+  parse_arguments "$@"
+  owp_require_root
+  owp_check_os
+  check_release
+
+  # Not owp_lock: the server scripts take that lock themselves.
+  exec 7>/run/owpanel-install.lock
+  flock -n 7 || owp_die "already_running" "another installer run is in progress"
+
+  banner
+  load_state
+  pause_updates
+  offer_restore
+  if [[ "$FIRST_RUN" -eq 0 ]]; then
+    printf '\n%sOWPanel is installed for %s; this run repairs or updates it.%s\n' "$C_DIM" "$DOMAIN" "$C_RESET"
+  fi
+  collect_answers
+  printf '\n'
+  check_domain
+  confirm_answers
+  STEPS=11
+  if [[ "$FIRST_RUN" -eq 1 ]] && ! restoring; then STEPS=12; fi
+  if renaming; then STEPS=$((STEPS + 1)); fi
+
+  ensure_panel_user
+  ensure_worker
+  setup_agent
+  find_ssh_port
+  provision
+  set_timezone
+  set_hostname
+  setup_database
+  prepare_directories
+  write_env
+  install_release
+  migrate
+  cache_release
+  activate_release
+  apply_pool
+  setup_web
+  create_admin
+  add_own_server
+  start_queue
+  reconnect_backups
+  refresh_sites
+  write_state
+  write_release_key
+  final_updates
+
+  printf '\n%s%s✓ OWPanel %s is ready%s\n\n' "$C_GREEN" "$C_BOLD" "$VERSION" "$C_RESET"
+  printf '  %-10s %s%shttps://%s%s\n' "Address" "$C_BOLD" "$C_CYAN" "$DOMAIN" "$C_RESET"
+  if restoring; then
+    printf '  %-10s %s\n' "Sign-in" "with your accounts from the backup"
+    printf '  %-10s %s\n' "Backup" "${RESTORE_SNAPSHOT} of ${RESTORE_TIME} UTC (shown under System -> Backup)"
+    printf '\n  %sThe backups of this server connect again by themselves within a minute.%s\n' "$C_DIM" "$C_RESET"
+    if [[ "$RESTORE_SITES" -eq 1 ]]; then
+      printf '  %sThen the panel rebuilds the websites of this server; each step shows under Tasks.%s\n' "$C_DIM" "$C_RESET"
+    else
+      printf '  %sThen rebuild the websites of this server under Server -> Backups.%s\n' "$C_DIM" "$C_RESET"
+    fi
+  elif [[ "$FIRST_RUN" -eq 1 ]]; then
+    printf '  %-10s %s\n' "Sign-in" "$ADMIN_EMAIL"
+    printf '\n  %sTwo-factor sign-in is set up at the first login.%s\n' "$C_DIM" "$C_RESET"
+  fi
+  if renaming; then
+    printf '\n  %sHost name: %s. Set the reverse DNS (PTR) of the IP addresses to it at your provider.%s\n' \
+      "$C_DIM" "$HOSTNAME_NEW" "$C_RESET"
+  fi
+  offer_reboot
+  printf '\n'
+  owp_result_ok "\"version\":\"${VERSION}\",\"domain\":\"${DOMAIN}\",\"reboot\":$([[ "$REBOOT" == reboot ]] && echo true || echo false)"
+}
+
+main "$@"

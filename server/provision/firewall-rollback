@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Restores the firewall rules that were live before an unconfirmed change.
+# Started by the rollback timer, never through sudo (E-044).
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/firewall.sh
+source /opt/owpanel/lib/firewall.sh
+
+main() {
+  owp_init "firewall-rollback"
+  owp_require_root
+  owp_firewall_lock
+  if [[ ! -e "${OWP_FW_STATE}/pending.nft" ]]; then
+    owp_log "nothing to roll back"
+    owp_result_ok
+    return 0
+  fi
+  if [[ -e "${OWP_FW_STATE}/previous.nft" ]]; then
+    nft -f "${OWP_FW_STATE}/previous.nft"
+  elif owp_firewall_loaded; then
+    nft delete table "$OWP_FW_TABLE"
+  fi
+  rm -f "${OWP_FW_STATE}/pending.nft" "${OWP_FW_STATE}/pending.list" "${OWP_FW_STATE}/previous.nft"
+  owp_warn "firewall change was not confirmed, previous rules restored"
+  owp_result_ok '"rolled_back":true'
+}
+
+main "$@"

@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Builds the release archive (E-068): the panel with its PHP packages and
+# built assets, the server scripts and the installer. Servers need neither
+# Composer nor Node.js. Runs in GitHub Actions; needs git, PHP with Composer
+# and Node.js with npm.
+#
+#   scripts/build-release [<version>] [<output directory>]
+#
+# Without a version, "dev-<commit>" is used. Tagged builds pass e.g. 1.2.0.
+# Only files tracked by git go into the archive. COMPOSER_PREFER=--prefer-source
+# helps where GitHub's download API is not reachable.
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+commit="$(git rev-parse --short=12 HEAD)"
+version="${1:-dev-${commit}}"
+out="$(realpath -m "${2:-dist}")"
+if [[ ! "$version" =~ ^([0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}(-[0-9A-Za-z.]{1,32})?|dev-[0-9a-f]{7,40})$ ]]; then
+  echo "error: invalid version ${version}" >&2
+  exit 1
+fi
+
+name="owpanel-${version}"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+stage="${work}/${name}"
+mkdir -p "$stage"
+
+git archive --format=tar HEAD install LICENSE README.md CHANGELOG.md release-signers server panel | tar -x -C "$stage"
+printf '%s\n' "$version" >"${stage}/VERSION"
+
+(
+  cd "${stage}/panel"
+  # Production packages only; package:discover fills bootstrap/cache, which
+  # stays read-only on the server.
+  COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --no-interaction --no-progress \
+    "${COMPOSER_PREFER:---prefer-dist}" --optimize-autoloader
+  npm ci --no-audit --no-fund
+  npm run build
+  node scripts/check-licenses.mjs
+  # Licence of the font, which is part of the built assets (docs/DESIGN.md).
+  mkdir -p licenses
+  cp node_modules/@fontsource-variable/inter/LICENSE licenses/inter-OFL.txt
+  rm -rf node_modules tests .env .env.example phpunit.xml package.json package-lock.json \
+    vite.config.js scripts resources/css resources/js
+)
+
+mkdir -p "$out"
+tar --exclude-vcs --sort=name --owner=0 --group=0 --numeric-owner --mtime="@$(git log -1 --format=%ct)" \
+  -czf "${out}/${name}.tar.gz" -C "$work" "$name"
+(cd "$out" && sha256sum "${name}.tar.gz" >"${name}.tar.gz.sha256")
+
+echo "built: ${out}/${name}.tar.gz"
+cat "${out}/${name}.tar.gz.sha256"

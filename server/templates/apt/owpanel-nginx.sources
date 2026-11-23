@@ -1,0 +1,7 @@
+# Managed by OWPanel. Do not edit, changes are overwritten.
+# NGINX stable from nginx.org (E-042).
+Types: deb
+URIs: https://nginx.org/packages/debian
+Suites: trixie
+Components: nginx
+Signed-By: /etc/apt/keyrings/owpanel-nginx.gpg

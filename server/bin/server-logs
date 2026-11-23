@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Shows the end of a server log for the panel (E-087). It only reads, and
+# only these logs; there is no way to name a file.
+#
+#   auth      SSH sign-ins, sudo and su (journal, facilities auth and authpriv)
+#   fail2ban  bans and unbans of fail2ban
+#   nginx     the global nginx error log, outside the websites
+#   system    the system journal
+#
+#   server-logs --log auth [--lines 200]
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+
+# Tests point these to fixtures, a fake journalctl and their PHP; sudo
+# drops them.
+OWP_NGINX_LOGS="${OWP_NGINX_LOGS:-/var/log/nginx}"
+OWP_FAIL2BAN_LOG="${OWP_FAIL2BAN_LOG:-/var/log/fail2ban.log}"
+OWP_JOURNALCTL="${OWP_JOURNALCTL:-journalctl}"
+OWP_PHP_BIN="${OWP_PHP_BIN:-/usr/bin/php${OWP_PHP_VERSION}}"
+
+usage() {
+  owp_die "invalid_arguments" "usage: server-logs --log auth|fail2ban|nginx|system [--lines <1-1000>]"
+}
+
+journal() {
+  "$OWP_JOURNALCTL" --no-pager --quiet --output=short-iso --lines="$1" "${@:2}" 2>/dev/null || true
+}
+
+# The lines of the chosen log, oldest first.
+read_log() {
+  local log="$1" count="$2"
+  case "$log" in
+    auth) journal "$count" SYSLOG_FACILITY=4 SYSLOG_FACILITY=10 ;;
+    fail2ban)
+      if [[ -f "$OWP_FAIL2BAN_LOG" ]]; then
+        tail -n "$count" "$OWP_FAIL2BAN_LOG"
+      else
+        journal "$count" --unit=fail2ban.service
+      fi
+      ;;
+    nginx)
+      if [[ -f "${OWP_NGINX_LOGS}/error.log" ]]; then
+        tail -n "$count" "${OWP_NGINX_LOGS}/error.log"
+      fi
+      ;;
+    system) journal "$count" ;;
+  esac
+}
+
+main() {
+  local log="" count=200 php
+  owp_init "server-logs"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --log | --lines)
+        [[ $# -ge 2 ]] || usage
+        if [[ "$1" == "--log" ]]; then log="$2"; else count="$2"; fi
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  [[ "$log" =~ ^(auth|fail2ban|nginx|system)$ ]] || usage
+  if [[ ! "$count" =~ ^[1-9][0-9]{0,3}$ ]] || ((count > 1000)); then
+    usage
+  fi
+
+  # Only reads; sudo runs it as root, so it can read the journal and logs.
+  php="$OWP_PHP_BIN"
+  command -v "$php" >/dev/null || owp_die "php_not_installed" "PHP ${OWP_PHP_VERSION} is missing"
+
+  owp_result_ok "$(printf '"log":"%s","lines":%s' "$log" "$(read_log "$log" "$count" | "$php" -n "${OWP_ROOT}/lib/json-lines.php")")"
+}
+
+main "$@"

@@ -1,0 +1,292 @@
+#!/usr/bin/env bash
+# Reports the state and load of the server for the panel (E-075): host name,
+# system, uptime, CPU, load, memory, disk and network counters, in total and
+# per network card (E-111). Read only, without lock; called once a minute.
+#
+#   server-status
+#
+# CPU usage is measured over one second. Counters are totals since boot.
+# A reboot is required if a newer kernel is installed or
+# /run/reboot-required exists (E-076). "sites" lists the existing websites
+# (E-106); "scripts_version" and "release_keys" are described below.
+set -euo pipefail
+
+# The answer only ever gains fields, so panels of other versions can read
+# it (E-167). "scripts_version" is the version of the installed server
+# scripts, or null for scripts from a checkout. "release_keys" lists the
+# fingerprints (SHA256) of the keys in /etc/owpanel/release-signers.
+# "php_versions" lists the PHP versions installed for websites (E-172).
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+
+# Files read by this script. Tests point them to fixtures.
+OWP_STATUS_PROC="${OWP_STATUS_PROC:-/proc}"
+OWP_STATUS_SYS="${OWP_STATUS_SYS:-/sys}"
+OWP_STATUS_OS_RELEASE="${OWP_STATUS_OS_RELEASE:-/etc/os-release}"
+OWP_STATUS_REBOOT_FILE="${OWP_STATUS_REBOOT_FILE:-/run/reboot-required}"
+OWP_STATUS_INTERVAL="${OWP_STATUS_INTERVAL:-1}"
+OWP_SITES_ROOT="${OWP_SITES_ROOT:-/var/www}"
+OWP_STATUS_PHP_FPM="${OWP_STATUS_PHP_FPM:-/usr/sbin/php-fpm}"
+OWP_SYSTEMCTL="${OWP_SYSTEMCTL:-systemctl}"
+OWP_STATUS_VERSION_FILE="${OWP_STATUS_VERSION_FILE:-${OWP_ROOT}/VERSION}"
+OWP_STATUS_SIGNERS_FILE="${OWP_STATUS_SIGNERS_FILE:-/etc/owpanel/release-signers}"
+
+# Helpers print nothing when a value is missing; main() checks every value
+# with number(), because owp_die in a command substitution would only end
+# the subshell.
+
+# Prints "<busy> <total>" jiffies from the first line of /proc/stat.
+cpu_times() {
+  awk '$1 == "cpu" { printf "%.0f %.0f\n", $2 + $3 + $4 + $7 + $8 + $9, $2 + $3 + $4 + $5 + $6 + $7 + $8 + $9; exit }' \
+    "${OWP_STATUS_PROC}/stat"
+}
+
+# CPU usage in tenths of a percent over the measuring interval.
+cpu_permille() {
+  local busy1 total1 busy2 total2
+  read -r busy1 total1 < <(cpu_times) || return 0
+  sleep "$OWP_STATUS_INTERVAL"
+  read -r busy2 total2 < <(cpu_times) || return 0
+  [[ "$busy1$total1$busy2$total2" =~ ^[0-9]+$ ]] || return 0
+  if ((total2 <= total1)); then
+    printf '0\n'
+  else
+    printf '%s\n' "$(((busy2 - busy1) * 1000 / (total2 - total1)))"
+  fi
+}
+
+# Value of a line in /proc/meminfo in bytes, e.g. meminfo MemTotal.
+meminfo() {
+  awk -v key="$1:" '$1 == key && $2 ~ /^[0-9]+$/ { printf "%.0f\n", $2 * 1024; exit }' "${OWP_STATUS_PROC}/meminfo"
+}
+
+# Received and sent bytes of all interfaces except loopback.
+network_bytes() {
+  awk 'NR > 2 {
+         sub(/^ */, "")
+         split($0, part, ":")
+         if (part[1] == "lo") next
+         split(part[2], field, " ")
+         rx += field[1]; tx += field[9]
+       }
+       END { printf "%.0f %.0f\n", rx, tx }' "${OWP_STATUS_PROC}/net/dev"
+}
+
+# Interfaces with the default route (IPv4 or IPv6), one per line.
+default_route_interfaces() {
+  {
+    awk 'NR > 1 && $2 == "00000000" && $8 == "00000000" { print $1 }' "${OWP_STATUS_PROC}/net/route" 2>/dev/null || true
+    awk '$1 == "00000000000000000000000000000000" && $2 == "00" && $10 != "lo" { print $10 }' \
+      "${OWP_STATUS_PROC}/net/ipv6_route" 2>/dev/null || true
+  } | sort -u
+}
+
+# JSON list of the network cards: interfaces backed by a device, so bridges,
+# tunnels and loopback are left out. At most eight, names checked. "public"
+# marks the cards with the default route, e.g. eth0 next to a Hetzner
+# private network. The panel turns the counters into rates.
+network_interfaces_json() {
+  local public name rx tx list="" count=0
+  public="$(default_route_interfaces)"
+  while read -r name rx tx; do
+    [[ "$name" =~ ^[A-Za-z0-9_.-]{1,15}$ && "$rx" =~ ^[0-9]+$ && "$tx" =~ ^[0-9]+$ ]] || continue
+    [[ -e "${OWP_STATUS_SYS}/class/net/${name}/device" ]] || continue
+    ((count < 8)) || break
+    list+="${list:+,}$(printf '{"name":"%s","rx":%s,"tx":%s,"public":%s}' "$name" "$rx" "$tx" \
+      "$(grep -qxF "$name" <<<"$public" && echo true || echo false)")"
+    count=$((count + 1))
+  done < <(awk 'NR > 2 {
+         sub(/^ */, "")
+         split($0, part, ":")
+         split(part[2], field, " ")
+         printf "%s %.0f %.0f\n", part[1], field[1], field[9]
+       }' "${OWP_STATUS_PROC}/net/dev")
+  printf '[%s]' "$list"
+}
+
+# Fully qualified host name, e.g. web1.example.de. Falls back to the short
+# name if the system has no domain configured.
+host_name() {
+  local name
+  name="$(hostname --fqdn 2>/dev/null || true)"
+  [[ "$name" == *.* ]] || name="$(hostname 2>/dev/null || true)"
+  name="${name,,}"
+  [[ "$name" =~ ^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$ ]] || name=""
+  printf '%s\n' "$name"
+}
+
+# PRETTY_NAME from os-release, limited to harmless characters for JSON.
+os_name() {
+  local name
+  name="$(awk -F= '$1 == "PRETTY_NAME" { print $2; exit }' "$OWP_STATUS_OS_RELEASE" 2>/dev/null || true)"
+  name="${name#\"}"
+  name="${name%\"}"
+  [[ "$name" =~ ^[A-Za-z0-9\ ._/()+-]{1,80}$ ]] || name=""
+  printf '%s\n' "$name"
+}
+
+kernel_release() {
+  local kernel
+  kernel="$(uname -r)"
+  [[ "$kernel" =~ ^[A-Za-z0-9._+-]{1,64}$ ]] || kernel=""
+  printf '%s\n' "$kernel"
+}
+
+# Website users with a htdocs directory, as a JSON list; the panel's own
+# user is not a website. At most 5000 entries.
+site_users_json() {
+  local dir name list="" count=0
+  for dir in "${OWP_SITES_ROOT}"/ow*; do
+    [[ -d "$dir" && ! -L "$dir" && -d "${dir}/htdocs" && ! -L "${dir}/htdocs" ]] || continue
+    name="${dir##*/}"
+    owp_valid_site_user "$name" || continue
+    ! owp_reserved_site_user "$name" || continue
+    ((count < 5000)) || break
+    list+="${list:+,}\"${name}\""
+    count=$((count + 1))
+  done
+  printf '[%s]' "$list"
+}
+
+number() {
+  [[ "$2" =~ ^[0-9]+(\.[0-9]+)?$ ]] || owp_die "status_unreadable" "missing or unexpected value for $1"
+}
+
+# Services the panel relies on (E-160): nginx, every PHP-FPM, MariaDB,
+# fail2ban and nftables, but only those that are enabled, so a server
+# without a database does not report a stopped one.
+watched_units() {
+  printf '%s\n' nginx.service mariadb.service fail2ban.service nftables.service
+  "$OWP_SYSTEMCTL" list-unit-files --type=service --no-legend 'php*-fpm.service' 2>/dev/null | awk '{ print $1 }' || true
+}
+
+services_json() {
+  local unit active list="" count=0
+  command -v "$OWP_SYSTEMCTL" >/dev/null 2>&1 || {
+    printf '[]'
+    return 0
+  }
+  while read -r unit; do
+    [[ "$unit" =~ ^[a-z0-9][a-z0-9.@-]{0,58}\.service$ ]] || continue
+    "$OWP_SYSTEMCTL" is-enabled --quiet "$unit" 2>/dev/null || continue
+    active=false
+    if "$OWP_SYSTEMCTL" is-active --quiet "$unit" 2>/dev/null; then
+      active=true
+    else
+      # A restart by the panel takes a moment; look once more.
+      sleep "$OWP_STATUS_INTERVAL"
+      ! "$OWP_SYSTEMCTL" is-active --quiet "$unit" 2>/dev/null || active=true
+    fi
+    ((count < 12)) || break
+    list+="${list:+,}$(printf '{"name":"%s","active":%s}' "${unit%.service}" "$active")"
+    count=$((count + 1))
+  done < <(watched_units | sort -u)
+  printf '[%s]' "$list"
+}
+
+# PHP versions for websites that are installed, as a JSON array (E-172).
+php_versions_json() {
+  local v list=""
+  for v in "${OWP_PHP_VERSIONS[@]}"; do
+    [[ -x "${OWP_STATUS_PHP_FPM}${v}" ]] || continue
+    # Installed but not running, e.g. after a failed start: not offered.
+    if command -v "$OWP_SYSTEMCTL" >/dev/null 2>&1; then
+      "$OWP_SYSTEMCTL" is-active --quiet "php${v}-fpm.service" 2>/dev/null || continue
+    fi
+    list+="${list:+,}\"${v}\""
+  done
+  printf '[%s]' "$list"
+}
+
+# Version of the server scripts as a JSON string, or null (E-167).
+scripts_version_json() {
+  local version=""
+  if [[ -f "$OWP_STATUS_VERSION_FILE" ]]; then
+    read -r version <"$OWP_STATUS_VERSION_FILE" || true
+  fi
+  if [[ "$version" =~ $OWP_VERSION_RE ]]; then
+    printf '"%s"' "$version"
+  else
+    printf 'null'
+  fi
+}
+
+# Fingerprints of the release keys as a JSON array (E-167). Each line is
+# "owpanel-release [options] <type> <base64>"; ssh-keygen gives the same
+# SHA256 fingerprint the panel computes for its own key.
+release_keys_json() {
+  local line field type blob fingerprint first=1 count=0
+  local -a fields
+  printf '['
+  if [[ -f "$OWP_STATUS_SIGNERS_FILE" ]]; then
+    while IFS= read -r line && [[ "$count" -lt 5 ]]; do
+      [[ "$line" =~ ^owpanel-release[[:space:]] ]] || continue
+      read -r -a fields <<<"$line"
+      type="" blob=""
+      for field in "${fields[@]}"; do
+        if [[ -n "$type" ]]; then
+          blob="$field"
+          break
+        fi
+        if [[ "$field" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-nistp256@openssh\.com)$ ]]; then
+          type="$field"
+        fi
+      done
+      [[ "$blob" =~ ^[A-Za-z0-9+/]+={0,2}$ ]] || continue
+      fingerprint="$(printf '%s %s\n' "$type" "$blob" | ssh-keygen -l -E sha256 -f - 2>/dev/null | awk '{ print $2 }')" || true
+      [[ "$fingerprint" =~ ^SHA256:[A-Za-z0-9+/]{43}$ ]] || continue
+      [[ "$first" -eq 1 ]] || printf ','
+      printf '"%s"' "$fingerprint"
+      first=0
+      count=$((count + 1))
+    done <"$OWP_STATUS_SIGNERS_FILE"
+  fi
+  printf ']'
+}
+
+main() {
+  local cpu="" cores="" load1="" load5="" load15="" uptime="" mem_total="" mem_available="" swap_total="" swap_free=""
+  local disk_total="" disk_used="" rx="" tx="" reboot=false
+  owp_init "server-status"
+  [[ $# -eq 0 ]] || owp_die "invalid_arguments" "usage: server-status"
+
+  cpu="$(cpu_permille)"
+  cores="$(grep -c "^processor" "${OWP_STATUS_PROC}/cpuinfo" || true)"
+  [[ "$cores" != "0" ]] || cores="$(nproc)"
+  read -r load1 load5 load15 _ <"${OWP_STATUS_PROC}/loadavg" || true
+  read -r uptime _ <"${OWP_STATUS_PROC}/uptime" || true
+  uptime="${uptime%%.*}"
+  mem_total="$(meminfo MemTotal)"
+  mem_available="$(meminfo MemAvailable)"
+  swap_total="$(meminfo SwapTotal)"
+  swap_free="$(meminfo SwapFree)"
+  read -r disk_total disk_used < <(df -P -B1 / | awk 'NR == 2 { print $2, $3 }') || true
+  read -r rx tx < <(network_bytes) || true
+  ! owp_reboot_required || reboot=true
+
+  number cpu "$cpu"
+  number memory "$mem_total"
+  number memory "$mem_available"
+  number swap "$swap_total"
+  number swap "$swap_free"
+  number cores "$cores"
+  number load "$load1"
+  number load "$load5"
+  number load "$load15"
+  number uptime "$uptime"
+  number disk "$disk_total"
+  number disk "$disk_used"
+  number network "$rx"
+  number network "$tx"
+
+  owp_result_ok "$(printf '"hostname":"%s","os":"%s","kernel":"%s","uptime":%s,"cpu_cores":%s,"cpu":%s.%s,"load":[%s,%s,%s],"memory":{"total":%s,"used":%s},"swap":{"total":%s,"used":%s},"disk":{"total":%s,"used":%s},"network":{"rx":%s,"tx":%s,"interfaces":%s},"reboot_required":%s,"sites":%s,"services":%s,"scripts_version":%s,"release_keys":%s,"php_versions":%s' \
+    "$(host_name)" "$(os_name)" "$(kernel_release)" "$uptime" "$cores" \
+    "$((cpu / 10))" "$((cpu % 10))" "$load1" "$load5" "$load15" \
+    "$mem_total" "$((mem_total - mem_available))" "$swap_total" "$((swap_total - swap_free))" \
+    "$disk_total" "$disk_used" "$rx" "$tx" "$(network_interfaces_json)" "$reboot" "$(site_users_json)" "$(services_json)" "$(scripts_version_json)" "$(release_keys_json)" "$(php_versions_json)")"
+}
+
+main "$@"

@@ -1,0 +1,450 @@
+/*
+ * Website and documentation of OWPanel, in the look of the panel
+ * (docs/DESIGN.md): Tabler, Inter, the two-row header like goettlich.it and
+ * cards with a coloured line on top. Everything is served from the site.
+ */
+:root {
+    --tblr-font-sans-serif: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    --tblr-shadow-card: 0 1px 2px rgba(29, 39, 59, .06), 0 4px 12px rgba(29, 39, 59, .07);
+    --ow-width: 87.5rem;
+}
+
+[data-bs-theme=dark] {
+    --tblr-shadow-card: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 12px rgba(0, 0, 0, .35);
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--tblr-bg-surface-secondary);
+}
+
+main { flex: 1 0 auto; }
+
+.page-title,
+.card-title,
+.badge { overflow-wrap: anywhere; }
+
+.ow-skip {
+    position: absolute;
+    left: 1rem;
+    top: .5rem;
+    z-index: 10;
+    padding: .5rem .75rem;
+    background: var(--tblr-bg-surface);
+    border-radius: var(--tblr-border-radius);
+}
+
+/* Header in two rows, as in the panel (E-057). */
+.ow-topbar {
+    background: var(--tblr-bg-surface);
+    border-bottom: 1px solid var(--tblr-border-color);
+    padding: .75rem 0;
+}
+
+.ow-bar,
+.ow-wrap {
+    width: 100%;
+    max-width: var(--ow-width);
+    margin-inline: auto;
+    padding-inline: 1.5rem;
+}
+
+.ow-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.ow-topbar-end {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+}
+
+.ow-brand {
+    display: flex;
+    align-items: center;
+    gap: .875rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+.ow-brand:hover { color: inherit; text-decoration: none; }
+
+.ow-brand-name {
+    font-size: 1.375rem;
+    font-weight: 500;
+    color: var(--tblr-secondary);
+}
+
+.ow-icon-button {
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--tblr-primary);
+    font-size: 1.375rem;
+}
+
+.ow-lang {
+    font-size: .875rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+}
+
+.ow-mainnav {
+    position: relative;
+    z-index: 2;
+    box-shadow: var(--tblr-shadow-card);
+    background: var(--tblr-bg-surface-secondary);
+    border-bottom: 1px solid var(--tblr-border-color);
+}
+
+.ow-mainnav .ow-bar {
+    align-items: stretch;
+    gap: .25rem;
+}
+
+.ow-mainnav-link {
+    display: flex;
+    align-items: center;
+    gap: .625rem;
+    padding: 1rem .875rem;
+    color: var(--tblr-body-color);
+    text-decoration: none;
+    border-bottom: 3px solid transparent;
+}
+
+.ow-mainnav-link:hover { color: var(--tblr-primary); text-decoration: none; }
+
+.ow-mainnav-link.active {
+    font-weight: 600;
+    border-bottom-color: var(--tblr-primary);
+}
+
+.ow-mainnav-link .ti { font-size: 1.25rem; }
+
+/* Start page. */
+.ow-hero {
+    background: var(--tblr-bg-surface);
+    border-bottom: 1px solid var(--tblr-border-color);
+    padding: 4rem 0;
+}
+
+.ow-hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: 3rem;
+    align-items: center;
+}
+
+.ow-hero-title {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 700;
+    line-height: 1.15;
+    margin-bottom: 1rem;
+}
+
+.ow-hero-lead {
+    font-size: 1.25rem;
+    color: var(--tblr-secondary);
+    margin-bottom: 1.75rem;
+    max-width: 38rem;
+}
+
+.ow-preview .card { box-shadow: var(--tblr-shadow-card); }
+
+.ow-section { padding: 3.5rem 0; }
+
+.ow-section-alt {
+    background: var(--tblr-bg-surface);
+    border-block: 1px solid var(--tblr-border-color);
+}
+
+.ow-section-heading {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: .5rem;
+}
+
+.ow-section-lead {
+    color: var(--tblr-secondary);
+    font-size: 1.0625rem;
+    max-width: 48rem;
+    margin-bottom: 1.75rem;
+}
+
+.ow-feature-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: var(--tblr-border-radius);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--tblr-primary-lt);
+    color: var(--tblr-primary);
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.ow-step {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--tblr-primary);
+    color: #fff;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+
+.ow-two {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 3rem;
+}
+
+.ow-milestones {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 1rem;
+}
+
+.ow-milestone {
+    display: grid;
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.ow-milestone .badge { justify-self: start; margin-top: .125rem; }
+
+/* Documentation: menu on the left, contents in a card, page outline on the right. */
+.ow-body {
+    width: 100%;
+    max-width: var(--ow-width);
+    margin-inline: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    align-items: flex-start;
+}
+
+.ow-sidebar {
+    flex: 1 1 13.75rem;
+    max-width: 16.25rem;
+    position: sticky;
+    top: 1rem;
+}
+
+.ow-content {
+    flex: 999 1 35rem;
+    min-width: 0;
+}
+
+.ow-toc {
+    flex: 0 0 14rem;
+    position: sticky;
+    top: 1rem;
+}
+
+.ow-sidebar-group {
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--tblr-secondary);
+    margin: 1rem .75rem .375rem;
+}
+
+.ow-sidebar-group:first-child { margin-top: 0; }
+
+/* Readers of the documentation (E-178): administrators, then customers. */
+.ow-sidebar-audience {
+    font-size: .875rem;
+    font-weight: 700;
+    color: var(--tblr-body-color);
+    margin: 1.5rem .75rem .25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--tblr-border-color);
+}
+
+.ow-sidebar-audience:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+
+.ow-sidebar-audience + .ow-sidebar-group { margin-top: .5rem; }
+
+.ow-audience-title {
+    font-size: 1.375rem;
+    font-weight: 700;
+    margin: 2rem 0 .25rem;
+}
+
+.ow-audience-title:first-child { margin-top: 0; }
+
+.ow-sidebar .nav-link,
+.ow-toc .nav-link {
+    border-radius: var(--tblr-border-radius);
+    padding: .5rem .75rem;
+    gap: .625rem;
+}
+
+.ow-toc .nav-link {
+    padding-block: .3rem;
+    color: var(--tblr-secondary);
+    font-size: .875rem;
+}
+
+.ow-sidebar .nav-link.active {
+    color: var(--tblr-primary);
+    background: var(--tblr-primary-lt);
+    font-weight: 600;
+}
+
+.ow-section-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0 0 .75rem;
+}
+
+.ow-doc-icon { font-size: 1.375rem; color: var(--tblr-primary); }
+
+.ow-prose { font-size: .9375rem; line-height: 1.7; }
+
+.ow-prose h2 {
+    font-size: 1.375rem;
+    font-weight: 600;
+    margin: 2rem 0 .75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--tblr-border-color);
+    scroll-margin-top: 1rem;
+}
+
+.ow-prose h2:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+
+.ow-prose h3 {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    margin: 1.5rem 0 .5rem;
+    scroll-margin-top: 1rem;
+}
+
+.ow-prose pre {
+    position: relative;
+    padding: 1rem 5.5rem 1rem 1.25rem;
+    overflow-x: auto;
+    border-radius: var(--tblr-border-radius);
+    background: var(--tblr-bg-surface-dark, #182433);
+    color: #e6edf3;
+    font-size: .8125rem;
+}
+
+.ow-prose pre code { background: none; color: inherit; padding: 0; }
+
+.ow-prose :not(pre) > code {
+    background: var(--tblr-bg-surface-secondary);
+    color: var(--tblr-body-color);
+    padding: .1rem .35rem;
+    border-radius: .25rem;
+    font-size: .875em;
+}
+
+.ow-copy {
+    position: absolute;
+    top: .5rem;
+    right: .5rem;
+    color: #c9d1d9;
+}
+
+.ow-prose table { font-size: .875rem; }
+.ow-prose ol,
+.ow-prose ul { padding-left: 1.5rem; }
+.ow-prose li { margin-bottom: .25rem; }
+
+.ow-note {
+    display: flex;
+    gap: .75rem;
+    align-items: flex-start;
+}
+
+.ow-note-icon { font-size: 1.25rem; line-height: 1.5; }
+.ow-note-body { color: var(--tblr-body-color); }
+.ow-note-body > :last-child { margin-bottom: 0; }
+
+.ow-pager {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1.5rem;
+}
+
+/* Footer as in the panel (E-067). */
+.ow-footer {
+    background: var(--tblr-bg-surface);
+    border-top: 1px solid var(--tblr-border-color);
+    margin-top: 2rem;
+}
+
+.ow-footer-columns {
+    width: 100%;
+    max-width: var(--ow-width);
+    margin-inline: auto;
+    padding: 2rem 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 2rem;
+}
+
+.ow-footer-title {
+    font-size: .875rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-bottom: .75rem;
+}
+
+.ow-footer-bottom {
+    border-top: 1px solid var(--tblr-border-color);
+    padding: 1rem 1.5rem;
+    text-align: center;
+    font-size: .8125rem;
+    color: var(--tblr-secondary);
+}
+
+/* A running task turns its icon (E-108). */
+@keyframes ow-spin { to { transform: rotate(360deg); } }
+.status-running .ti { display: inline-block; animation: ow-spin 1s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+    .status-running .ti { animation: none; }
+}
+
+@media (max-width: 1199.98px) {
+    .ow-toc { display: none; }
+}
+
+@media (max-width: 991.98px) {
+    .ow-hero-grid,
+    .ow-two { grid-template-columns: minmax(0, 1fr); }
+    .ow-hero { padding: 2.5rem 0; }
+}
+
+@media (max-width: 767.98px) {
+    .ow-brand-name { display: none; }
+    .ow-sidebar { max-width: none; position: static; }
+    .ow-mainnav-link span { font-size: .875rem; }
+    .ow-mainnav-link { padding: .875rem .5rem; }
+    .ow-milestone { grid-template-columns: minmax(0, 1fr); gap: .25rem; }
+}

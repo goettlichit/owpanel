@@ -1,0 +1,32 @@
+# Managed by OWPanel. Do not edit, changes are overwritten.
+# Laravel scheduler of the panel (E-075), started once a minute by
+# owpanel-scheduler.timer. Runs as owpanel-worker like the queue worker,
+# because the server checks need the panel's SSH key.
+[Unit]
+Description=OWPanel scheduler
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=owpanel-worker
+Group=owpanel-worker
+SupplementaryGroups=ow10000
+WorkingDirectory=/var/www/ow10000/current/panel
+Environment=LOG_PATH=/var/www/ow10000/shared/storage/logs/worker.log
+Environment=VIEW_COMPILED_PATH=/var/lib/owpanel-worker/views
+ExecStart=/usr/bin/php artisan schedule:run --no-interaction
+TimeoutStartSec=300
+UMask=0027
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+# The transfer directory holds database exports and imports (E-082).
+ReadWritePaths=/var/www/ow10000/shared/storage/logs /var/www/ow10000/shared/storage/app/transfers /var/lib/owpanel-worker/views
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes

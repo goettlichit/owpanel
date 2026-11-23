@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Sets the time zone of the server, so logs show the local time of the
+# admin (E-046). The setup wizard and later the panel settings call it.
+#
+#   server-timezone --zone Europe/Berlin
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+
+usage() {
+  owp_die "invalid_arguments" "usage: server-timezone --zone <Area/City>"
+}
+
+main() {
+  local zone="" current service
+  owp_init "server-timezone"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --zone)
+        [[ $# -ge 2 ]] || usage
+        zone="$2"
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  [[ -n "$zone" ]] || usage
+  owp_valid_timezone "$zone" || owp_die "invalid_timezone" "unknown time zone"
+
+  owp_require_root
+  owp_check_os
+  owp_lock 120
+
+  current="$(timedatectl show --property=Timezone --value)"
+  if [[ "$current" == "$zone" ]]; then
+    owp_log "unchanged: time zone ${zone}"
+  else
+    timedatectl set-timezone "$zone" || owp_die "timezone_failed" "could not set the time zone"
+    owp_log "updated: time zone ${current} -> ${zone}"
+    # Services read the zone when they start; restart those that write logs.
+    local -a services=(nginx fail2ban)
+    for service in "${OWP_PHP_VERSIONS[@]}"; do
+      services+=("php${service}-fpm")
+    done
+    for service in "${services[@]}"; do
+      if systemctl is-active --quiet "$service"; then
+        systemctl restart "$service" || owp_warn "${service} did not restart"
+      fi
+    done
+  fi
+  owp_result_ok "\"timezone\":\"${zone}\""
+}
+
+main "$@"

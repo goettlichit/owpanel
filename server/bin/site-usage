@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Measures the storage of every website on this server (E-126): the files
+# of its user and the size of its databases. With user quotas the file
+# system knows the files already; without them du counts. Only reads.
+#
+#   site-usage
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/database.sh
+source /opt/owpanel/lib/database.sh
+# shellcheck source=server/lib/quota.sh
+source /opt/owpanel/lib/quota.sh
+
+main() {
+  local quota=false fstype dir user files limit json="" first=1
+  local -A used=() hard=() databases=()
+  owp_init "site-usage"
+  [[ $# -eq 0 ]] || owp_die "invalid_arguments" "site-usage takes no parameters"
+  owp_require_root
+
+  fstype="$(findmnt -n -o FSTYPE --target "$OWP_QUOTA_ROOT" 2>/dev/null || true)"
+  if owp_quota_active; then
+    quota=true
+    while read -r user files limit; do
+      used["$user"]=$((files * 1024))
+      hard["$user"]=$((limit * 1024))
+    done < <(owp_quota_report)
+  fi
+
+  # Databases belong to mysql; their size is counted by name prefix.
+  if owp_mariadb_running; then
+    while IFS=$'\t' read -r user files; do
+      owp_valid_site_user "$user" && databases["$user"]="${files%%.*}"
+    done < <(owp_mariadb -e "SELECT SUBSTRING_INDEX(table_schema, '_', 1), SUM(data_length + index_length)
+      FROM information_schema.tables WHERE table_schema REGEXP '^ow[0-9]{5}_' GROUP BY 1" 2>/dev/null || true)
+  fi
+
+  for dir in "${OWP_QUOTA_ROOT}"/ow*; do
+    user="${dir##*/}"
+    [[ -d "$dir" && ! -L "$dir" ]] || continue
+    owp_valid_site_user "$user" || continue
+    owp_reserved_site_user "$user" && continue
+    if [[ "$quota" == true ]]; then
+      files="${used[$user]:-0}"
+    else
+      files="$(du -sxB1 -- "$dir" 2>/dev/null | cut -f1)"
+      [[ "$files" =~ ^[0-9]+$ ]] || files=0
+    fi
+    ((first)) || json+=","
+    first=0
+    json+="$(printf '{"user":"%s","files":%d,"databases":%d,"limit":%d}' \
+      "$user" "$files" "${databases[$user]:-0}" "${hard[$user]:-0}")"
+  done
+
+  owp_result_ok "$(printf '"quota":%s,"filesystem":"%s","sites":[%s]' "$quota" "${fstype//[^a-z0-9]/}" "$json")"
+}
+
+main "$@"

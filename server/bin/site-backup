@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Backs up one website with restic (E-096): its directory below /var/www
+# and a dump of each of its databases. Snapshots carry the tag
+# site:<user> and either schedule or manual. Afterwards old scheduled
+# snapshots of the website are removed according to the retention, 7 daily,
+# 4 weekly and 6 monthly by default; snapshots by hand stay until removed
+# by a person.
+#
+#   site-backup --user ow38217 [--manual] [--keep-hourly 24] [--keep-daily 7 --keep-weekly 4 --keep-monthly 6]
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/database.sh
+source /opt/owpanel/lib/database.sh
+# shellcheck source=server/lib/backup.sh
+source /opt/owpanel/lib/backup.sh
+# shellcheck source=server/lib/site-backup.sh
+source /opt/owpanel/lib/site-backup.sh
+
+usage() {
+  owp_die "invalid_arguments" "usage: site-backup --user <owNNNNN> [--manual] [--keep-hourly N] [--keep-daily N --keep-weekly N --keep-monthly N]"
+}
+
+main() {
+  local user="" hourly=0 daily=7 weekly=4 monthly=6 kind="schedule" value
+  owp_init "site-backup"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --user | --keep-hourly | --keep-daily | --keep-weekly | --keep-monthly)
+        [[ $# -ge 2 ]] || usage
+        case "$1" in
+          --user) user="$2" ;;
+          --keep-hourly) hourly="$2" ;;
+          --keep-daily) daily="$2" ;;
+          --keep-weekly) weekly="$2" ;;
+          --keep-monthly) monthly="$2" ;;
+        esac
+        shift 2
+        ;;
+      --manual)
+        kind="manual"
+        shift
+        ;;
+      *) usage ;;
+    esac
+  done
+  owp_valid_site_user "$user" || owp_die "invalid_user" "invalid site user"
+  owp_reserved_site_user "$user" && owp_die "reserved_user" "${user} belongs to the panel"
+  for value in "$hourly" "$daily" "$weekly" "$monthly"; do
+    [[ "$value" =~ ^[0-9]{1,3}$ ]] || usage
+  done
+  ((daily >= 1)) || owp_die "invalid_arguments" "keep at least one daily snapshot"
+
+  owp_require_root
+  owp_require_backup
+  owp_lock 3600
+
+  owp_site_backup "$user" "$kind"
+
+  owp_log "removing old scheduled snapshots of ${user} (keep ${hourly} hourly, ${daily} daily, ${weekly} weekly, ${monthly} monthly)"
+  if ! owp_restic forget --quiet --prune --tag "site:${user},schedule" --group-by tags \
+    --keep-hourly "$hourly" --keep-daily "$daily" --keep-weekly "$weekly" --keep-monthly "$monthly" >/dev/null 2>"${OWP_TMPDIR}/restic.err"; then
+    owp_warn "removing old snapshots failed: $(tail -n 1 "${OWP_TMPDIR}/restic.err")"
+  fi
+
+  owp_result_ok "\"snapshot\":\"${OWP_SITE_SNAPSHOT}\",\"kind\":\"${kind}\",\"databases\":${OWP_SITE_DATABASES},\"files\":${OWP_SITE_FILES:-0},\"bytes_added\":${OWP_SITE_ADDED:-0}"
+}
+
+main "$@"

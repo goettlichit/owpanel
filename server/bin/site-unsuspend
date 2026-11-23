@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Brings a suspended website back to exactly the state before site-suspend
+# (E-127). Repeatable; on a website that is not suspended it changes nothing.
+#
+#   site-unsuspend --user ow38217
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/suspend.sh
+source /opt/owpanel/lib/suspend.sh
+
+restore_pools() {
+  local user="$1" state="$2" kept version
+  for kept in "${state}"/pool-*.conf; do
+    [[ -e "$kept" ]] || continue
+    version="$(owp_suspend_php_version "$kept")" || continue
+    owp_apply_config "$kept" "/etc/php/${version}/fpm/pool.d/owpanel-${user}.conf" 0644 \
+      "php${version}-fpm" reload -- "php-fpm${version}" -t \
+      || owp_die "php_pool_invalid" "PHP-FPM rejected the pool of ${user}; it stays suspended"
+    rm -f "$kept"
+  done
+}
+
+restore_cron() {
+  local user="$1" state="$2" file="${OWP_CRON_DIR}/owpanel-${1}"
+  [[ -f "${state}/cron" ]] || return 0
+  # A file written meanwhile wins; the panel blocks changes while suspended.
+  if [[ -e "$file" ]]; then
+    rm -f "${state}/cron"
+  else
+    mv -f "${state}/cron" "$file"
+    owp_log "cron jobs back"
+  fi
+}
+
+unlock_sftp() {
+  local user="$1" state="$2" expire
+  [[ -f "${state}/expire" ]] || return 0
+  expire="$(<"${state}/expire")"
+  [[ "$expire" =~ ^[0-9]+$ ]] || expire="-1"
+  chage --expiredate "$expire" "$user" || owp_die "sftp_unlock_failed" "the account could not be unlocked"
+  rm -f "${state}/expire"
+  owp_log "SFTP unlocked"
+}
+
+restore_nginx() {
+  local file="${OWP_NGINX_SITES}/${1}.conf"
+  [[ -f "$file" ]] || owp_die "site_not_found" "${file} is missing"
+  owp_tmpdir
+  owp_suspend_nginx_without "$file" >"${OWP_TMPDIR}/site.conf"
+  owp_apply_config "${OWP_TMPDIR}/site.conf" "$file" 0644 nginx reload -- nginx -t \
+    || owp_die "nginx_config_invalid" "nginx rejected the configuration; the website stays suspended"
+}
+
+main() {
+  local user state
+  owp_init "site-unsuspend"
+  owp_suspend_args "$@"
+  user="$OWP_SUSPEND_USER"
+  owp_require_root
+  owp_check_os
+  owp_lock 120
+  getent passwd "$user" >/dev/null || owp_die "site_not_found" "website ${user} does not exist"
+
+  state="${OWP_SUSPEND_DIR}/${user}"
+  # PHP first, so the website works the moment nginx serves it again.
+  if [[ -d "$state" ]]; then
+    restore_pools "$user" "$state"
+    restore_cron "$user" "$state"
+    unlock_sftp "$user" "$state"
+  fi
+  restore_nginx "$user"
+  rm -rf -- "$state"
+
+  owp_result_ok "\"user\":\"${user}\",\"suspended\":false"
+}
+
+main "$@"

@@ -1,0 +1,116 @@
+{
+    "skip": "Skip to content",
+    "home": "OWPanel, to the start page",
+    "language": { "switch": "Deutsche Fassung" },
+    "theme": { "switch": "Change appearance", "system": "Appearance: system", "light": "Appearance: light", "dark": "Appearance: dark" },
+    "nav": { "main": "Main navigation", "home": "Home", "features": "Features", "docs": "Documentation", "roadmap": "Roadmap", "source": "Source code" },
+    "footer": {
+        "about_title": "About OWPanel",
+        "about": "A simple, bilingual control panel for Debian servers: websites with HTTP/3, databases, backups and notifications, on one server or many.",
+        "help_title": "Help",
+        "install": "Installation",
+        "issues": "Report a bug",
+        "license_title": "Free software",
+        "license": "OWPanel is licensed under the GNU Affero General Public License 3.0 or later. You may use, change and share it.",
+        "source": "Source code",
+        "imprint": "Imprint",
+        "privacy": "Privacy"
+    },
+    "docs": {
+        "title": "Documentation",
+        "lead": "For administrators from installation to recovery after a failure, for customers everything about their websites in the customer area.",
+        "menu": "Contents of the documentation",
+        "on_this_page": "On this page",
+        "pager": "Previous and next page",
+        "audiences": {
+            "admin": "For administrators",
+            "customer": "For customers"
+        },
+        "audience_leads": {
+            "admin": "Installation, servers, websites, customers, backups and security: how to set up and run OWPanel.",
+            "customer": "If your provider uses OWPanel: your websites, PHP, files, databases, cron jobs and backups in the customer area."
+        }
+    },
+    "not_found": {
+        "title": "This page does not exist.",
+        "text": "Perhaps the address has changed.",
+        "home": "To the start page"
+    },
+    "home": {
+        "status_badge": "Early development",
+        "title": "Server panel for Debian: simple, native, bilingual",
+        "lead": "OWPanel sets up websites with HTTPS and HTTP/3, databases, backups and notifications on your own Debian server. No Docker, no configuration files, in English and German.",
+        "cta_docs": "Read the documentation",
+        "cta_install": "Installation",
+        "status_text": "OWPanel is in development and tested on servers in the Hetzner Cloud. Please do not use it in production yet.",
+        "preview": {
+            "title": "Websites on this server",
+            "site": "Website",
+            "backup": "Kind",
+            "last": "Last backup",
+            "automatic": "automatic",
+            "manual": "by hand",
+            "succeeded": "Succeeded",
+            "running": "Running",
+            "rows": [
+                { "domain": "shop.example.com", "manual": false, "running": false },
+                { "domain": "blog.example.com", "manual": true, "running": false },
+                { "domain": "client.example.org", "manual": false, "running": true }
+            ]
+        },
+        "features_title": "What OWPanel does",
+        "features_lead": "Only the features you really need to run websites, done thoroughly and secure by default.",
+        "features": [
+            { "icon": "world-www", "title": "Websites with HTTP/3", "text": "Each website gets its own Linux user, PHP-FPM with PHP 8.5 or 8.6 and a certificate from Let's Encrypt. HTTP/3 over QUIC is always on, with HTTP/2 and HTTP/1.1 as fallback." },
+            { "icon": "database", "title": "Databases in the panel", "text": "Create MariaDB databases, browse tables and content, run SQL, export and import, without phpMyAdmin." },
+            { "icon": "shield-lock", "title": "Secure by default", "text": "nftables firewall with automatic rollback and blocklists, fail2ban, separate users per website, two-factor sign-in and an audit log." },
+            { "icon": "database-export", "title": "Backups and snapshots", "text": "Backups with restic to a Hetzner Storage Box, daily or hourly, and Hetzner snapshots of the whole server with retention rules." },
+            { "icon": "history", "title": "Recovery", "text": "Restore a whole website or single folders and databases, set up the panel again after a total loss and rebuild missing websites automatically." },
+            { "icon": "bell-ringing", "title": "Notifications", "text": "Messages by e-mail and push to phone and desktop: failed backups, servers down, full disks, expiring certificates. With quiet hours." },
+            { "icon": "terminal-2", "title": "SFTP, cron jobs and logs", "text": "SFTP access per website with password or key, cron jobs without crontab and all important logs right in the panel." },
+            { "icon": "users", "title": "Customers and packages", "text": "Assign websites to customers, packages with limits for websites, databases, cron jobs and backups. In their own customer area customers manage their websites themselves, with Pocket ID if you like. Billing and customer records stay in your own system; an API is planned." },
+            { "icon": "server-2", "title": "One server or many", "text": "You start with one server. More servers join later without reinstalling and without migration: the panel takes every request as the gateway and passes it on to the server of the website." }
+        ],
+        "steps_title": "That simple",
+        "steps": [
+            { "title": "Install", "text": "Take a fresh Debian 13 server, run the start script, enter domain, time zone and the first administrator. The installer does the rest." },
+            { "title": "Create a website", "text": "Enter the domain, done. The panel sets up the Linux user, NGINX, PHP-FPM and the certificate with HTTP/3 by itself." },
+            { "title": "Let it back up", "text": "Set up the backup target and snapshots once. From then on the server backs up by itself and lets you know when something goes wrong." }
+        ],
+        "roadmap": {
+            "title": "Where the project stands",
+            "lead": "OWPanel is developed step by step and tested on real servers. Each milestone ends with an acceptance test.",
+            "states": { "done": "done", "next": "next", "planned": "planned" },
+            "items": [
+                { "state": "done", "title": "Server core", "text": "Scripts for NGINX with HTTP/3, PHP-FPM, MariaDB, firewall and websites" },
+                { "state": "done", "title": "Panel foundation", "text": "Sign-in with two-factor, servers, tasks with live log, audit log" },
+                { "state": "done", "title": "Usable standalone", "text": "Websites, databases, customers, SFTP, cron jobs, logs, firewall, updates" },
+                { "state": "done", "title": "Backups and notifications", "text": "restic, Hetzner snapshots, recovery, e-mail and push" },
+                { "state": "done", "title": "Pocket ID", "text": "Sign-in with a passkey through your own Pocket ID instance, for administrators and customers" },
+                { "state": "done", "title": "DNS through the Hetzner API", "text": "Check, create and correct the records of each website and remove them on deletion" },
+                { "state": "done", "title": "Customer area", "text": "Packages, customer access, websites, databases, cron jobs, backups, storage and suspension" },
+                { "state": "next", "title": "Public release", "text": "SSH hardening, security review, blocklists, signed releases, first public releases, then updates from the panel" },
+                { "state": "planned", "title": "Multi-server", "text": "More servers behind the panel as the gateway, an IPv6 address per website, move websites together with their backups" },
+                { "state": "planned", "title": "Docker apps", "text": "Your own services such as Pocket ID as a Compose project on a server, reachable through the panel, for administrators only" },
+                { "state": "planned", "title": "API", "text": "Connect your own homepage: customers, packages, status and a note about unpaid invoices" }
+            ]
+        },
+        "stack": {
+            "title": "Technology",
+            "rows": [
+                ["Target system", "Debian 13"],
+                ["Web server", "NGINX with HTTP/3, HTTP/2 and HTTP/1.1, PHP-FPM with PHP 8.5 and 8.6"],
+                ["Databases", "MariaDB"],
+                ["Firewall", "nftables, blocklists and fail2ban"],
+                ["Backups", "restic, Hetzner Storage Box, Hetzner snapshots"],
+                ["Panel", "PHP, Laravel, Livewire"],
+                ["Interface", "Tabler and Inter, all served locally"],
+                ["Control", "SSH with fixed, checked Bash scripts"]
+            ]
+        },
+        "open": {
+            "title": "Developed in the open, free to use",
+            "text": "OWPanel is free software under the AGPL-3.0-or-later. It loads nothing from other servers, collects no data and runs entirely on your own server."
+        }
+    }
+}

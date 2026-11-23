@@ -1,0 +1,7 @@
+# Managed by OWPanel. Do not edit, changes are overwritten.
+# Current PHP versions from packages.sury.org (E-042).
+Types: deb
+URIs: https://packages.sury.org/php
+Suites: trixie
+Components: main
+Signed-By: /etc/apt/keyrings/owpanel-sury-php.gpg

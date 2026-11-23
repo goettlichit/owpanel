@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Shows the end of a website's log for the panel (E-086). It only reads.
+#
+#   access  nginx access log
+#   error   nginx error log, including PHP messages from PHP-FPM
+#   php     only the PHP messages from the error log
+#   cron    output of the website's cron jobs (journal, E-088)
+#
+#   site-logs --user ow38217 --log access|error|php|cron [--lines 200]
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+
+# Tests point these to fixtures and their PHP; sudo drops them.
+OWP_NGINX_LOGS="${OWP_NGINX_LOGS:-/var/log/nginx}"
+OWP_PHP_BIN="${OWP_PHP_BIN:-/usr/bin/php${OWP_PHP_VERSION}}"
+OWP_JOURNALCTL="${OWP_JOURNALCTL:-journalctl}"
+
+# PHP messages are searched only in the end of the error log, so a large
+# log does not make the panel wait.
+readonly PHP_SEARCH_LINES=20000
+
+usage() {
+  owp_die "invalid_arguments" "usage: site-logs --user <owNNNNN> --log access|error|php|cron [--lines <1-1000>]"
+}
+
+main() {
+  local user="" log="" count=200 file size=0 modified=null php
+  owp_init "site-logs"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --user | --log | --lines)
+        [[ $# -ge 2 ]] || usage
+        case "$1" in
+          --user) user="$2" ;;
+          --log) log="$2" ;;
+          --lines) count="$2" ;;
+        esac
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  owp_valid_site_user "$user" || owp_die "invalid_user" "invalid site user"
+  [[ "$log" =~ ^(access|error|php|cron)$ ]] || usage
+  if [[ ! "$count" =~ ^[1-9][0-9]{0,3}$ ]] || ((count > 1000)); then
+    usage
+  fi
+
+  # Only reads; sudo runs it as root, so it can read the nginx logs.
+  php="$OWP_PHP_BIN"
+  command -v "$php" >/dev/null || owp_die "php_not_installed" "PHP ${OWP_PHP_VERSION} is missing"
+
+  if [[ "$log" == "access" ]]; then
+    file="${OWP_NGINX_LOGS}/${user}.access.log"
+  else
+    file="${OWP_NGINX_LOGS}/${user}.error.log"
+  fi
+
+  if [[ "$log" != "cron" && -f "$file" ]]; then
+    size="$(stat -c %s "$file")"
+    modified="$(stat -c %Y "$file")"
+  fi
+
+  owp_result_ok "$(printf '"log":"%s","size":%s,"modified":%s,"lines":%s' "$log" "$size" "$modified" "$(
+    if [[ "$log" == "cron" ]]; then
+      "$OWP_JOURNALCTL" --no-pager --quiet --output=short-iso --lines="$count" \
+        "SYSLOG_IDENTIFIER=owpanel-cron-${user}" 2>/dev/null || true
+    elif [[ ! -f "$file" ]]; then
+      :
+    elif [[ "$log" == "php" ]]; then
+      tail -n "$PHP_SEARCH_LINES" "$file" | grep -a 'PHP message' | tail -n "$count" || true
+    else
+      tail -n "$count" "$file"
+    fi | "$php" -n "${OWP_ROOT}/lib/json-lines.php"
+  )")"
+}
+
+main "$@"

@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# Creates the owpanel-agent user, installs the server scripts below /opt/owpanel
+# and activates the sudo rules. Used by the installer and by the bootstrap of
+# additional servers. Run as root.
+set -euo pipefail
+
+SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+readonly SOURCE_ROOT
+# shellcheck source=server/lib/common.sh
+source "${SOURCE_ROOT}/lib/common.sh"
+
+readonly SUDOERS_FILE="/etc/sudoers.d/owpanel-agent"
+
+usage() {
+  owp_die "invalid_arguments" "usage: setup-agent --public-key-file <path>"
+}
+
+ensure_user() {
+  if ! id "$OWP_AGENT_USER" >/dev/null 2>&1; then
+    useradd --system --no-create-home --home-dir "$OWP_AGENT_HOME" \
+      --shell /bin/bash --comment "OWPanel agent" "$OWP_AGENT_USER"
+  fi
+  [[ "$(getent passwd "$OWP_AGENT_USER" | cut -d: -f6)" == "$OWP_AGENT_HOME" ]] \
+    || owp_die "agent_user_conflict" "${OWP_AGENT_USER} exists with another home directory"
+  usermod --lock "$OWP_AGENT_USER"
+}
+
+# Home, .ssh and authorized_keys belong to root, so the agent cannot remove the
+# "restrict" option or add keys. sshd accepts root-owned key files.
+install_key() {
+  local key="$1" tmp
+  install -d -o root -g "$OWP_AGENT_USER" -m 0750 "$OWP_AGENT_HOME"
+  install -d -o root -g root -m 0755 "${OWP_AGENT_HOME}/.ssh"
+  tmp="$(mktemp "${OWP_AGENT_HOME}/.ssh/.authorized_keys.XXXXXX")"
+  printf 'restrict %s\n' "$key" >"$tmp"
+  chown root:root "$tmp"
+  chmod 0644 "$tmp"
+  mv -f "$tmp" "${OWP_AGENT_HOME}/.ssh/authorized_keys"
+}
+
+# Replaces /opt/owpanel in one step and leaves nothing writable for the agent.
+install_tree() {
+  local dir stage old version version_file
+  [[ "$SOURCE_ROOT" != "$OWP_ROOT" ]] || return 0
+  [[ ! -L "$OWP_ROOT" ]] || owp_die "unsafe_install_path" "${OWP_ROOT} is a symlink"
+  [[ "$(stat -c '%u %a' /opt)" =~ ^0\ [0-7][0145][0145]$ ]] \
+    || owp_die "unsafe_install_path" "/opt must belong to root and must not be writable by others"
+
+  for dir in bin lib provision templates; do
+    [[ -d "${SOURCE_ROOT}/${dir}" ]] || owp_die "source_incomplete" "missing directory: ${dir}"
+  done
+
+  stage="$(mktemp -d /opt/.owpanel-new.XXXXXX)"
+  for dir in bin lib provision templates; do
+    cp -RL "${SOURCE_ROOT}/${dir}" "${stage}/${dir}"
+  done
+  # Version of the archive (E-167); server-status reports it to the panel.
+  # A checkout of the repository has no VERSION file and installs none.
+  version_file="${SOURCE_ROOT}/../VERSION"
+  if [[ -f "$version_file" ]]; then
+    version="$(head -c 64 "$version_file" | head -n 1)"
+    [[ "$version" =~ $OWP_VERSION_RE ]] || owp_die "source_incomplete" "invalid VERSION file"
+    printf '%s\n' "$version" >"${stage}/VERSION"
+  fi
+  chown -R root:root "$stage"
+  find "$stage" -type d -exec chmod 0755 {} +
+  find "$stage" -type f -exec chmod 0644 {} +
+  find "${stage}/bin" -type f -exec chmod 0755 {} +
+  chmod 0755 "${stage}/provision/setup-agent"
+
+  old="/opt/.owpanel-old.$$"
+  if [[ -e "$OWP_ROOT" ]]; then
+    mv "$OWP_ROOT" "$old"
+  fi
+  mv "$stage" "$OWP_ROOT"
+  rm -rf "$old"
+}
+
+# Files with a dot in their name are ignored by sudo, so the temporary file
+# never becomes active. An invalid rule file would break sudo for the whole host.
+install_sudoers() {
+  local tmp="/etc/sudoers.d/.owpanel-agent.new" backup=""
+  install -o root -g root -m 0440 "${SOURCE_ROOT}/templates/sudoers/owpanel-agent" "$tmp"
+  if ! visudo -cqf "$tmp"; then
+    rm -f "$tmp"
+    owp_die "sudoers_invalid" "sudo rules failed validation"
+  fi
+  if [[ -f "$SUDOERS_FILE" ]]; then
+    backup="/etc/sudoers.d/.owpanel-agent.bak"
+    cp -p "$SUDOERS_FILE" "$backup"
+  fi
+  mv -f "$tmp" "$SUDOERS_FILE"
+  if ! visudo -cq; then
+    if [[ -n "$backup" ]]; then mv -f "$backup" "$SUDOERS_FILE"; else rm -f "$SUDOERS_FILE"; fi
+    owp_die "sudoers_invalid" "sudo configuration failed validation"
+  fi
+  [[ -z "$backup" ]] || rm -f "$backup"
+}
+
+warn_on_ssh_restrictions() {
+  if sshd -T 2>/dev/null | grep -Eqi '^(allowusers|allowgroups) '; then
+    owp_warn "sshd uses AllowUsers or AllowGroups, ${OWP_AGENT_USER} must be permitted there"
+  fi
+}
+
+main() {
+  local key_file=""
+  owp_init "setup-agent"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --public-key-file)
+        [[ $# -ge 2 ]] || usage
+        key_file="$2"
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  [[ -n "$key_file" ]] || usage
+
+  owp_read_public_key "$key_file"
+  owp_require_root
+  owp_check_os
+
+  # sudo and SSH come from Debian. A broken third-party source must not stop
+  # the agent setup, which installs the scripts that repair it; owp_apt_install
+  # only warns about a failing update.
+  owp_apt_install sudo openssh-server
+  ensure_user
+  install_key "$OWP_PUBLIC_KEY"
+  install_tree
+  install_sudoers
+  warn_on_ssh_restrictions
+  owp_result_ok
+}
+
+main "$@"

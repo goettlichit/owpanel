@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Writes a dump of a website's database to stdout, compressed with gzip
+# (E-082). Log lines and the result line go to stderr, so stdout carries
+# nothing but the dump; the panel stores it as a file for download.
+#
+# Runs mariadb-dump as the database user, never as MariaDB's root, so the
+# dump holds only this database. The password comes on stdin.
+#
+#   db-export --name ow38217_shop   < password   > dump.sql.gz
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/database.sh
+source /opt/owpanel/lib/database.sh
+
+usage() {
+  owp_die "invalid_arguments" "usage: db-export --name <owNNNNN_name> < password > dump.sql.gz"
+}
+
+main() {
+  local name="" password
+  # Keep stdout for the dump; everything else, including the result line,
+  # goes to stderr from here on.
+  exec 3>&1 1>&2
+  owp_init "db-export"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --name)
+        [[ $# -ge 2 ]] || usage
+        name="$2"
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  [[ -n "$name" ]] || usage
+  owp_valid_db_name "$name" || owp_die "invalid_database_name" "invalid database name"
+
+  IFS= read -r password || true
+  owp_valid_db_password "$password" || owp_die "invalid_password" "no valid password on stdin"
+
+  owp_require_root
+  owp_check_os
+  owp_require_mariadb
+  getent passwd "$(owp_db_site_user "$name")" >/dev/null || owp_die "site_not_found" "the website of ${name} does not exist"
+
+  owp_log "Exporting ${name}"
+  # --single-transaction: a consistent dump of InnoDB tables without locks.
+  if ! mariadb-dump --defaults-extra-file=<(printf '[client]\nuser=%s\npassword=%s\n' "$name" "$password") \
+    --protocol=socket --single-transaction --quick --routines --triggers --hex-blob \
+    --default-character-set=utf8mb4 --no-tablespaces "$name" | gzip -c >&3; then
+    owp_die "export_failed" "mariadb-dump failed for ${name}"
+  fi
+  exec 3>&-
+
+  owp_log "Export of ${name} finished"
+  owp_result_ok "\"database\":\"${name}\""
+}
+
+main "$@"

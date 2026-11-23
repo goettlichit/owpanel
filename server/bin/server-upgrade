@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Refreshes the package lists or installs all pending updates (E-154).
+# Repeatable; waits for the apt lock, e.g. while unattended-upgrades runs.
+#
+#   server-upgrade --refresh    apt-get update for all sources
+#   server-upgrade --install    apt-get dist-upgrade, keeping changed configs
+set -euo pipefail
+
+# --install installs what the last check listed: it does not refresh the
+# lists first. Changed configuration files stay as they are (confold), as
+# with unattended-upgrades (E-047).
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+
+readonly LOCK_TIMEOUT=600
+OWP_STATUS_REBOOT_FILE="${OWP_STATUS_REBOOT_FILE:-/run/reboot-required}"
+
+usage() {
+  owp_die "invalid_arguments" "usage: server-upgrade --refresh | --install"
+}
+
+apt() {
+  DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get --quiet --yes \
+    -o "DPkg::Lock::Timeout=${LOCK_TIMEOUT}" "$@"
+}
+
+refresh() {
+  apt update 2>&1 | sed 's/^/apt: /' >&2 || owp_die "apt_update_failed" "apt-get update failed"
+  owp_result_ok '"mode":"refresh"'
+}
+
+install_updates() {
+  local before after reboot=false
+  before="$(dpkg-query -W -f='${Package} ${Version}\n' 2>/dev/null | sha256sum)"
+  apt -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold dist-upgrade 2>&1 \
+    | sed 's/^/apt: /' >&2 || owp_die "apt_upgrade_failed" "apt-get dist-upgrade failed"
+  after="$(dpkg-query -W -f='${Package} ${Version}\n' 2>/dev/null | sha256sum)"
+  [[ ! -e "$OWP_STATUS_REBOOT_FILE" ]] || reboot=true
+  owp_result_ok "\"mode\":\"install\",\"changed\":$([[ "$before" != "$after" ]] && echo true || echo false),\"reboot_file\":${reboot}"
+}
+
+main() {
+  owp_init "server-upgrade"
+  [[ $# -eq 1 ]] || usage
+  case "$1" in
+    --refresh | --install) ;;
+    *) usage ;;
+  esac
+  owp_require_root
+  owp_check_os
+
+  if [[ "$1" == "--refresh" ]]; then
+    refresh
+  else
+    install_updates
+  fi
+}
+
+main "$@"

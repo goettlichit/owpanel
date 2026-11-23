@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Shows what one restic snapshot of a website holds (E-098): the entries
+# of one directory below htdocs and the database dumps. Read-only.
+#
+#   site-backup-files --user ow38217 --snapshot 2e2b9c0c [--path wp-content/uploads]
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/database.sh
+source /opt/owpanel/lib/database.sh
+# shellcheck source=server/lib/backup.sh
+source /opt/owpanel/lib/backup.sh
+# shellcheck source=server/lib/site-backup.sh
+source /opt/owpanel/lib/site-backup.sh
+
+usage() {
+  owp_die "invalid_arguments" "usage: site-backup-files --user <owNNNNN> --snapshot <id> [--path <path below htdocs>]"
+}
+
+main() {
+  local user="" snapshot="" path="" full php dir files dumps
+  owp_init "site-backup-files"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --user | --snapshot | --path)
+        [[ $# -ge 2 ]] || usage
+        case "$1" in
+          --user) user="$2" ;;
+          --snapshot) snapshot="$2" ;;
+          --path) path="$2" ;;
+        esac
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  owp_valid_site_user "$user" || owp_die "invalid_user" "invalid site user"
+  owp_reserved_site_user "$user" && owp_die "reserved_user" "${user} belongs to the panel"
+  [[ "$snapshot" =~ ^[0-9a-f]{8,64}$ ]] || owp_die "invalid_snapshot" "invalid snapshot ID"
+  owp_valid_site_path "$path" || owp_die "invalid_path" "invalid path"
+
+  owp_require_root
+  owp_require_backup
+  php="$(command -v php || true)"
+  [[ -n "$php" ]] || owp_die "php_missing" "php is needed to read the listing"
+
+  owp_site_snapshot "$user" "$snapshot"
+  full="$OWP_SNAPSHOT_ID"
+  dir="${OWP_SITES_ROOT}/${user}/htdocs${path:+/${path}}"
+  owp_tmpdir
+  owp_restic ls --json --no-lock "$full" "$dir" >"${OWP_TMPDIR}/files.json" 2>"${OWP_TMPDIR}/restic.err" \
+    || owp_die "list_failed" "$(tail -n 1 "${OWP_TMPDIR}/restic.err")"
+  owp_restic ls --json --no-lock "$full" "${OWP_BACKUP_STAGING}/${user}" >"${OWP_TMPDIR}/dumps.json" 2>"${OWP_TMPDIR}/restic.err" \
+    || owp_die "list_failed" "$(tail -n 1 "${OWP_TMPDIR}/restic.err")"
+
+  files="$("$php" -n "${OWP_ROOT}/lib/backup-files.php" "$dir" <"${OWP_TMPDIR}/files.json")"
+  dumps="$("$php" -n "${OWP_ROOT}/lib/backup-files.php" "${OWP_BACKUP_STAGING}/${user}" <"${OWP_TMPDIR}/dumps.json")"
+  owp_result_ok "\"snapshot\":\"${full:0:8}\",\"files\":${files},\"dumps\":${dumps}"
+}
+
+main "$@"

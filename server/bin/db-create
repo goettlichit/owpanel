@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Creates a MariaDB database and its user for a website, or sets the
+# password again (E-078). The password comes on stdin, so it appears neither
+# in the process list nor in the panel's task log. A second run with the
+# same password changes nothing; with a new one it changes the password.
+#
+#   db-create --name ow38217_shop   < password
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/database.sh
+source /opt/owpanel/lib/database.sh
+
+usage() {
+  owp_die "invalid_arguments" "usage: db-create --name <owNNNNN_name> < password"
+}
+
+main() {
+  local name="" password="" user host
+  owp_init "db-create"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --name)
+        [[ $# -ge 2 ]] || usage
+        name="$2"
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  [[ -n "$name" ]] || usage
+  owp_valid_db_name "$name" || owp_die "invalid_database_name" "invalid database name"
+
+  IFS= read -r -t 10 password || true
+  owp_valid_db_password "$password" || owp_die "invalid_password" "no valid password on stdin"
+
+  owp_require_root
+  owp_check_os
+  owp_require_mariadb
+  owp_lock 120
+
+  # The website must exist; its user is the prefix of the name.
+  user="$(owp_db_site_user "$name")"
+  getent passwd "$user" >/dev/null || owp_die "site_not_found" "website ${user} does not exist"
+
+  {
+    # shellcheck disable=SC2016  # backticks quote the name in SQL
+    printf 'CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n' "$name"
+    for host in "${OWP_DB_HOSTS[@]}"; do
+      printf "CREATE USER IF NOT EXISTS '%s'@'%s' IDENTIFIED BY '%s';\n" "$name" "$host" "$password"
+      printf "ALTER USER '%s'@'%s' IDENTIFIED BY '%s';\n" "$name" "$host" "$password"
+      printf "GRANT ALL PRIVILEGES ON \`%s\`.* TO '%s'@'%s';\n" "$name" "$name" "$host"
+    done
+  } | owp_mariadb || owp_die "database_create_failed" "MariaDB could not create ${name}"
+  owp_log "database and user ${name} are ready"
+
+  owp_result_ok "\"database\":\"${name}\",\"user\":\"${name}\",\"host\":\"localhost\""
+}
+
+main "$@"

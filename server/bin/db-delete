@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Deletes a MariaDB database and its user for good (E-078). A second run
+# changes nothing.
+#
+#   db-delete --name ow38217_shop
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/database.sh
+source /opt/owpanel/lib/database.sh
+
+usage() {
+  owp_die "invalid_arguments" "usage: db-delete --name <owNNNNN_name>"
+}
+
+main() {
+  local name=""
+  owp_init "db-delete"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --name)
+        [[ $# -ge 2 ]] || usage
+        name="$2"
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  [[ -n "$name" ]] || usage
+  owp_valid_db_name "$name" || owp_die "invalid_database_name" "invalid database name"
+
+  owp_require_root
+  owp_check_os
+  owp_require_mariadb
+  owp_lock 120
+
+  owp_drop_database "$name" || owp_die "database_delete_failed" "MariaDB could not delete ${name}"
+  owp_log "database and user ${name} are gone"
+
+  owp_result_ok "\"database\":\"${name}\""
+}
+
+main "$@"

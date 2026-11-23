@@ -1,0 +1,446 @@
+#!/usr/bin/env bash
+# Creates a PHP website or brings an existing one back to the expected state.
+# A second run with the same parameters changes nothing.
+#
+#   site-create --domain example.de --type php --user ow10042 [--php 8.5]
+#               [--tls] [--www] [--previous-domain old.example.de] [--existing]
+#               [--php-memory|--php-upload|--php-time|--php-processes <n>]
+#               [--php-errors on|off]
+#
+# The user (E-034) names files, configs and the certificate (--previous-domain,
+# E-112). --tls requests a Let's Encrypt certificate; while it covers the
+# domain, the site stays on HTTPS, also without --tls. --www sends
+# www.<domain> to the domain (E-110). PHP settings: see read_settings.
+set -euo pipefail
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+
+readonly TEMPLATES="${OWP_ROOT}/templates"
+readonly SITES_ROOT="/var/www"
+readonly ACME_ROOT="/var/lib/owpanel/acme"
+readonly NGINX_SITES="/etc/nginx/owpanel-sites"
+readonly SITE_COMMENT="OWPanel site"
+readonly WELCOME_DIR="/var/lib/owpanel/welcome"
+readonly PHP_CLI_DIR="/var/lib/owpanel/php"
+declare -A SETTINGS=()
+# PHP settings of a website (E-173): defaults and bounds. The panel sends
+# the values within the package; without them a website keeps its own,
+# kept next to its php link.
+readonly -A SETTING_DEFAULT=([memory]=256 [upload]=64 [time]=60 [errors]=off [processes]=10)
+readonly -A SETTING_MIN=([memory]=32 [upload]=1 [time]=10 [processes]=1)
+readonly -A SETTING_MAX=([memory]=4096 [upload]=4096 [time]=3600 [processes]=100)
+# Own placeholder page of the administrator; @DOMAIN@ is replaced.
+readonly WELCOME_OVERRIDE="/etc/owpanel/site-welcome.html"
+
+usage() {
+  owp_die "invalid_arguments" \
+    "usage: site-create --domain <domain> --type php --user <owNNNN> [--php <version>] [--tls] [--www] [--previous-domain <domain>] [--existing] [--php-memory <MB>] [--php-upload <MB>] [--php-time <s>] [--php-errors on|off] [--php-processes <n>]"
+}
+
+# An existing account is only used if name, UID, comment and home directory
+# all match. Otherwise an unrelated account would be taken over.
+ensure_site_user() {
+  local user="$1" uid="$2" root="$3" entry group e_uid e_gid e_comment e_home
+  if entry="$(getent passwd "$user")"; then
+    IFS=: read -r _ _ e_uid e_gid e_comment e_home _ <<<"$entry"
+    [[ "$e_uid" == "$uid" && "$e_gid" == "$uid" && "$e_comment" == "$SITE_COMMENT" \
+      && "$e_home" == "$root" ]] \
+      || owp_die "site_user_conflict" "user ${user} exists but is not an OWPanel site user"
+  else
+    if getent passwd "$uid" >/dev/null; then
+      owp_die "site_uid_conflict" "UID ${uid} is already used by another account"
+    fi
+    if group="$(getent group "$user")"; then
+      [[ "$(cut -d: -f3 <<<"$group")" == "$uid" ]] \
+        || owp_die "site_user_conflict" "group ${user} exists with another GID"
+    elif getent group "$uid" >/dev/null; then
+      owp_die "site_uid_conflict" "GID ${uid} is already used by another group"
+    else
+      groupadd --gid "$uid" "$user"
+    fi
+    useradd --uid "$uid" --gid "$uid" --no-create-home --home-dir "$root" \
+      --shell /usr/sbin/nologin --comment "$SITE_COMMENT" "$user"
+  fi
+  # nginx reads static files through the site group. New workers pick up the
+  # group on the next reload.
+  usermod --append --groups "$user" "$OWP_WEB_USER"
+}
+
+# The site root belongs to root, so the site user cannot swap the entries root
+# works on for symlinks. Everything below htdocs is created as the site user.
+ensure_directories() {
+  local user="$1" root="$2"
+  [[ ! -L "$root" ]] || owp_die "unsafe_path" "${root} is a symlink"
+  install -d -o root -g root -m 0755 "$SITES_ROOT"
+  install -d -o root -g "$user" -m 0750 "$root"
+  [[ ! -L "${root}/htdocs" && ! -L "${root}/tmp" ]] \
+    || owp_die "unsafe_path" "unexpected symlink below ${root}"
+  install -d -o "$user" -g "$user" -m 0750 "${root}/htdocs"
+  install -d -o "$user" -g "$user" -m 0700 "${root}/tmp"
+  runuser -u "$user" -- mkdir -p -m 0750 "${root}/htdocs/public"
+}
+
+# Placeholder page (E-171): nginx shows it for the start page while
+# htdocs/public has neither index.php nor index.html, also after the customer
+# deleted everything. It lives outside the website, belongs to root and is
+# written again on every run, so a new domain or an own page arrive.
+apply_welcome() {
+  local user="$1" domain="$2" page="${OWP_TMPDIR}/welcome.html"
+  if [[ ! -f "$WELCOME_OVERRIDE" ]] || ! owp_render "$WELCOME_OVERRIDE" "$page" "DOMAIN=${domain}" 2>/dev/null; then
+    [[ ! -f "$WELCOME_OVERRIDE" ]] || owp_warn "${WELCOME_OVERRIDE} could not be used; the built-in page is shown"
+    owp_render "${TEMPLATES}/site/welcome.html" "$page" "DOMAIN=${domain}" \
+      || owp_die "template_invalid" "the placeholder page could not be written"
+  fi
+  install -d -o root -g root -m 0755 "$WELCOME_DIR"
+  install -o root -g root -m 0644 "$page" "${WELCOME_DIR}/${user}.html"
+}
+
+# Two sites with the same server_name would make nginx pick one at random.
+# Usage: ensure_domain_free <user> <name>...
+ensure_domain_free() {
+  local user="$1" file name
+  shift
+  for file in "${NGINX_SITES}"/*.conf; do
+    [[ -e "$file" && "$file" != "${NGINX_SITES}/${user}.conf" ]] || continue
+    for name in "$@"; do
+      if owp_server_names "$file" | grep -qxF "$name"; then
+        owp_die "domain_in_use" "${name} already belongs to $(basename "$file" .conf)"
+      fi
+    done
+  done
+}
+
+# PHP version the website runs on now: where its pool is, empty if none.
+current_php() {
+  local pool
+  for pool in /etc/php/*/fpm/pool.d/"owpanel-${1}.conf"; do
+    [[ -e "$pool" ]] || continue
+    pool="${pool#/etc/php/}"
+    printf '%s\n' "${pool%%/*}"
+    return 0
+  done
+}
+
+# Whether a value is allowed for a setting.
+valid_setting() {
+  local key="$1" value="$2"
+  if [[ "$key" == errors ]]; then
+    [[ "$value" == on || "$value" == off ]]
+    return
+  fi
+  local min="${SETTING_MIN[$key]}" max="${SETTING_MAX[$key]}"
+  [[ "$value" =~ ^[1-9][0-9]{0,4}$ ]] && ((value >= min && value <= max))
+}
+
+# Fills the array SETTINGS: what the website had, else the defaults; values
+# in the file that are not allowed are left out.
+read_settings() {
+  local file="${PHP_CLI_DIR}/${1}/settings" key value
+  SETTINGS=()
+  for key in "${!SETTING_DEFAULT[@]}"; do
+    SETTINGS[$key]="${SETTING_DEFAULT[$key]}"
+  done
+  [[ -f "$file" && ! -L "$file" ]] || return 0
+  while IFS='=' read -r key value; do
+    if [[ "$key" =~ ^[a-z]+$ && -n "${SETTING_DEFAULT[$key]+set}" ]] && valid_setting "$key" "$value"; then
+      SETTINGS[$key]="$value"
+    fi
+  done <"$file"
+  return 0
+}
+
+write_settings() {
+  local key
+  for key in memory upload time errors processes; do
+    printf '%s=%s\n' "$key" "${SETTINGS[$key]}"
+  done >"${OWP_TMPDIR}/settings"
+  install -o root -g root -m 0644 "${OWP_TMPDIR}/settings" "${PHP_CLI_DIR}/${1}/settings"
+}
+
+write_pool() {
+  local user="$1" root="$2" php="$3" domain="$4" secure=off
+  # Session cookies only over HTTPS while a certificate covers the site (E-176).
+  if certificate_covers "$user" "$domain"; then
+    secure=on
+  fi
+  owp_render "${TEMPLATES}/php/site-pool.conf" "${OWP_TMPDIR}/pool.conf" \
+    "USER=${user}" "ROOT=${root}" "PROCESSES=${SETTINGS[processes]}" \
+    "MEMORY=${SETTINGS[memory]}" "UPLOAD=${SETTINGS[upload]}" "POST=$((SETTINGS[upload] + 8))" \
+    "TIME=${SETTINGS[time]}" "TERMINATE=$((SETTINGS[time] + 30))" "ERRORS=${SETTINGS[errors]}" \
+    "SECURE=${secure}"
+  owp_apply_config "${OWP_TMPDIR}/pool.conf" "/etc/php/${php}/fpm/pool.d/owpanel-${user}.conf" \
+    0644 "php${php}-fpm" reload -- "php-fpm${php}" -t
+}
+
+# Pool in the wanted version (E-172). On a switch the old pool goes first:
+# both would listen on the same socket, and the old PHP-FPM removes the socket
+# file when it lets go of the pool. The website pauses for about a second.
+# If the new pool is refused, the old one comes back.
+apply_pool() {
+  local user="$1" root="$2" php="$3" domain="$4" old
+  old="$(current_php "$user")"
+  if [[ -n "$old" && "$old" != "$php" ]]; then
+    owp_remove_config "/etc/php/${old}/fpm/pool.d/owpanel-${user}.conf" "php${old}-fpm" reload \
+      -- "php-fpm${old}" -t || owp_die "php_pool_invalid" "PHP-FPM ${old} did not let go of the pool"
+    if ! write_pool "$user" "$root" "$php" "$domain"; then
+      write_pool "$user" "$root" "$old" "$domain" || owp_warn "the pool for PHP ${old} could not be restored"
+      owp_die "php_pool_invalid" "PHP-FPM ${php} rejected the pool configuration"
+    fi
+    owp_log "PHP switched from ${old} to ${php}"
+  else
+    write_pool "$user" "$root" "$php" "$domain" || owp_die "php_pool_invalid" "PHP-FPM rejected the pool configuration"
+  fi
+}
+
+# The command php of the website's cron jobs: site-cron puts this directory
+# first in PATH, so php runs in the version of the website (E-172).
+apply_cli() {
+  local user="$1" php="$2" dir="${PHP_CLI_DIR}/${1}"
+  install -d -o root -g root -m 0755 "$PHP_CLI_DIR" "$dir"
+  [[ "$(readlink "${dir}/php" 2>/dev/null)" == "/usr/bin/php${php}" ]] && return 0
+  ln -sfn "/usr/bin/php${php}" "${dir}/php"
+}
+
+# Writes the configuration for what the certificate covers right now.
+# Usage: apply_nginx <domain> <user> <root> <www 0|1>
+apply_nginx() {
+  local domain="$1" user="$2" root="$3" www="$4" variant=http www_tls=0
+  if certificate_covers "$user" "$domain"; then
+    variant=https
+    if [[ "$www" -eq 1 ]] && certificate_covers "$user" "www.${domain}"; then
+      www_tls=1
+    fi
+  fi
+  owp_site_nginx "${TEMPLATES}/nginx" "${OWP_TMPDIR}/site.conf" "$variant" "$domain" "$user" "$root" "$www" "$www_tls" \
+    "$((SETTINGS[upload] + 8))" "$((SETTINGS[time] + 30))" \
+    || owp_die "nginx_config_invalid" "the site configuration could not be written"
+  owp_apply_config "${OWP_TMPDIR}/site.conf" "${NGINX_SITES}/${user}.conf" \
+    0644 nginx reload -- nginx -t \
+    || owp_die "nginx_config_invalid" "nginx rejected the site configuration"
+}
+
+# True if the certificate of the site exists and is valid for the domain.
+certificate_covers() {
+  local user="$1" domain="$2" cert="/etc/letsencrypt/live/${1}/fullchain.pem"
+  [[ -f "$cert" ]] \
+    && openssl x509 -in "$cert" -noout -checkhost "$domain" 2>/dev/null | grep -q ' does match '
+}
+
+# With --www and --tls the certificate covers both names; if Let's Encrypt
+# refuses www.<domain>, e.g. without a DNS entry, the site gets one for its
+# domain alone and reports "www_tls":false. Without --www, a certificate
+# that still names www.<domain> is replaced by one for the domain alone, so
+# renewals do not fail on a www entry that may be gone.
+#
+# True if the certificate has to be requested again: it does not cover the
+# domain, lacks www.<domain> with --www, or still names www.<domain> without.
+# Usage: needs_certificate <user> <domain> <www 0|1>
+needs_certificate() {
+  local user="$1" domain="$2" www="$3"
+  certificate_covers "$user" "$domain" || return 0
+  if [[ "$www" -eq 1 ]]; then
+    if certificate_covers "$user" "www.${domain}"; then
+      return 1
+    fi
+    return 0
+  fi
+  [[ "$domain" != www.* ]] && certificate_names "$user" | grep -qxF "www.${domain}"
+}
+
+# The names in the site's certificate, one per line.
+certificate_names() {
+  openssl x509 -in "/etc/letsencrypt/live/${1}/cert.pem" -noout -ext subjectAltName 2>/dev/null \
+    | grep -oE 'DNS:[^,[:space:]]+' | cut -c5- || true
+}
+
+# Expiry of the site's certificate as epoch seconds, or null (E-076).
+certificate_expiry() {
+  local end epoch
+  end="$(openssl x509 -in "/etc/letsencrypt/live/${1}/cert.pem" -noout -enddate 2>/dev/null)" || { printf 'null\n'; return 0; }
+  epoch="$(date -d "${end#notAfter=}" +%s 2>/dev/null)" || epoch=""
+  [[ "$epoch" =~ ^[0-9]+$ ]] || epoch=null
+  printf '%s\n' "$epoch"
+}
+
+# Usage: request_certificate <user> <name>... (returns 1 if refused)
+# With other names than before, certbot replaces the certificate.
+request_certificate() {
+  local user="$1" name
+  local -a domains=()
+  shift
+  for name in "$@"; do
+    domains+=(--domain "$name")
+  done
+  certbot certonly --webroot --webroot-path "$ACME_ROOT" \
+    --cert-name "$user" "${domains[@]}" \
+    --non-interactive --agree-tos --register-unsafely-without-email \
+    --keep-until-expiring
+}
+
+# Changes the domain of an existing site (E-112). The site must answer to
+# its previous domain, so panel and server agree on what changes. With a
+# certificate, the one for the new names is requested first: the old
+# configuration stays and only gets a block that lets Let's Encrypt reach
+# the new names. If Let's Encrypt refuses the new domain, e.g. because its
+# DNS entry is missing, the old configuration comes back and the site stays
+# at its previous domain with its certificate. Returns 0 if the certificate
+# now covers the new domain, 1 if no certificate was needed.
+# Usage: change_domain <user> <previous> <want_tls 0|1> <www 0|1> <name>...
+change_domain() {
+  local user="$1" previous="$2" want_tls="$3" www="$4" file="${NGINX_SITES}/${1}.conf"
+  shift 4
+  [[ -f "$file" ]] || owp_die "site_not_found" "${user} has no configuration"
+  owp_server_names "$file" | grep -qxF "$previous" \
+    || owp_die "domain_mismatch" "${user} does not answer to ${previous}"
+  [[ "$want_tls" -eq 1 ]] && needs_certificate "$user" "$1" "$www" || return 1
+
+  cp "$file" "${OWP_TMPDIR}/previous.conf"
+  owp_render "${TEMPLATES}/nginx/site-acme-http.conf" "${OWP_TMPDIR}/acme.conf" "USER=${user}" "NAMES=$*" \
+    || owp_die "nginx_config_invalid" "the site configuration could not be written"
+  { cat "${OWP_TMPDIR}/previous.conf"; printf '\n'; cat "${OWP_TMPDIR}/acme.conf"; } >"${OWP_TMPDIR}/change.conf"
+  owp_apply_config "${OWP_TMPDIR}/change.conf" "$file" 0644 nginx reload -- nginx -t \
+    || owp_die "nginx_config_invalid" "nginx rejected the site configuration"
+
+  if request_certificate "$user" "$@"; then
+    return 0
+  fi
+  if [[ $# -gt 1 ]]; then
+    owp_warn "no certificate for www.${1}; trying ${1} alone"
+    if request_certificate "$user" "$1"; then
+      return 0
+    fi
+  fi
+  owp_apply_config "${OWP_TMPDIR}/previous.conf" "$file" 0644 nginx reload -- nginx -t \
+    || owp_warn "the previous configuration could not be restored"
+  owp_die "certificate_failed" "Let's Encrypt did not issue a certificate for ${1}; the site stays at ${previous}"
+}
+
+main() {
+  local domain="" type="" user="" php="" want_tls=0 www=0 uid root tls=false www_tls=false expires=null
+  local previous="" certified=0 existing=0 key
+  local -a names=()
+  local -A wanted=()
+  owp_init "site-create"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --domain | --type | --user | --php | --previous-domain)
+        [[ $# -ge 2 ]] || usage
+        case "$1" in
+          --domain) domain="$2" ;;
+          --previous-domain) previous="$2" ;;
+          --type) type="$2" ;;
+          --user) user="$2" ;;
+          --php) php="$2" ;;
+        esac
+        shift 2
+        ;;
+      --tls)
+        want_tls=1
+        shift
+        ;;
+      --www)
+        www=1
+        shift
+        ;;
+      --existing)
+        existing=1
+        shift
+        ;;
+      --php-memory | --php-upload | --php-time | --php-errors | --php-processes)
+        [[ $# -ge 2 ]] || usage
+        key="${1#--php-}"
+        valid_setting "$key" "$2" || owp_die "invalid_php_setting" "invalid value for $1"
+        wanted[$key]="$2"
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  [[ -n "$domain" && -n "$type" && -n "$user" ]] || usage
+
+  owp_valid_domain "$domain" || owp_die "invalid_domain" "invalid domain"
+  owp_valid_site_user "$user" || owp_die "invalid_user" "user must be ow10000 to ow59999"
+  ! owp_reserved_site_user "$user" || owp_die "reserved_user" "${user} is reserved for the panel"
+  [[ "$type" == "php" ]] || owp_die "unsupported_site_type" "only --type php is supported"
+  if [[ "$www" -eq 1 ]]; then
+    [[ "$domain" != www.* ]] || owp_die "invalid_arguments" "--www needs a domain without www."
+    owp_valid_domain "www.${domain}" || owp_die "invalid_domain" "www.${domain} is too long"
+  fi
+  if [[ -n "$previous" ]]; then
+    owp_valid_domain "$previous" || owp_die "invalid_domain" "invalid previous domain"
+    [[ "$previous" != "$domain" ]] || owp_die "invalid_arguments" "--previous-domain equals --domain"
+  fi
+  if [[ -n "$php" && ! "$php" =~ ^[0-9]+\.[0-9]+$ ]]; then
+    owp_die "invalid_php_version" "invalid PHP version"
+  fi
+
+  owp_require_root
+  owp_check_os
+  [[ -d "$NGINX_SITES" && -d "$ACME_ROOT" ]] \
+    || owp_die "server_not_provisioned" "run server-provision first"
+
+  owp_lock 120
+  owp_tmpdir
+  uid="$(owp_site_uid "$user")"
+  root="${SITES_ROOT}/${user}"
+  # Without --php a website keeps its version; a new one gets the default.
+  [[ -n "$php" ]] || php="$(current_php "$user")"
+  [[ -n "$php" ]] || php="$OWP_PHP_VERSION"
+  owp_php_allowed "$php" || owp_die "unsupported_php_version" "PHP ${php} is not offered for websites"
+  owp_php_installed "$php" || owp_die "php_not_installed" "PHP ${php} is not installed on this server"
+  systemctl is-active --quiet "php${php}-fpm" || owp_die "php_not_installed" "PHP-FPM ${php} is not running on this server"
+  # Only writes the configuration of a website that is there (installer,
+  # E-171); a missing one is a case for the rebuild from its backup (E-106).
+  if [[ "$existing" -eq 1 && ! -d "${root}/htdocs" ]]; then
+    owp_die "site_not_found" "${root}/htdocs is missing; rebuild the website from its backup"
+  fi
+
+  names=("$domain")
+  [[ "$www" -eq 0 ]] || names+=("www.${domain}")
+  ensure_domain_free "$user" "${names[@]}"
+  if [[ -n "$previous" ]] && change_domain "$user" "$previous" "$want_tls" "$www" "${names[@]}"; then
+    certified=1
+  fi
+  ensure_site_user "$user" "$uid" "$root"
+  ensure_directories "$user" "$root"
+  apply_welcome "$user" "$domain"
+  read_settings "$user"
+  for key in "${!wanted[@]}"; do
+    SETTINGS[$key]="${wanted[$key]}"
+  done
+  apply_pool "$user" "$root" "$php" "$domain"
+  apply_cli "$user" "$php"
+  write_settings "$user"
+
+  # First the configuration for the certificate as it is, so Let's Encrypt
+  # reaches every name on port 80; then a new certificate if the names
+  # changed; then the configuration for the new certificate.
+  apply_nginx "$domain" "$user" "$root" "$www"
+  if [[ "$want_tls" -eq 1 && "$certified" -eq 0 ]] && needs_certificate "$user" "$domain" "$www"; then
+    if ! request_certificate "$user" "${names[@]}"; then
+      [[ "$www" -eq 1 ]] || owp_die "certificate_failed" "Let's Encrypt did not issue a certificate for ${domain}"
+      owp_warn "no certificate for www.${domain}; trying ${domain} alone"
+      if ! certificate_covers "$user" "$domain"; then
+        request_certificate "$user" "$domain" \
+          || owp_die "certificate_failed" "Let's Encrypt did not issue a certificate for ${domain}"
+      fi
+    fi
+    apply_nginx "$domain" "$user" "$root" "$www"
+    # The new certificate turns on secure session cookies (E-176).
+    apply_pool "$user" "$root" "$php" "$domain"
+  fi
+  if certificate_covers "$user" "$domain"; then
+    tls=true
+    expires="$(certificate_expiry "$user")"
+    if [[ "$www" -eq 1 ]] && certificate_covers "$user" "www.${domain}"; then
+      www_tls=true
+    fi
+  fi
+
+  owp_result_ok "\"domain\":\"${domain}\",\"user\":\"${user}\",\"uid\":${uid},\"php\":\"${php}\",\"tls\":${tls},\"www\":$([[ "$www" -eq 1 ]] && echo true || echo false),\"www_tls\":${www_tls},\"certificate_expires\":${expires}"
+}
+
+main "$@"

@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Counts visitors and page views of a website per day from its nginx access
+# log, including the rotated ones (E-148). It only reads and answers with
+# numbers and paths; no IP address or user agent leaves the server.
+#
+#   site-stats --user ow38217 [--days 2]
+#
+# --days 1-14: today and the days before, in the server's time zone. The
+# panel asks for 2 every hour and for 14 once for a new website.
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+
+# Tests point these to fixtures and their PHP; sudo drops them.
+OWP_NGINX_LOGS="${OWP_NGINX_LOGS:-/var/log/nginx}"
+OWP_PHP_BIN="${OWP_PHP_BIN:-/usr/bin/php${OWP_PHP_VERSION}}"
+
+usage() {
+  owp_die "invalid_arguments" "usage: site-stats --user <owNNNNN> [--days <1-14>]"
+}
+
+main() {
+  local user="" days=2 php base n result
+  owp_init "site-stats"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --user | --days)
+        [[ $# -ge 2 ]] || usage
+        case "$1" in
+          --user) user="$2" ;;
+          --days) days="$2" ;;
+        esac
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  owp_valid_site_user "$user" || owp_die "invalid_user" "invalid site user"
+  if [[ ! "$days" =~ ^[1-9][0-9]?$ ]] || ((days > 14)); then
+    usage
+  fi
+
+  php="$OWP_PHP_BIN"
+  command -v "$php" >/dev/null || owp_die "php_not_installed" "PHP ${OWP_PHP_VERSION} is missing"
+
+  base="${OWP_NGINX_LOGS}/${user}.access.log"
+  result="$(
+    {
+      # Oldest first: logrotate keeps .1 plain and compresses the older ones.
+      for n in 14 13 12 11 10 9 8 7 6 5 4 3 2; do
+        [[ -f "${base}.${n}.gz" ]] && zcat -f "${base}.${n}.gz" 2>/dev/null
+      done
+      [[ -f "${base}.1" ]] && cat "${base}.1"
+      [[ -f "$base" ]] && cat "$base"
+      true
+    } | "$php" -n "${OWP_ROOT}/lib/site-stats.php" "$(date +%F)" "$days"
+  )" || owp_die "stats_failed" "the access log could not be counted"
+
+  owp_result_ok "$(printf '"days":%s' "$result")"
+}
+
+main "$@"

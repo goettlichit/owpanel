@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Installs and configures the base services. Takes no parameters and can run
+# again at any time. Started by the panel through sudo.
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/firewall.sh
+source /opt/owpanel/lib/firewall.sh
+
+# repositories must run first, it adds the sources for nginx and PHP. The
+# firewall runs last, so its confirmation window starts at the very end.
+readonly MODULES=(repositories time journal updates cron sftp backup quota nginx php mariadb certbot fail2ban firewall)
+# shellcheck disable=SC2034  # used by the provisioning modules
+readonly TEMPLATES="${OWP_ROOT}/templates"
+# Set by the firewall module when the panel has to run firewall-confirm.
+OWP_FIREWALL_PENDING=0
+
+main() {
+  local module
+  owp_init "server-provision"
+  [[ $# -eq 0 ]] || owp_die "invalid_arguments" "server-provision takes no parameters"
+  owp_require_root
+  owp_check_os
+
+  owp_lock 0
+
+  # Package lists are refreshed when the sources change or a package is
+  # missing, so a run on a finished server needs no apt update at all.
+  for module in "${MODULES[@]}"; do
+    owp_log "== ${module} =="
+    # shellcheck source=/dev/null
+    source "${OWP_ROOT}/provision/modules/${module}.sh"
+    "provision_${module}"
+  done
+  if [[ "$OWP_FIREWALL_PENDING" -eq 1 ]]; then
+    owp_result_ok "\"firewall_confirm_required\":true,\"firewall_confirm_within\":${OWP_FW_TIMEOUT}"
+  else
+    owp_result_ok '"firewall_confirm_required":false'
+  fi
+}
+
+main "$@"

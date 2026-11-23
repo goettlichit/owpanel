@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# Deletes a website created by site-create: nginx and PHP-FPM configuration,
+# certificate, files, logs, its MariaDB databases and users (E-078) and the
+# Linux user. A second run changes nothing.
+#
+#   site-delete --user ow10042
+#
+# The files are deleted for good. Backups in the restic repository stay;
+# the panel no longer lists them once the website is gone.
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/database.sh
+source /opt/owpanel/lib/database.sh
+
+readonly SITES_ROOT="/var/www"
+readonly NGINX_SITES="/etc/nginx/owpanel-sites"
+readonly SITE_COMMENT="OWPanel site"
+
+usage() {
+  owp_die "invalid_arguments" "usage: site-delete --user <owNNNN>"
+}
+
+# Returns 0 if the user is an OWPanel site user, 1 if it does not exist.
+# Stops on an unrelated account with the same name.
+check_site_user() {
+  local user="$1" uid="$2" root="$3" entry e_uid e_gid e_comment e_home
+  entry="$(getent passwd "$user")" || return 1
+  IFS=: read -r _ _ e_uid e_gid e_comment e_home _ <<<"$entry"
+  [[ "$e_uid" == "$uid" && "$e_gid" == "$uid" && "$e_comment" == "$SITE_COMMENT" \
+    && "$e_home" == "$root" ]] \
+    || owp_die "site_user_conflict" "user ${user} exists but is not an OWPanel site user"
+}
+
+remove_pools() {
+  local user="$1" pool version
+  for pool in /etc/php/*/fpm/pool.d/"owpanel-${user}.conf"; do
+    [[ -e "$pool" ]] || continue
+    version="${pool#/etc/php/}"
+    version="${version%%/*}"
+    [[ "$version" =~ ^[0-9]+\.[0-9]+$ ]] || continue
+    owp_remove_config "$pool" "php${version}-fpm" reload -- "php-fpm${version}" -t \
+      || owp_die "php_pool_invalid" "PHP-FPM failed without the pool of ${user}"
+  done
+}
+
+remove_certificate() {
+  local user="$1"
+  if [[ -e "/etc/letsencrypt/renewal/${user}.conf" ]]; then
+    certbot delete --cert-name "$user" --non-interactive \
+      || owp_die "certificate_delete_failed" "certbot could not delete the certificate"
+  fi
+}
+
+# Databases and users named <site user>_… (E-078). Skipped when MariaDB is
+# not installed, as on a server without databases.
+remove_databases() {
+  local user="$1" name
+  owp_mariadb_running || return 0
+  while read -r name; do
+    [[ -n "$name" ]] || continue
+    owp_drop_database "$name" || owp_die "database_delete_failed" "MariaDB could not delete ${name}"
+    owp_log "deleted database ${name}"
+  done < <(owp_site_databases "$user")
+}
+
+remove_user() {
+  local user="$1"
+  # PHP workers end with the pool reload; this catches anything left.
+  pkill --uid "$user" || true
+  for _ in 1 2 3 4 5; do
+    pgrep --uid "$user" >/dev/null || break
+    sleep 1
+  done
+  pkill --signal KILL --uid "$user" || true
+  if id -nG "$OWP_WEB_USER" | tr ' ' '\n' | grep -qxF "$user"; then
+    gpasswd --delete "$OWP_WEB_USER" "$user" >/dev/null
+  fi
+  userdel "$user"
+  if getent group "$user" >/dev/null; then
+    groupdel "$user"
+  fi
+}
+
+remove_files() {
+  local user="$1" root="$2"
+  [[ "$root" == "${SITES_ROOT}/${user}" ]] || owp_die "unsafe_path" "unexpected site path"
+  [[ ! -L "$root" ]] || owp_die "unsafe_path" "${root} is a symlink"
+  rm -rf --one-file-system -- "$root"
+  rm -f -- "/var/log/nginx/${user}.access.log"* "/var/log/nginx/${user}.error.log"*
+  # Cron jobs of the website (E-088).
+  rm -f -- "/etc/cron.d/owpanel-${user}"
+  # SFTP keys of the website (E-089); the group membership ends with userdel.
+  rm -f -- "/etc/ssh/owpanel-sftp/${user}"
+  rm -f -- "/var/lib/owpanel/welcome/${user}.html"
+  rm -rf -- "/var/lib/owpanel/php/${user}"
+  # What site-suspend kept aside (E-127).
+  rm -rf -- "/var/lib/owpanel/suspended/${user}"
+}
+
+main() {
+  local user="" uid root user_exists=0
+  owp_init "site-delete"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --user)
+        [[ $# -ge 2 ]] || usage
+        user="$2"
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  [[ -n "$user" ]] || usage
+  owp_valid_site_user "$user" || owp_die "invalid_user" "user must be ow10000 to ow59999"
+  ! owp_reserved_site_user "$user" || owp_die "reserved_user" "${user} is reserved for the panel"
+
+  owp_require_root
+  owp_check_os
+  owp_lock 120
+
+  uid="$(owp_site_uid "$user")"
+  root="${SITES_ROOT}/${user}"
+  if check_site_user "$user" "$uid" "$root"; then
+    user_exists=1
+  fi
+
+  # The website goes offline first, then its parts are removed. Config files
+  # carry OWPanel names; certificate and files are only touched when the site
+  # user proves that the site was created by OWPanel.
+  owp_remove_config "${NGINX_SITES}/${user}.conf" nginx reload -- nginx -t \
+    || owp_die "nginx_config_invalid" "nginx failed without the site configuration"
+  remove_pools "$user"
+  remove_databases "$user"
+  if [[ "$user_exists" -eq 1 ]]; then
+    remove_certificate "$user"
+    remove_files "$user" "$root"
+    remove_user "$user"
+  elif [[ -e "$root" || -L "$root" ]]; then
+    owp_die "site_directory_unowned" "${root} exists but no OWPanel site user, left untouched"
+  fi
+
+  owp_result_ok "\"user\":\"${user}\""
+}
+
+main "$@"

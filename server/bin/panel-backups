@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Lists the restic backups of the panel itself (E-099), newest first.
+# Read-only.
+#
+#   panel-backups
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/backup.sh
+source /opt/owpanel/lib/backup.sh
+
+main() {
+  local php
+  owp_init "panel-backups"
+  [[ $# -eq 0 ]] || owp_die "invalid_arguments" "usage: panel-backups"
+  owp_require_root
+  owp_require_backup
+  php="$(command -v php || true)"
+  [[ -n "$php" ]] || owp_die "php_missing" "php is needed to read the snapshot list"
+
+  owp_tmpdir
+  owp_restic snapshots --json --no-lock --tag panel >"${OWP_TMPDIR}/snapshots.json" 2>"${OWP_TMPDIR}/restic.err" \
+    || owp_die "list_failed" "$(tail -n 1 "${OWP_TMPDIR}/restic.err")"
+
+  owp_result_ok "\"snapshots\":$("$php" -n "${OWP_ROOT}/lib/backup-list.php" <"${OWP_TMPDIR}/snapshots.json")"
+}
+
+main "$@"

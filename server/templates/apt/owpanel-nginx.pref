@@ -1,0 +1,6 @@
+# Managed by OWPanel. Do not edit, changes are overwritten.
+# Packages from nginx.org always win over Debian's nginx.
+Package: *
+Pin: origin nginx.org
+Pin: release o=nginx
+Pin-Priority: 900

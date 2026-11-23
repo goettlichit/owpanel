@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# Backs up the panel itself with restic into the repository of the server
+# it runs on (E-099): its database, .env with the APP_KEY, the state file
+# of the installer and the SSH key the panel reaches all servers with.
+# Tags: panel and schedule or manual. Old scheduled backups are removed
+# like those of websites.
+#
+#   panel-backup [--manual] [--keep-hourly 24] [--keep-daily 7 --keep-weekly 4 --keep-monthly 6]
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/database.sh
+source /opt/owpanel/lib/database.sh
+# shellcheck source=server/lib/backup.sh
+source /opt/owpanel/lib/backup.sh
+
+readonly PANEL_ENV="${OWP_PANEL_ROOT:-/var/www/ow10000}/shared/.env"
+readonly PANEL_STATE="/etc/owpanel/panel.conf"
+readonly WORKER_SSH="/var/lib/owpanel-worker/ssh"
+readonly PANEL_DATABASE="owpanel"
+
+usage() {
+  owp_die "invalid_arguments" "usage: panel-backup [--manual] [--keep-hourly N] [--keep-daily N --keep-weekly N --keep-monthly N]"
+}
+
+main() {
+  local hourly=0 daily=7 weekly=4 monthly=6 kind="schedule" value staging summary snapshot added path
+  local -a paths=()
+  owp_init "panel-backup"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --keep-hourly | --keep-daily | --keep-weekly | --keep-monthly)
+        [[ $# -ge 2 ]] || usage
+        case "$1" in
+          --keep-hourly) hourly="$2" ;;
+          --keep-daily) daily="$2" ;;
+          --keep-weekly) weekly="$2" ;;
+          --keep-monthly) monthly="$2" ;;
+        esac
+        shift 2
+        ;;
+      --manual)
+        kind="manual"
+        shift
+        ;;
+      *) usage ;;
+    esac
+  done
+  for value in "$hourly" "$daily" "$weekly" "$monthly"; do
+    [[ "$value" =~ ^[0-9]{1,3}$ ]] || usage
+  done
+  ((daily >= 1)) || owp_die "invalid_arguments" "keep at least one daily snapshot"
+
+  owp_require_root
+  owp_require_backup
+  [[ -f "$PANEL_ENV" && ! -L "$PANEL_ENV" ]] || owp_die "panel_not_found" "the panel is not installed on this server"
+  owp_require_mariadb
+  owp_lock 3600
+
+  staging="${OWP_BACKUP_STAGING}/panel"
+  install -d -o root -g root -m 0711 "$OWP_BACKUP_STAGING"
+  rm -rf -- "$staging"
+  install -d -o root -g root -m 0700 "$staging"
+  OWP_CLEANUP+=("$staging")
+
+  owp_log "dumping the panel database"
+  mariadb-dump --protocol=socket --single-transaction --quick --routines --triggers --events \
+    --hex-blob --default-character-set=utf8mb4 --databases "$PANEL_DATABASE" >"${staging}/${PANEL_DATABASE}.sql" \
+    || owp_die "dump_failed" "mariadb-dump failed for ${PANEL_DATABASE}"
+
+  paths=("$staging" "$PANEL_ENV")
+  for path in "$PANEL_STATE" "$WORKER_SSH"; do
+    if [[ -e "$path" && ! -L "$path" ]]; then
+      paths+=("$path")
+    else
+      owp_warn "${path} is missing; backing up without it"
+    fi
+  done
+
+  owp_tmpdir
+  owp_log "backing up the panel (${kind})"
+  if ! owp_restic backup --json --quiet --tag "panel,${kind}" --host "$(hostname -s)" \
+    "${paths[@]}" >"${OWP_TMPDIR}/backup.json" 2>"${OWP_TMPDIR}/restic.err"; then
+    owp_die "backup_failed" "$(tail -n 1 "${OWP_TMPDIR}/restic.err")"
+  fi
+  summary="$(grep '"message_type":"summary"' "${OWP_TMPDIR}/backup.json" | tail -n 1)"
+  snapshot="$(sed -n 's/.*"snapshot_id":"\([0-9a-f]\{8,64\}\)".*/\1/p' <<<"$summary")"
+  added="$(sed -n 's/.*"data_added":\([0-9]*\).*/\1/p' <<<"$summary")"
+  rm -rf -- "$staging"
+
+  owp_log "removing old scheduled panel backups (keep ${hourly} hourly, ${daily} daily, ${weekly} weekly, ${monthly} monthly)"
+  if ! owp_restic forget --quiet --prune --tag "panel,schedule" --group-by tags \
+    --keep-hourly "$hourly" --keep-daily "$daily" --keep-weekly "$weekly" --keep-monthly "$monthly" >/dev/null 2>"${OWP_TMPDIR}/restic.err"; then
+    owp_warn "removing old backups failed: $(tail -n 1 "${OWP_TMPDIR}/restic.err")"
+  fi
+
+  owp_result_ok "\"snapshot\":\"${snapshot:0:8}\",\"kind\":\"${kind}\",\"bytes_added\":${added:-0}"
+}
+
+main "$@"

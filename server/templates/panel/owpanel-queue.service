@@ -1,0 +1,35 @@
+# Managed by OWPanel. Do not edit, changes are overwritten.
+# Queue worker of the panel (E-052, E-070). Runs as owpanel-worker, the only
+# user that can read the panel's SSH key. Each job decides its own time
+# limit; --max-time lets the worker start fresh once an hour.
+[Unit]
+Description=OWPanel queue worker
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+User=owpanel-worker
+Group=owpanel-worker
+SupplementaryGroups=ow10000
+WorkingDirectory=/var/www/ow10000/current/panel
+Environment=LOG_PATH=/var/www/ow10000/shared/storage/logs/worker.log
+Environment=VIEW_COMPILED_PATH=/var/lib/owpanel-worker/views
+ExecStart=/usr/bin/php artisan queue:work --queue=default --tries=1 --sleep=1 --max-time=3600
+Restart=always
+RestartSec=5
+UMask=0027
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+# The transfer directory holds database exports and imports (E-082).
+ReadWritePaths=/var/www/ow10000/shared/storage/logs /var/www/ow10000/shared/storage/app/transfers /var/lib/owpanel-worker/views
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# Connects this server to the backup target, a Hetzner Storage Box (E-096),
+# normally through a subaccount of its own (E-097).
+# Repeatable: an existing key, host key or repository stays as it is.
+#
+#   backup-setup --host u123456-sub1.your-storagebox.de --account u123456-sub1 \
+#                --path restic < secrets
+#
+# stdin: one line "repo<TAB><repository password>", and once, to install
+# the SSH key, "password<TAB><password of the account>". The password is
+# used for that and then forgotten.
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/backup.sh
+source /opt/owpanel/lib/backup.sh
+
+readonly STORAGE_BOX_PORT=23
+
+usage() {
+  owp_die "invalid_arguments" "usage: backup-setup --host <host> --account <uNNNNNN> --path <path> < secrets"
+}
+
+write_ssh_config() {
+  local host="$1" account="$2" tmp
+  owp_tmpdir
+  tmp="${OWP_TMPDIR}/ssh_config"
+  cat >"$tmp" <<CONFIG
+# Managed by OWPanel. Do not edit, changes are overwritten.
+Host ${OWP_BACKUP_HOST_ALIAS}
+    HostName ${host}
+    User ${account}
+    Port ${STORAGE_BOX_PORT}
+    IdentityFile ${OWP_BACKUP_DIR}/id_ed25519
+    IdentitiesOnly yes
+    UserKnownHostsFile ${OWP_BACKUP_DIR}/known_hosts
+    StrictHostKeyChecking accept-new
+    BatchMode yes
+    ServerAliveInterval 30
+    ConnectTimeout 20
+CONFIG
+  install -o root -g root -m 0600 "$tmp" "${OWP_BACKUP_DIR}/ssh_config"
+}
+
+# Logs in with the key and runs a harmless command of the Storage Box shell.
+key_works() {
+  ssh -F "${OWP_BACKUP_DIR}/ssh_config" "$OWP_BACKUP_HOST_ALIAS" pwd </dev/null >/dev/null 2>&1
+}
+
+# Hands the public key to the Storage Box with its install-ssh-key command,
+# logging in once with the account password through SSH_ASKPASS. The
+# password only exists in a file of the private temporary directory.
+install_key() {
+  local password="$1" askpass
+  owp_tmpdir
+  printf '%s\n' "$password" >"${OWP_TMPDIR}/password"
+  askpass="${OWP_TMPDIR}/askpass"
+  printf '#!/bin/sh\ncat %q\n' "${OWP_TMPDIR}/password" >"$askpass"
+  chmod 0700 "$askpass"
+  if ! SSH_ASKPASS="$askpass" SSH_ASKPASS_REQUIRE=force DISPLAY=none setsid -w \
+    ssh -F "${OWP_BACKUP_DIR}/ssh_config" -o BatchMode=no -o PubkeyAuthentication=no \
+    -o PreferredAuthentications=password,keyboard-interactive -o NumberOfPasswordPrompts=1 \
+    "$OWP_BACKUP_HOST_ALIAS" install-ssh-key <"${OWP_BACKUP_DIR}/id_ed25519.pub" >/dev/null 2>"${OWP_TMPDIR}/ssh.err"; then
+    rm -f "${OWP_TMPDIR}/password"
+    if grep -qi 'permission denied' "${OWP_TMPDIR}/ssh.err"; then
+      owp_die "storage_box_login_failed" "the Storage Box rejected account or password"
+    fi
+    owp_die "storage_box_unreachable" "$(tail -n 1 "${OWP_TMPDIR}/ssh.err" 2>/dev/null || echo 'ssh failed')"
+  fi
+  rm -f "${OWP_TMPDIR}/password"
+}
+
+main() {
+  local host="" account="" path="" line kind value password="" repo_password="" key_installed=false initialized=false
+  owp_init "backup-setup"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --host | --account | --path)
+        [[ $# -ge 2 ]] || usage
+        case "$1" in
+          --host) host="$2" ;;
+          --account) account="$2" ;;
+          --path) path="$2" ;;
+        esac
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  owp_backup_valid_host "$host" || owp_die "invalid_host" "invalid host"
+  owp_backup_valid_account "$account" || owp_die "invalid_account" "invalid Storage Box account"
+  owp_backup_valid_path "$path" || owp_die "invalid_path" "invalid path"
+
+  while IFS= read -r -t 10 line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    [[ "$line" == *$'\t'* ]] || owp_die "invalid_input" "line without tab"
+    kind="${line%%$'\t'*}"
+    value="${line#*$'\t'}"
+    case "$kind" in
+      password) password="$value" ;;
+      repo) repo_password="$value" ;;
+      *) owp_die "invalid_input" "unknown line type" ;;
+    esac
+  done
+  [[ "$repo_password" =~ ^[A-Za-z0-9]{32,128}$ ]] || owp_die "invalid_input" "missing or invalid repository password"
+  [[ -z "$password" || ( ${#password} -le 256 && ! "$password" =~ [[:cntrl:]] ) ]] || owp_die "invalid_input" "invalid account password"
+
+  owp_require_root
+  command -v "$OWP_RESTIC_BIN" >/dev/null 2>&1 || owp_die "restic_not_installed" "restic is missing; run the base setup again"
+  owp_lock 300
+
+  install -d -o root -g root -m 0700 "$OWP_BACKUP_DIR" "${OWP_BACKUP_DIR}/cache"
+  if [[ ! -f "${OWP_BACKUP_DIR}/id_ed25519" ]]; then
+    ssh-keygen -q -t ed25519 -N '' -C "owpanel-backup@$(hostname -s)" -f "${OWP_BACKUP_DIR}/id_ed25519"
+    owp_log "created the SSH key for backups"
+  fi
+  write_ssh_config "$host" "$account"
+
+  if ! key_works; then
+    [[ -n "$password" ]] || owp_die "storage_box_key_missing" "the key is not installed on the Storage Box and no password was given"
+    owp_log "installing the SSH key on the Storage Box"
+    install_key "$password"
+    key_works || owp_die "storage_box_key_rejected" "the Storage Box does not accept the key; is SSH support enabled?"
+    key_installed=true
+  fi
+
+  printf 'sftp:%s:%s\n' "$OWP_BACKUP_HOST_ALIAS" "$path" >"${OWP_BACKUP_DIR}/repository"
+  chmod 0600 "${OWP_BACKUP_DIR}/repository"
+
+  # The password is tried first and only stored once it opens or created
+  # the repository, so a wrong one never replaces the working one.
+  printf '%s\n' "$repo_password" >"${OWP_TMPDIR}/repo-password"
+  export OWP_RESTIC_PASSWORD_FILE="${OWP_TMPDIR}/repo-password"
+  if owp_restic cat config >/dev/null 2>"${OWP_TMPDIR}/restic.err"; then
+    owp_log "repository ${path} is ready"
+  elif grep -qi 'wrong password\|no key found' "${OWP_TMPDIR}/restic.err"; then
+    owp_die "repository_password_wrong" "the repository exists with another password"
+  elif owp_restic init >/dev/null 2>"${OWP_TMPDIR}/restic.err"; then
+    initialized=true
+    owp_log "created repository ${path}"
+  else
+    owp_die "repository_failed" "$(tail -n 1 "${OWP_TMPDIR}/restic.err")"
+  fi
+  unset OWP_RESTIC_PASSWORD_FILE
+  install -o root -g root -m 0600 "${OWP_TMPDIR}/repo-password" "${OWP_BACKUP_DIR}/repo-password"
+
+  owp_result_ok "\"key_installed\":${key_installed},\"initialized\":${initialized},\"public_key\":\"$(cut -d' ' -f1,2 "${OWP_BACKUP_DIR}/id_ed25519.pub")\""
+}
+
+main "$@"

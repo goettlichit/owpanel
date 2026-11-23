@@ -1,0 +1,12 @@
+# Managed by OWPanel. Do not edit, changes are overwritten.
+# Starts the panel's scheduler at the beginning of every minute (E-075).
+[Unit]
+Description=OWPanel scheduler, once a minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

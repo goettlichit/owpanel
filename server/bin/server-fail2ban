@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# fail2ban from the panel (E-090).
+#
+#   server-fail2ban --action status          banned addresses and exceptions
+#   server-fail2ban --action ignore < list   addresses that are never banned
+#   server-fail2ban --action unban --ip <address>
+#
+# The list for "ignore" has one address or network per line, such as
+# 203.0.113.5 or 2001:db8::/64. It replaces the previous list in
+# /etc/fail2ban/jail.d/owpanel-ignore.local; the base setup keeps its own
+# file and does not touch this one.
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+
+# Tests point these elsewhere; sudo drops them.
+OWP_F2B_IGNORE="${OWP_F2B_IGNORE:-/etc/fail2ban/jail.d/owpanel-ignore.local}"
+OWP_F2B_CLIENT="${OWP_F2B_CLIENT:-fail2ban-client}"
+
+readonly MAX_IGNORE=50
+# At most this many banned addresses per jail go back to the panel.
+readonly MAX_BANNED=500
+
+usage() {
+  owp_die "invalid_arguments" "usage: server-fail2ban --action <status|ignore|unban> [--ip <address>]"
+}
+
+# Characters of an IPv4 or IPv6 address with optional prefix. fail2ban
+# itself rejects malformed ones when the configuration is tested.
+valid_address() {
+  [[ ${#1} -le 50 ]] || return 1
+  [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?$ ]] && return 0
+  [[ "$1" =~ ^[0-9a-fA-F:]+(/[0-9]{1,3})?$ && "$1" == *:* ]]
+}
+
+jails() {
+  "$OWP_F2B_CLIENT" status | sed -n 's/^.*Jail list:[[:space:]]*//p' | tr ',' '\n' | tr -d ' \t' | grep -E '^[A-Za-z0-9_.-]+$' || true
+}
+
+status() {
+  local jail json="" ip until line count first=1 ignore=""
+  while IFS= read -r jail; do
+    [[ -n "$jail" ]] || continue
+    count=0
+    # "203.0.113.5 	2026-11-11 17:50:58 + 3600 = 2026-11-11 18:50:58"
+    while IFS= read -r line; do
+      ip="${line%%[[:space:]]*}"
+      valid_address "$ip" || continue
+      until=""
+      if [[ "$line" =~ =\ ([0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2})$ ]]; then
+        until="${BASH_REMATCH[1]}"
+      fi
+      count=$((count + 1))
+      ((count <= MAX_BANNED)) || break
+      [[ "$first" -eq 1 ]] || json+=","
+      first=0
+      json+="{\"jail\":\"${jail}\",\"ip\":\"${ip}\",\"until\":$([[ -n "$until" ]] && printf '"%s"' "$until" || echo null)}"
+    done < <("$OWP_F2B_CLIENT" get "$jail" banip --with-time 2>/dev/null)
+  done < <(jails)
+
+  # The list the panel wrote, so it can spot a difference.
+  if [[ -f "$OWP_F2B_IGNORE" ]]; then
+    ignore="$(sed -n 's/^ignoreip[[:space:]]*=[[:space:]]*//p' "$OWP_F2B_IGNORE" | tr ' ' '\n' \
+      | { grep -vxE '127\.0\.0\.1/8|::1' || true; } | while IFS= read -r ip; do
+        valid_address "$ip" && printf '"%s",' "$ip"
+      done)"
+  fi
+  owp_result_ok "\"banned\":[${json}],\"ignore\":[${ignore%,}]"
+}
+
+write_ignore() {
+  local line count=0 addresses="" tmp
+  while IFS= read -r -t 10 line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    valid_address "$line" || owp_die "invalid_address" "line $((count + 1)) is not an address"
+    count=$((count + 1))
+    ((count <= MAX_IGNORE)) || owp_die "too_many_addresses" "at most ${MAX_IGNORE} exceptions"
+    addresses+=" ${line}"
+  done
+
+  # The input is checked before the lock, so bad input fails fast.
+  owp_lock 60
+
+  owp_tmpdir
+  tmp="${OWP_TMPDIR}/owpanel-ignore.local"
+  {
+    printf '# Managed by OWPanel. Do not edit, changes are overwritten.\n'
+    printf '# Addresses that fail2ban never bans, set in the panel (E-090).\n'
+    printf '[DEFAULT]\n'
+    printf 'ignoreip = 127.0.0.1/8 ::1%s\n' "$addresses"
+  } >"$tmp"
+  owp_apply_config "$tmp" "$OWP_F2B_IGNORE" 0644 fail2ban reload -- "$OWP_F2B_CLIENT" --test \
+    || owp_die "fail2ban_config_invalid" "fail2ban rejected the exceptions"
+  # An address that is banned right now is freed as well.
+  for line in $addresses; do
+    if [[ "$line" != */* ]] && "$OWP_F2B_CLIENT" unban "$line" 2>/dev/null | grep -qx '[1-9][0-9]*'; then
+      owp_log "unbanned ${line}"
+    fi
+  done
+  owp_result_ok "\"ignore\":${count}"
+}
+
+unban() {
+  local ip="$1"
+  valid_address "$ip" || owp_die "invalid_address" "invalid address"
+  # Unbans in all jails; an address that is not banned is no error.
+  "$OWP_F2B_CLIENT" unban "$ip" >/dev/null
+  owp_log "unbanned ${ip}"
+  owp_result_ok "\"unbanned\":\"${ip}\""
+}
+
+main() {
+  local action="" ip=""
+  owp_init "server-fail2ban"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --action | --ip)
+        [[ $# -ge 2 ]] || usage
+        [[ "$1" == "--action" ]] && action="$2" || ip="$2"
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  command -v "$OWP_F2B_CLIENT" >/dev/null || owp_die "fail2ban_not_installed" "fail2ban is not installed"
+
+  case "$action" in
+    status) [[ -z "$ip" ]] || usage; status ;;
+    ignore) [[ -z "$ip" ]] || usage; write_ignore ;;
+    unban) [[ -n "$ip" ]] || usage; unban "$ip" ;;
+    *) usage ;;
+  esac
+}
+
+main "$@"

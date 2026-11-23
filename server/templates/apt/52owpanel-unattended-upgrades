@@ -1,0 +1,21 @@
+// Managed by OWPanel. Do not edit, changes are overwritten.
+// Adds the package sources of OWPanel to unattended-upgrades (E-047).
+// Debian's security updates are already allowed by 50unattended-upgrades;
+// apt merges both lists. nginx.org and sury.org do not separate security
+// fixes, so all their updates are allowed. The PHP version stays fixed,
+// because the packages carry it in their name (php8.5-*).
+Unattended-Upgrade::Origins-Pattern {
+        "site=nginx.org";
+        "site=packages.sury.org";
+};
+
+// Keep changed configuration files, like server-provision does.
+Dpkg::Options {
+        "--force-confdef";
+        "--force-confold";
+};
+
+// A reboot for a new kernel is up to the administrator.
+Unattended-Upgrade::Automatic-Reboot "false";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "false";

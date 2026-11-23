@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Imports an SQL dump into a website's database (E-082).
+#
+# Standard input: the password in the first line, then the dump, plain or
+# compressed with gzip (--gzip). Runs mariadb as the database user, never
+# as MariaDB's root, so statements reach only this database. DEFINER
+# clauses of other users are removed, because the user may not create
+# objects for someone else; views and triggers then belong to it.
+# MariaDB stops at the first error; statements before it stay applied.
+#
+#   db-import --name ow38217_shop [--gzip]   < password + dump
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/database.sh
+source /opt/owpanel/lib/database.sh
+
+usage() {
+  owp_die "invalid_arguments" "usage: db-import --name <owNNNNN_name> [--gzip] < password + dump"
+}
+
+# The dump as plain SQL, without DEFINER clauses.
+# shellcheck disable=SC2016  # backticks are SQL quoting, not commands
+plain_sql() {
+  if [[ "$1" == "1" ]]; then
+    gzip -dc
+  else
+    cat
+  fi | sed -E 's/DEFINER=`[^`]*`@`[^`]*`//g'
+}
+
+main() {
+  local name="" gzip=0 password errors status
+  owp_init "db-import"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --name)
+        [[ $# -ge 2 ]] || usage
+        name="$2"
+        shift 2
+        ;;
+      --gzip)
+        gzip=1
+        shift
+        ;;
+      *) usage ;;
+    esac
+  done
+  [[ -n "$name" ]] || usage
+  owp_valid_db_name "$name" || owp_die "invalid_database_name" "invalid database name"
+
+  # read takes exactly the first line; the dump stays on stdin.
+  IFS= read -r password || true
+  owp_valid_db_password "$password" || owp_die "invalid_password" "no valid password on stdin"
+
+  owp_require_root
+  owp_check_os
+  owp_require_mariadb
+  getent passwd "$(owp_db_site_user "$name")" >/dev/null || owp_die "site_not_found" "the website of ${name} does not exist"
+
+  owp_log "Importing into ${name}"
+  status=0
+  # Only MariaDB's messages are kept; its normal output is discarded.
+  errors="$(plain_sql "$gzip" | mariadb --defaults-extra-file=<(printf '[client]\nuser=%s\npassword=%s\n' "$name" "$password") \
+    --protocol=socket --default-character-set=utf8mb4 --binary-mode "$name" 2>&1 >/dev/null)" || status=$?
+
+  if [[ -n "$errors" ]]; then
+    # MariaDB's message names the line and the problem, never the password.
+    printf '%s\n' "${errors:0:2000}" >&2
+  fi
+  [[ "$status" -eq 0 ]] || owp_die "import_failed" "the import into ${name} stopped with an error"
+
+  owp_log "Import into ${name} finished"
+  owp_result_ok "\"database\":\"${name}\""
+}
+
+main "$@"

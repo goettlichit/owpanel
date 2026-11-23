@@ -1,0 +1,178 @@
+<?php
+
+return [
+    'title' => 'Datenbanken',
+    'list_title' => 'Datenbanken der Webseite',
+    'empty' => 'Diese Webseite hat noch keine Datenbank.',
+    'site_not_ready' => 'Datenbanken lassen sich anlegen, sobald die Webseite aktiv ist und keine Aufgabe für sie läuft.',
+    'busy' => 'Für diese Datenbank läuft bereits eine Aufgabe, oder sie ist gerade nicht bereit.',
+
+    'columns' => [
+        'name' => 'Datenbank und Benutzer',
+        'status' => 'Status',
+        'created' => 'Angelegt',
+    ],
+
+    'form' => [
+        'title' => 'Neue Datenbank',
+        'name' => 'Name',
+        'name_hint' => 'Kleinbuchstaben, Ziffern und Unterstrich, bis 16 Zeichen, zum Beispiel shop oder wordpress. Das Panel erzeugt ein sicheres Passwort.',
+        'submit' => 'Datenbank anlegen',
+    ],
+
+    'about' => [
+        'title' => 'Gut zu wissen',
+        'same_name' => 'Datenbank und Benutzer heißen gleich. Der Benutzer hat nur Rechte auf seine eigene Datenbank.',
+        'host' => 'Verbindung nur vom Server selbst: Host localhost oder 127.0.0.1, Port :port. Zeichensatz utf8mb4.',
+        'password' => 'Das Passwort speichert das Panel verschlüsselt. Anzeigen lässt es sich nach erneuter Eingabe des Panel-Passworts.',
+        'site_delete' => 'Wird die Webseite gelöscht, werden ihre Datenbanken mit gelöscht.',
+    ],
+
+    'credentials' => [
+        'title' => 'Zugangsdaten',
+        'host' => 'Host',
+        'host_alt' => 'oder 127.0.0.1',
+        'port' => 'Port',
+        'database' => 'Datenbank',
+        'user' => 'Benutzer',
+        'password' => 'Passwort',
+        'reveal' => 'Anzeigen',
+        'revealed_hint' => 'Das Anzeigen steht im Audit-Log.',
+    ],
+
+    'password' => [
+        'title' => 'Neues Passwort',
+        'text' => 'Setzt ein neues, zufälliges Passwort. Das alte gilt, bis der Server das neue übernommen hat. Danach muss die Webseite mit dem neuen Passwort arbeiten, sonst verliert sie die Verbindung zur Datenbank.',
+        'submit' => 'Neues Passwort setzen',
+    ],
+
+    'retry' => [
+        'title' => 'Erneut versuchen',
+        'text' => 'Startet db-create noch einmal mit demselben Namen und Passwort.',
+        'submit' => 'Erneut anlegen',
+    ],
+
+    'delete' => [
+        'title' => 'Datenbank löschen',
+        'text' => 'Löscht die Datenbank mit allen Tabellen und den Benutzer endgültig. Es gibt noch keine Backups, das lässt sich nicht rückgängig machen.',
+        'confirm' => 'Zum Bestätigen den Namen der Datenbank eingeben',
+        'submit' => 'Endgültig löschen',
+        'busy' => 'Löschen ist möglich, sobald die laufende Aufgabe beendet ist.',
+    ],
+
+    'state' => [
+        'pending' => 'Die Datenbank wird gerade angelegt.',
+        'deleting' => 'Die Datenbank wird gerade gelöscht.',
+        'password' => 'Das neue Passwort wird gerade gesetzt. Bis dahin gilt das bisherige.',
+        'failed_create' => 'Das Anlegen ist fehlgeschlagen: :error',
+        'failed_delete' => 'Das Löschen ist fehlgeschlagen: :error',
+    ],
+
+    'validation' => [
+        'suffix' => 'Erlaubt sind Kleinbuchstaben, Ziffern und Unterstrich, bis 16 Zeichen, am Anfang kein Unterstrich.',
+        'taken' => 'Diese Webseite hat schon eine Datenbank mit diesem Namen.',
+        'confirm_mismatch' => 'Der Name stimmt nicht mit der Datenbank überein.',
+    ],
+
+    // Database tool in the panel (E-079).
+    'tool' => [
+        'error_title' => 'Abfrage fehlgeschlagen',
+        'nav' => [
+            'overview' => 'Übersicht',
+            'tables' => 'Tabellen',
+            'sql' => 'SQL',
+            'transfer' => 'Export/Import',
+        ],
+        'tables' => [
+            'title' => 'Tabellen',
+            'empty' => 'Die Datenbank hat noch keine Tabellen.',
+            'name' => 'Name',
+            'rows' => 'Zeilen',
+            'rows_hint' => 'Bei InnoDB ist die Zeilenzahl in der Übersicht nur geschätzt.',
+            'size' => 'Größe',
+            'engine' => 'Engine',
+            'collation' => 'Kollation',
+            'view' => 'Ansicht',
+            'total' => ':count Tabellen, zusammen :size',
+        ],
+        'table' => [
+            'pretitle' => 'Tabelle',
+            'rows_title' => 'Inhalt',
+            'columns_title' => 'Spalten',
+            'column' => 'Spalte',
+            'type' => 'Typ',
+            'nullable' => 'NULL erlaubt',
+            'key' => 'Schlüssel',
+            'extra' => 'Extra',
+            'count' => ':count Zeilen',
+            'range' => 'Zeilen :from bis :to von :count',
+            'empty' => 'Die Tabelle ist leer.',
+            'sort_asc' => 'Aufsteigend nach :column sortieren',
+            'sort_desc' => 'Absteigend nach :column sortieren',
+            'previous' => 'Zurück',
+            'next' => 'Weiter',
+            'page' => 'Seite :page von :pages',
+            'in_sql' => 'In SQL öffnen',
+            'back' => 'Alle Tabellen',
+            'yes' => 'ja',
+            'no' => 'nein',
+        ],
+        'sql' => [
+            'title' => 'SQL-Befehl',
+            'label' => 'SQL',
+            'hint' => 'Mehrere Befehle mit Semikolon trennen. Sie laufen als Benutzer :name und erreichen nur diese Datenbank. Je Ergebnis erscheinen höchstens 1000 Zeilen; ein Befehl darf 25 Sekunden dauern.',
+            'warning' => 'Befehle werden sofort und ohne Rückfrage ausgeführt. DELETE, DROP und UPDATE lassen sich nicht rückgängig machen.',
+            'submit' => 'Ausführen',
+            'shortcut' => 'Strg+Enter',
+            'statement' => 'Befehl :number',
+            'affected' => ':count Zeilen betroffen',
+            'rows' => ':count Zeilen',
+            'truncated' => ':shown von :count Zeilen angezeigt',
+            'no_rows' => 'Keine Zeilen.',
+            'error' => 'Fehler in Befehl :number (:code): :message',
+            'done' => '{1} :count Befehl ausgeführt|[0,*] :count Befehle ausgeführt',
+            'not_logged' => 'Im Audit-Log steht nur, dass ein Befehl lief, nicht der Befehl selbst.',
+        ],
+        'cell' => [
+            'null' => 'NULL',
+            'binary' => 'Binärdaten, :size',
+            'cut' => 'gekürzt, insgesamt :size',
+        ],
+        'errors' => [
+            'database_not_ready' => 'Die Datenbank ist gerade nicht bereit.',
+            'query_worker_timeout' => 'Der Dienst für Abfragen hat nicht geantwortet. Läuft owpanel-query auf dem Panel-Server?',
+            'query_failed' => 'Die Abfrage ist unerwartet fehlgeschlagen. Details stehen im Log des Panels.',
+            'database_login_failed' => 'Die Anmeldung an der Datenbank ist fehlgeschlagen. Stimmt das gespeicherte Passwort noch? Ein neues Passwort setzen behebt das.',
+            'mariadb_unavailable' => 'MariaDB läuft auf dem Server nicht.',
+            'query_timeout' => 'Die Abfrage hat zu lange gedauert und wurde abgebrochen.',
+            'query_too_large' => 'Der Befehl ist zu lang.',
+            'result_too_large' => 'Das Ergebnis ist zu groß. Bitte weniger Zeilen oder Spalten abfragen.',
+            'invalid_result' => 'Der Server hat eine unerwartete Antwort geschickt.',
+            'site_not_found' => 'Die Webseite gibt es auf dem Server nicht mehr.',
+            'ssh_connection_failed' => 'Der Server ist nicht erreichbar.',
+            'unknown' => 'Die Abfrage ist fehlgeschlagen (:code).',
+        ],
+    ],
+
+    // Export and import (E-082).
+    'transfer' => [
+        'title' => 'Export/Import',
+        'busy' => 'Für diese Datenbank läuft gerade eine Aufgabe. Export und Import sind danach wieder möglich.',
+        'export_title' => 'Exportieren',
+        'export_text' => 'Erstellt eine SQL-Datei der Datenbank mit Tabellen, Daten, Ansichten, Triggern und Routinen, komprimiert mit gzip. Läuft als Aufgabe; danach kann die Datei heruntergeladen werden.',
+        'export_submit' => 'Export erstellen',
+        'available' => 'Verfügbare Exporte',
+        'kept' => 'Dateien werden nach :hours Stunden gelöscht.',
+        'download' => 'Herunterladen',
+        'import_title' => 'Importieren',
+        'import_text' => 'Spielt eine SQL-Datei in diese Datenbank ein, etwa einen Export aus einem anderen Panel oder aus phpMyAdmin. Tabellen mit gleichem Namen werden dabei meist ersetzt. Der Import stoppt beim ersten Fehler; was davor lief, bleibt erhalten.',
+        'file' => 'SQL-Datei',
+        'file_hint' => 'Als .sql oder mit gzip komprimiert (.sql.gz), höchstens :size MB. DEFINER-Angaben anderer Benutzer werden entfernt.',
+        'confirm' => 'Ich weiß, dass der Import Daten in :name überschreiben kann.',
+        'confirm_required' => 'Bitte bestätigen, dass der Import Daten überschreiben kann.',
+        'import_submit' => 'Importieren',
+        'wrong_type' => 'Bitte eine .sql-Datei oder eine mit gzip komprimierte Datei wählen.',
+        'export_started' => 'Export gestartet.',
+        'import_started' => 'Import gestartet.',
+    ],
+];

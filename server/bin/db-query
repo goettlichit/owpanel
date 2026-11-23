@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Runs SQL in a website's database as its own database user (E-079), for the
+# database tool in the panel. Never as MariaDB's root: the user only has
+# rights on its own database, so a statement cannot reach anything else.
+#
+# Standard input: the password in the first line, then the SQL. Neither
+# appears in the process list or in a log. The SQL runs in the PHP helper
+# lib/db-query.php as the website's Linux user, not as root.
+#
+#   db-query --name ow38217_shop [--max-rows 1000]   < password + SQL
+#
+# The result line holds the results of all statements; an SQL error is a
+# normal result ("sql_error"), not a failure of the script.
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/database.sh
+source /opt/owpanel/lib/database.sh
+
+# Seconds for the whole run; MariaDB stops a single statement earlier
+# (max_statement_time in the helper).
+readonly QUERY_TIMEOUT=30
+
+usage() {
+  owp_die "invalid_arguments" "usage: db-query --name <owNNNNN_name> [--max-rows <1-1000>] < password + SQL"
+}
+
+main() {
+  local name="" max_rows="1000" user php rc=0
+  owp_init "db-query"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --name)
+        [[ $# -ge 2 ]] || usage
+        name="$2"
+        shift 2
+        ;;
+      --max-rows)
+        [[ $# -ge 2 ]] || usage
+        max_rows="$2"
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  [[ -n "$name" ]] || usage
+  owp_valid_db_name "$name" || owp_die "invalid_database_name" "invalid database name"
+  if [[ ! "$max_rows" =~ ^[1-9][0-9]{0,3}$ ]] || ((max_rows > 1000)); then
+    usage
+  fi
+
+  owp_require_root
+  owp_check_os
+  owp_require_mariadb
+
+  user="$(owp_db_site_user "$name")"
+  getent passwd "$user" >/dev/null || owp_die "site_not_found" "website ${user} does not exist"
+  php="/usr/bin/php${OWP_PHP_VERSION}"
+  [[ -x "$php" ]] || owp_die "php_not_installed" "PHP ${OWP_PHP_VERSION} is missing"
+
+  # No lock: a query changes nothing that other scripts manage, and it must
+  # not wait behind a long task. The helper prints the result line itself.
+  timeout --kill-after=5 "$QUERY_TIMEOUT" \
+    runuser -u "$user" -- "$php" -d memory_limit=256M -d display_errors=stderr \
+    "${OWP_ROOT}/lib/db-query.php" --name "$name" --max-rows "$max_rows" || rc=$?
+
+  case "$rc" in
+    0 | 1) OWP_RESULT_SENT=1 ;;
+    124 | 137) owp_die "query_timeout" "the query took longer than ${QUERY_TIMEOUT} seconds" ;;
+    *) owp_die "query_failed" "the query helper ended with status ${rc}" ;;
+  esac
+  return "$rc"
+}
+
+main "$@"

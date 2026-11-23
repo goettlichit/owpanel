@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Sets the hard limit for the files of one website (E-126). The panel works
+# out the limit per customer from the package; 0 removes it. Needs user
+# quotas from the base setup.
+#
+#   site-quota --user ow38217 --kib 5242880
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/quota.sh
+source /opt/owpanel/lib/quota.sh
+
+usage() {
+  owp_die "invalid_arguments" "usage: site-quota --user <owNNNNN> --kib <0-…>"
+}
+
+main() {
+  local user="" kib=""
+  owp_init "site-quota"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --user | --kib)
+        [[ $# -ge 2 ]] || usage
+        case "$1" in
+          --user) user="$2" ;;
+          --kib) kib="$2" ;;
+        esac
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  owp_valid_site_user "$user" || owp_die "invalid_user" "invalid site user"
+  owp_reserved_site_user "$user" && owp_die "reserved_user" "${user} belongs to the panel"
+  # Up to 16 TiB in KiB; no leading zeros.
+  if [[ ! "$kib" =~ ^(0|[1-9][0-9]{0,10})$ ]] || ((kib > 17179869184)); then
+    usage
+  fi
+
+  owp_require_root
+  id -u "$user" >/dev/null 2>&1 || owp_die "site_not_found" "website ${user} does not exist"
+  owp_quota_active || owp_die "quota_unavailable" "user quotas are not on for ${OWP_QUOTA_ROOT}"
+
+  owp_quota_set_kib "$user" "$kib" || owp_die "quota_failed" "setquota failed for ${user}"
+  owp_result_ok "$(printf '"user":"%s","kib":%d' "$user" "$kib")"
+}
+
+main "$@"

@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# Suspends a website (E-127, E-151). Repeatable; every step that is already
+# done is skipped. Files, databases, backups and database users stay.
+#
+#   site-suspend --user ow38217
+#
+# site-unsuspend brings back exactly the state before.
+set -euo pipefail
+
+# - nginx answers domain and www with a neutral page and HTTP 503; the path
+#   for Let's Encrypt stays reachable (checked with nginx -t, else the old
+#   configuration stays).
+# - The PHP-FPM pool rests: kept aside and removed (checked with php-fpm -t).
+# - The cron file is kept aside.
+# - SFTP is locked by letting the account expire, open sessions end. The
+#   previous expiry date is kept. Scripts of the panel still run as the user
+#   with runuser, which does not check the expiry.
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/suspend.sh
+source /opt/owpanel/lib/suspend.sh
+
+readonly TEMPLATES="${OWP_ROOT}/templates"
+
+# Snippet and page come with the scripts, so no base setup is needed first.
+install_page() {
+  install -d -o root -g root -m 0755 "$OWP_SUSPEND_PAGE_DIR"
+  install -o root -g root -m 0644 "${TEMPLATES}/nginx/site-suspended.html" "${OWP_SUSPEND_PAGE_DIR}/owpanel-suspended.html"
+  install -d -o root -g root -m 0755 "$(dirname "$OWP_SUSPEND_SNIPPET")"
+  if ! cmp -s "${TEMPLATES}/nginx/site-suspended.conf" "$OWP_SUSPEND_SNIPPET" 2>/dev/null; then
+    install -o root -g root -m 0644 "${TEMPLATES}/nginx/site-suspended.conf" "$OWP_SUSPEND_SNIPPET"
+  fi
+}
+
+suspend_nginx() {
+  local user="$1" file="${OWP_NGINX_SITES}/${1}.conf"
+  [[ -f "$file" ]] || owp_die "site_not_found" "${file} is missing"
+  owp_tmpdir
+  owp_suspend_nginx_with "$file" >"${OWP_TMPDIR}/site.conf"
+  owp_apply_config "${OWP_TMPDIR}/site.conf" "$file" 0644 nginx reload -- nginx -t \
+    || owp_die "nginx_config_invalid" "nginx rejected the suspended configuration; the website stays online"
+}
+
+suspend_pools() {
+  local user="$1" state="$2" pool version
+  while IFS= read -r pool; do
+    version="$(owp_suspend_php_version "$pool")" || continue
+    cp -p "$pool" "${state}/pool-${version}.conf"
+    owp_remove_config "$pool" "php${version}-fpm" reload -- "php-fpm${version}" -t \
+      || owp_die "php_pool_invalid" "PHP-FPM failed without the pool of ${user}"
+  done < <(owp_suspend_pools "$user")
+}
+
+suspend_cron() {
+  local user="$1" state="$2" file="${OWP_CRON_DIR}/owpanel-${1}"
+  if [[ -f "$file" ]]; then
+    mv -f "$file" "${state}/cron"
+    owp_log "cron jobs set aside"
+  fi
+}
+
+lock_sftp() {
+  local user="$1" state="$2" expire
+  if [[ ! -f "${state}/expire" ]]; then
+    expire="$(getent shadow "$user" | cut -d: -f8)"
+    [[ -z "$expire" || "$expire" =~ ^-?[0-9]+$ ]] || expire=""
+    printf '%s\n' "$expire" >"${state}/expire"
+    # Day 1 of 1970: expired. sshd refuses passwords and keys alike.
+    usermod --expiredate 1 "$user" || owp_die "sftp_lock_failed" "the account could not be locked"
+    owp_log "SFTP locked"
+  fi
+  if pkill --uid "$user" --exact 'sshd|sshd-session' 2>/dev/null; then
+    owp_log "ended open SFTP sessions"
+  fi
+}
+
+main() {
+  local user state
+  owp_init "site-suspend"
+  owp_suspend_args "$@"
+  user="$OWP_SUSPEND_USER"
+  owp_require_root
+  owp_check_os
+  owp_lock 120
+  getent passwd "$user" >/dev/null || owp_die "site_not_found" "website ${user} does not exist"
+
+  state="${OWP_SUSPEND_DIR}/${user}"
+  install -d -o root -g root -m 0700 "$OWP_SUSPEND_DIR" "$state"
+
+  install_page
+  suspend_nginx "$user"
+  suspend_pools "$user" "$state"
+  suspend_cron "$user" "$state"
+  lock_sftp "$user" "$state"
+  date -u +%Y-%m-%dT%H:%M:%SZ >"${state}/suspended"
+
+  owp_result_ok "\"user\":\"${user}\",\"suspended\":true"
+}
+
+main "$@"

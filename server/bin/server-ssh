@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# Password login over SSH for administrators (E-155). Repeatable.
+#
+#   server-ssh --status
+#   server-ssh --password-login off|on
+set -euo pipefail
+
+# "off" writes /etc/ssh/sshd_config.d/00-owpanel-password.conf with
+# PasswordAuthentication no. It is read before every other file, so its
+# value wins; customers in owpanel-sftp keep their SFTP password through
+# the Match block of owpanel-sftp.conf. "off" is refused while root or an
+# account with a login shell has no SSH key. "on" removes the file again.
+# Both are checked with sshd -t and rolled back on failure.
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+
+OWP_SSH_PASSWORD_CONF="${OWP_SSH_PASSWORD_CONF:-/etc/ssh/sshd_config.d/00-owpanel-password.conf}"
+readonly SFTP_GROUP="owpanel-sftp"
+
+usage() {
+  owp_die "invalid_arguments" "usage: server-ssh --status | --password-login off|on"
+}
+
+# Accounts that can log in with a shell: root and users from UID 1000 whose
+# shell is not nologin or false. Website users have no shell.
+login_accounts() {
+  getent passwd | awk -F: '
+    ($3 == 0 || $3 >= 1000) && $3 != 65534 && $7 !~ /(nologin|false)$/ && $7 != "" { print $1 ":" $6 }
+  '
+}
+
+has_key() {
+  local home="$1" file
+  for file in "${home}/.ssh/authorized_keys" "${home}/.ssh/authorized_keys2"; do
+    [[ -s "$file" ]] && grep -qE '^[[:space:]]*(ssh-|ecdsa-|sk-)' "$file" && return 0
+  done
+  return 1
+}
+
+# JSON string content: backslash and quote escaped, control characters
+# dropped. sshd values and account names are plain text anyway.
+json_text() {
+  printf '%s' "$1" | tr -d '\000-\037' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+# Effective sshd setting for a keyword (lower case), several lines joined.
+sshd_value() {
+  /usr/sbin/sshd -T 2>/dev/null | awk -v key="$1" '$1 == key { $1 = ""; sub(/^ /, ""); print }' | paste -sd' ' -
+}
+
+status() {
+  local accounts="" line user home key password allow_users allow_groups sftp_allowed=true
+  while IFS= read -r line; do
+    user="${line%%:*}"
+    home="${line#*:}"
+    key=false
+    has_key "$home" && key=true
+    accounts+="${accounts:+,}{\"user\":\"$(json_text "$user")\",\"key\":${key}}"
+  done < <(login_accounts)
+
+  password="$(sshd_value passwordauthentication)"
+  allow_users="$(sshd_value allowusers)"
+  allow_groups="$(sshd_value allowgroups)"
+  # With AllowUsers or AllowGroups, SFTP customers only get in when the
+  # group is listed in AllowGroups (AllowUsers would need every user).
+  if [[ -n "$allow_users" || -n "$allow_groups" ]]; then
+    [[ " ${allow_groups} " == *" ${SFTP_GROUP} "* ]] || sftp_allowed=false
+  fi
+
+  owp_result_ok "\"password_login\":$([[ "$password" == "yes" ]] && echo true || echo false),\"managed\":$([[ -f "$OWP_SSH_PASSWORD_CONF" ]] && echo true || echo false),\"accounts\":[${accounts}],\"allow_users\":\"$(json_text "$allow_users")\",\"allow_groups\":\"$(json_text "$allow_groups")\",\"sftp_allowed\":${sftp_allowed}"
+}
+
+password_off() {
+  local line missing=""
+  while IFS= read -r line; do
+    has_key "${line#*:}" || missing+="${missing:+, }${line%%:*}"
+  done < <(login_accounts)
+  [[ -z "$missing" ]] || owp_die "no_key" "no SSH key for: ${missing}; password login stays on"
+
+  owp_tmpdir
+  printf '%s\n' "# Managed by OWPanel (E-155). Administrators log in with SSH keys only;" \
+    "# SFTP customers keep their password through owpanel-sftp.conf." \
+    "PasswordAuthentication no" "KbdInteractiveAuthentication no" >"${OWP_TMPDIR}/password.conf"
+  owp_apply_config "${OWP_TMPDIR}/password.conf" "$OWP_SSH_PASSWORD_CONF" 0644 ssh reload -- /usr/sbin/sshd -t \
+    || owp_die "sshd_config_invalid" "sshd rejected the configuration; nothing changed"
+}
+
+password_on() {
+  [[ -f "$OWP_SSH_PASSWORD_CONF" ]] || return 0
+  owp_remove_config "$OWP_SSH_PASSWORD_CONF" ssh reload -- /usr/sbin/sshd -t \
+    || owp_die "sshd_config_invalid" "sshd rejected the configuration; nothing changed"
+}
+
+main() {
+  owp_init "server-ssh"
+  case "${1:-} ${2:-} ${3:-}" in
+    "--status  ") ;;
+    "--password-login off " | "--password-login on ") ;;
+    *) usage ;;
+  esac
+  owp_require_root
+  owp_check_os
+
+  if [[ "$1" == "--status" ]]; then
+    status
+    return 0
+  fi
+  owp_lock 60
+  if [[ "$2" == "off" ]]; then
+    password_off
+  else
+    password_on
+  fi
+  status
+}
+
+main "$@"

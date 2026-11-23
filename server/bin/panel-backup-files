@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Lists the files in one backup of the panel itself (E-099): their paths,
+# sizes and times, never their content. Read-only.
+#
+#   panel-backup-files --snapshot 85f2cfc3
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/backup.sh
+source /opt/owpanel/lib/backup.sh
+
+usage() {
+  owp_die "invalid_arguments" "usage: panel-backup-files --snapshot <id>"
+}
+
+main() {
+  local snapshot="" full php
+  owp_init "panel-backup-files"
+  [[ $# -eq 2 && "$1" == "--snapshot" ]] || usage
+  snapshot="$2"
+  [[ "$snapshot" =~ ^[0-9a-f]{8,64}$ ]] || owp_die "invalid_snapshot" "invalid snapshot ID"
+  owp_require_root
+  owp_require_backup
+  php="$(command -v php || true)"
+  [[ -n "$php" ]] || owp_die "php_missing" "php is needed to read the listing"
+
+  # Only a snapshot with the tag "panel" is shown.
+  owp_tmpdir
+  owp_restic snapshots --json --no-lock --tag panel >"${OWP_TMPDIR}/snapshots.json" 2>"${OWP_TMPDIR}/restic.err" \
+    || owp_die "list_failed" "$(tail -n 1 "${OWP_TMPDIR}/restic.err")"
+  full="$({ grep -o '"id":"'"${snapshot}"'[0-9a-f]*"' "${OWP_TMPDIR}/snapshots.json" || true; } | head -n 1 | sed 's/"id":"\([0-9a-f]*\)"/\1/')"
+  [[ "$full" =~ ^[0-9a-f]{64}$ ]] || owp_die "snapshot_not_found" "snapshot ${snapshot} is not a panel backup"
+
+  owp_restic ls --json --no-lock "$full" >"${OWP_TMPDIR}/files.json" 2>"${OWP_TMPDIR}/restic.err" \
+    || owp_die "list_failed" "$(tail -n 1 "${OWP_TMPDIR}/restic.err")"
+  owp_result_ok "\"snapshot\":\"${full:0:8}\",\"files\":$("$php" -n "${OWP_ROOT}/lib/backup-files.php" --files <"${OWP_TMPDIR}/files.json")"
+}
+
+main "$@"

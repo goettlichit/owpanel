@@ -1,0 +1,14 @@
+# Managed by OWPanel. Do not edit, changes are overwritten.
+# Logs of the panel, its workers and the scheduler (E-092): one file a day,
+# kept for 14 days. copytruncate, because the workers keep the file open.
+/var/www/ow10000/shared/storage/logs/*.log {
+    su ow10000 ow10000
+    daily
+    rotate 14
+    maxage 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+}

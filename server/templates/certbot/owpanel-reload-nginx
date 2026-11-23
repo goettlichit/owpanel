@@ -1,0 +1,5 @@
+#!/bin/sh
+# Managed by OWPanel. Reloads nginx after a certificate was renewed.
+set -eu
+nginx -t -q
+systemctl reload nginx

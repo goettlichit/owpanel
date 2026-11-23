@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Sets the own firewall rules of the panel (E-090). The panel sends the whole
+# list on stdin each time, one rule per line:
+#
+#   tcp<TAB>3306<TAB>203.0.113.5/32
+#   udp<TAB>51820<TAB>any
+#   tcp<TAB>8000-8010<TAB>2001:db8::/64
+#
+# The fixed ports (SSH, HTTP, HTTPS, HTTP/3) always stay open. Like every
+# firewall change, the new rules are rolled back after 60 seconds unless the
+# panel confirms them with firewall-confirm over a new SSH connection.
+#
+#   firewall-rules < list
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/firewall.sh
+source /opt/owpanel/lib/firewall.sh
+
+main() {
+  local line count=0 list rc=0
+  owp_init "firewall-rules"
+  [[ $# -eq 0 ]] || owp_die "invalid_arguments" "firewall-rules takes no parameters, the rules come on stdin"
+  owp_require_root
+  owp_check_os
+  owp_firewall_loaded || owp_die "firewall_not_installed" "the firewall table is missing; run the base setup of the server again"
+
+  owp_tmpdir
+  list="${OWP_TMPDIR}/rules.list"
+  : >"$list"
+  while IFS= read -r -t 10 line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    count=$((count + 1))
+    ((count <= OWP_FW_MAX_RULES)) || owp_die "too_many_rules" "at most ${OWP_FW_MAX_RULES} firewall rules"
+    owp_firewall_rule "$line" "$count" >/dev/null || owp_die "invalid_rule" "firewall rule ${count} is invalid"
+    printf '%s\n' "$line" >>"$list"
+  done
+
+  owp_firewall_ssh_ports
+  owp_firewall_render "${OWP_TMPDIR}/firewall.nft" "$OWP_FW_SSH_PORTS" "$list"
+  owp_firewall_apply "${OWP_TMPDIR}/firewall.nft" "$list" || rc=$?
+  case "$rc" in
+    0) owp_result_ok "\"rules\":${count},\"firewall_confirm_required\":false" ;;
+    10) owp_result_ok "\"rules\":${count},\"firewall_confirm_required\":true,\"firewall_confirm_within\":${OWP_FW_TIMEOUT}" ;;
+    *) owp_die "firewall_failed" "firewall change failed" ;;
+  esac
+}
+
+main "$@"

@@ -1,0 +1,13 @@
+# Public key that signs the OWPanel release archives (E-167), in the
+# allowed_signers format of ssh-keygen. get-owpanel contains the same key
+# lines (tests/release.bats compares them), and the installer copies this
+# file to /etc/owpanel/release-signers for later updates of the server
+# scripts. To check a downloaded archive by hand:
+#
+#   ssh-keygen -Y verify -f release-signers -I owpanel-release -n owpanel-release \
+#     -s owpanel-<version>.tar.gz.sig < owpanel-<version>.tar.gz
+#
+# A key line looks like this (one line per key, for a change of keys):
+#
+#   owpanel-release namespaces="owpanel-release" ssh-ed25519 AAAA...
+owpanel-release namespaces="owpanel-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID668zKpcURWItatv7D0P9JS7ClQwzpw8ri5C9NYaYB/

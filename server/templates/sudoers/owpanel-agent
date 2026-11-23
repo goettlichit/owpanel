@@ -1,0 +1,43 @@
+# Managed by OWPanel. Do not edit, changes are overwritten.
+# Exact paths only: no directories, wildcards, shells, editors or package managers.
+Defaults:owpanel-agent env_reset
+
+Cmnd_Alias OWPANEL_SCRIPTS = /opt/owpanel/bin/backup-setup, \
+                             /opt/owpanel/bin/db-create, \
+                             /opt/owpanel/bin/db-delete, \
+                             /opt/owpanel/bin/db-export, \
+                             /opt/owpanel/bin/db-import, \
+                             /opt/owpanel/bin/db-query, \
+                             /opt/owpanel/bin/firewall-confirm, \
+                             /opt/owpanel/bin/firewall-rules, \
+                             /opt/owpanel/bin/panel-backup, \
+                             /opt/owpanel/bin/panel-backup-files, \
+                             /opt/owpanel/bin/panel-backups, \
+                             /opt/owpanel/bin/panel-test, \
+                             /opt/owpanel/bin/server-blocklist, \
+                             /opt/owpanel/bin/server-fail2ban, \
+                             /opt/owpanel/bin/server-logs, \
+                             /opt/owpanel/bin/server-provision, \
+                             /opt/owpanel/bin/server-reboot, \
+                             /opt/owpanel/bin/server-status, \
+                             /opt/owpanel/bin/server-timezone, \
+                             /opt/owpanel/bin/server-updates, \
+                             /opt/owpanel/bin/server-upgrade, \
+                             /opt/owpanel/bin/server-ssh, \
+                             /opt/owpanel/bin/site-backup, \
+                             /opt/owpanel/bin/site-backup-files, \
+                             /opt/owpanel/bin/site-backups, \
+                             /opt/owpanel/bin/site-certificates, \
+                             /opt/owpanel/bin/site-create, \
+                             /opt/owpanel/bin/site-cron, \
+                             /opt/owpanel/bin/site-delete, \
+                             /opt/owpanel/bin/site-logs, \
+                             /opt/owpanel/bin/site-restore, \
+                             /opt/owpanel/bin/site-sftp, \
+                             /opt/owpanel/bin/site-stats, \
+                             /opt/owpanel/bin/site-suspend, \
+                             /opt/owpanel/bin/site-unsuspend, \
+                             /opt/owpanel/bin/site-usage, \
+                             /opt/owpanel/bin/site-quota
+
+owpanel-agent ALL=(root) NOPASSWD: OWPANEL_SCRIPTS

@@ -1,0 +1,231 @@
+#!/usr/bin/env bash
+# Restores a website from one of its restic snapshots (E-098), after a
+# safety backup of the current state (tag "restore", the last five kept).
+# Scopes: all, files (htdocs), path (--path below htdocs), databases,
+# database (--database). "--snapshot latest" takes the newest scheduled or
+# manual backup and ends without a change if there is none; the panel uses
+# it to rebuild a website that the server lost (E-106). Files go back through rsync as the site user;
+# extra files in a restored directory are deleted. Databases are dropped
+# and created again from their dumps; users and grants stay.
+#
+#   site-restore --user ow38217 --snapshot 2e2b9c0c --scope path --path wp-content
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/database.sh
+source /opt/owpanel/lib/database.sh
+# shellcheck source=server/lib/backup.sh
+source /opt/owpanel/lib/backup.sh
+# shellcheck source=server/lib/site-backup.sh
+source /opt/owpanel/lib/site-backup.sh
+# shellcheck source=server/lib/quota.sh
+source /opt/owpanel/lib/quota.sh
+
+readonly KEEP_RESTORE_BACKUPS=5
+
+usage() {
+  owp_die "invalid_arguments" "usage: site-restore --user <owNNNNN> --snapshot <id>|latest --scope all|files|path|databases|database [--path <path>] [--database <name>]"
+}
+
+RESTORED_FILES=0
+RESTORED_DATABASES=()
+SKIPPED_DATABASES=()
+DUMPS=()
+
+# Unpacks htdocs, or one path below it, from the snapshot into the stage.
+extract_files() {
+  local user="$1" snapshot="$2" path="$3" stage="$4" source
+  source="${OWP_SITES_ROOT}/${user}/htdocs${path:+/${path}}"
+  owp_log "unpacking ${source}"
+  owp_restic restore --quiet "$snapshot" --target "${stage}/files" --include "$source" >/dev/null 2>"${OWP_TMPDIR}/restic.err" \
+    || owp_die "restore_failed" "$(tail -n 1 "${OWP_TMPDIR}/restic.err")"
+  [[ -e "${stage}/files${source}" || -L "${stage}/files${source}" ]] || owp_die "path_not_in_snapshot" "${path:-htdocs} is not in the snapshot"
+  RESTORED_FILES="$(find "${stage}/files${source}" | wc -l)"
+}
+
+# Copies the unpacked files back into place. Only the site user acts here,
+# on its own files, so nothing outside the website can be touched.
+apply_files() {
+  local user="$1" path="$2" stage="$3" source target
+  source="${stage}/files${OWP_SITES_ROOT}/${user}/htdocs${path:+/${path}}"
+  target="${OWP_SITES_ROOT}/${user}/htdocs${path:+/${path}}"
+  chown -R -h "${user}:${user}" "${stage}/files"
+  chmod 0711 "$stage"
+  runuser -u "$user" -- mkdir -p -- "$(dirname -- "$target")"
+  if [[ -d "$source" && ! -L "$source" ]]; then
+    if [[ -L "$target" || (-e "$target" && ! -d "$target") ]]; then
+      runuser -u "$user" -- rm -f -- "$target"
+    fi
+    runuser -u "$user" -- rsync -rlpt --delete -- "${source}/" "${target}/" \
+      || owp_die "restore_failed" "rsync could not copy the files back"
+  else
+    if [[ -d "$target" && ! -L "$target" ]]; then
+      runuser -u "$user" -- rm -rf -- "$target"
+    fi
+    runuser -u "$user" -- rsync -lpt -- "$source" "$target" \
+      || owp_die "restore_failed" "rsync could not copy the file back"
+  fi
+  owp_log "restored ${RESTORED_FILES} file(s) and folder(s)"
+}
+
+# Unpacks the database dumps and keeps those of databases that exist now.
+extract_databases() {
+  local user="$1" snapshot="$2" only="$3" stage="$4" dumps dump name
+  dumps="${OWP_BACKUP_STAGING}/${user}"
+  owp_log "unpacking the database dumps"
+  owp_restic restore --quiet "$snapshot" --target "${stage}/dumps" --include "${dumps}${only:+/${only}.sql}" >/dev/null 2>"${OWP_TMPDIR}/restic.err" \
+    || owp_die "restore_failed" "$(tail -n 1 "${OWP_TMPDIR}/restic.err")"
+  if [[ -n "$only" && ! -f "${stage}/dumps${dumps}/${only}.sql" ]]; then
+    owp_die "database_not_in_snapshot" "${only} is not in the snapshot"
+  fi
+
+  for dump in "${stage}/dumps${dumps}"/*.sql; do
+    [[ -f "$dump" && ! -L "$dump" ]] || continue
+    name="$(basename -- "$dump" .sql)"
+    if ! owp_valid_db_name "$name" || [[ "$(owp_db_site_user "$name")" != "$user" ]]; then
+      owp_warn "skipping ${name}: not a database of ${user}"
+      continue
+    fi
+    if [[ -z "$(owp_mariadb --execute="SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '${name}'")" ]]; then
+      [[ -z "$only" ]] || owp_die "database_not_found" "${name} no longer exists on the server"
+      owp_warn "skipping ${name}: it no longer exists on the server"
+      SKIPPED_DATABASES+=("$name")
+      continue
+    fi
+    # The dump may only switch to and create its own database.
+    if grep -E '^(USE|CREATE DATABASE)' "$dump" | grep -vqF "\`${name}\`"; then
+      owp_die "dump_invalid" "the dump of ${name} refers to another database"
+    fi
+    DUMPS+=("$dump")
+  done
+}
+
+# Drops each database and creates it again from its dump; its users and
+# grants stay.
+apply_databases() {
+  local dump name
+  for dump in "${DUMPS[@]}"; do
+    name="$(basename -- "$dump" .sql)"
+    owp_log "importing ${name}"
+    owp_mariadb --execute="DROP DATABASE \`${name}\`"
+    mariadb --protocol=socket --default-character-set=utf8mb4 <"$dump" \
+      || owp_die "import_failed" "importing ${name} failed; the backup made before the restore holds the previous state"
+    RESTORED_DATABASES+=("$name")
+  done
+}
+
+json_names() {
+  local first=true name
+  printf '['
+  for name in "$@"; do
+    $first || printf ','
+    first=false
+    printf '"%s"' "$name"
+  done
+  printf ']'
+}
+
+main() {
+  local user="" snapshot="" scope="" path="" database="" full stage safety
+  owp_init "site-restore"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --user | --snapshot | --scope | --path | --database)
+        [[ $# -ge 2 ]] || usage
+        case "$1" in
+          --user) user="$2" ;;
+          --snapshot) snapshot="$2" ;;
+          --scope) scope="$2" ;;
+          --path) path="$2" ;;
+          --database) database="$2" ;;
+        esac
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  owp_valid_site_user "$user" || owp_die "invalid_user" "invalid site user"
+  owp_reserved_site_user "$user" && owp_die "reserved_user" "${user} belongs to the panel"
+  [[ "$snapshot" == latest || "$snapshot" =~ ^[0-9a-f]{8,64}$ ]] || owp_die "invalid_snapshot" "invalid snapshot ID"
+  case "$scope" in
+    all | files | databases)
+      [[ -z "$path" && -z "$database" ]] || usage
+      ;;
+    path)
+      [[ -n "$path" && -z "$database" ]] || usage
+      owp_valid_site_path "$path" || owp_die "invalid_path" "invalid path"
+      ;;
+    database)
+      [[ -z "$path" ]] || usage
+      { owp_valid_db_name "$database" && [[ "$(owp_db_site_user "$database")" == "$user" ]]; } \
+        || owp_die "invalid_database" "invalid database name"
+      ;;
+    *) usage ;;
+  esac
+
+  owp_require_root
+  owp_require_backup
+  [[ -d "${OWP_SITES_ROOT}/${user}/htdocs" && ! -L "${OWP_SITES_ROOT}/${user}/htdocs" ]] \
+    || owp_die "site_not_found" "website ${user} does not exist"
+  if [[ "$scope" != databases && "$scope" != database ]]; then
+    command -v rsync >/dev/null 2>&1 || owp_die "rsync_not_installed" "rsync is missing; run the base setup again"
+  fi
+  if [[ "$scope" == all || "$scope" == databases || "$scope" == database ]]; then
+    owp_require_mariadb
+  fi
+  owp_lock 3600
+
+  if [[ "$snapshot" == latest ]]; then
+    owp_site_latest_snapshot "$user"
+    if [[ -z "$OWP_SNAPSHOT_ID" ]]; then
+      owp_warn "${user} has no backup yet; nothing to restore"
+      owp_result_ok "\"snapshot\":null,\"scope\":\"${scope}\",\"no_backup\":true,\"files\":0,\"databases\":[],\"skipped\":[]"
+      return 0
+    fi
+    owp_log "newest backup: ${OWP_SNAPSHOT_ID:0:8}"
+  else
+    owp_site_snapshot "$user" "$snapshot"
+  fi
+  full="$OWP_SNAPSHOT_ID"
+
+  install -d -o root -g root -m 0711 "$OWP_BACKUP_STAGING" "${OWP_BACKUP_STAGING}/restore"
+  stage="$(mktemp -d "${OWP_BACKUP_STAGING}/restore/${user}.XXXXXX")"
+  OWP_CLEANUP+=("$stage")
+
+  # Unpack and check first, so a wrong path or database stops the restore
+  # before anything changes.
+  case "$scope" in
+    all | files | path) extract_files "$user" "$full" "${path}" "$stage" ;;
+  esac
+  case "$scope" in
+    all | databases | database) extract_databases "$user" "$full" "${database}" "$stage" ;;
+  esac
+
+  owp_log "backing up the current state first"
+  owp_site_backup "$user" restore
+  safety="$OWP_SITE_SNAPSHOT"
+
+  # A full website would stop the copy halfway; the limit is set back when
+  # the script ends, the panel adjusts it at its next measurement (E-126).
+  owp_quota_lift "$user"
+
+  case "$scope" in
+    all | files | path) apply_files "$user" "$path" "$stage" ;;
+  esac
+  case "$scope" in
+    all | databases | database) apply_databases ;;
+  esac
+
+  if ! owp_restic forget --quiet --prune --tag "site:${user},restore" --group-by tags \
+    --keep-last "$KEEP_RESTORE_BACKUPS" >/dev/null 2>"${OWP_TMPDIR}/restic.err"; then
+    owp_warn "removing old safety backups failed: $(tail -n 1 "${OWP_TMPDIR}/restic.err")"
+  fi
+
+  owp_result_ok "\"snapshot\":\"${full:0:8}\",\"scope\":\"${scope}\",\"safety_snapshot\":\"${safety}\",\"files\":${RESTORED_FILES},\"databases\":$(json_names "${RESTORED_DATABASES[@]}"),\"skipped\":$(json_names "${SKIPPED_DATABASES[@]}")"
+}
+
+main "$@"

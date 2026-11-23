@@ -1,0 +1,30 @@
+# Managed by OWPanel. Do not edit, changes are overwritten.
+# Loaded in one step: the table is created if missing, deleted and rebuilt,
+# so nft -f either applies all rules or none (E-044). Other tables, such as
+# the one of Fail2ban, stay untouched.
+table inet owpanel
+delete table inet owpanel
+
+table inet owpanel {
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        ct state established,related accept
+        ct state invalid drop
+        iifname "lo" accept
+
+        meta l4proto icmp icmp type { echo-request, destination-unreachable, time-exceeded, parameter-problem } accept
+        meta l4proto ipv6-icmp icmpv6 type { echo-request, destination-unreachable, packet-too-big, time-exceeded, parameter-problem, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
+        udp sport 67 udp dport 68 accept comment "DHCP"
+        udp sport 547 udp dport 546 accept comment "DHCPv6"
+
+        tcp dport { @SSH_PORTS@ } accept comment "OWPanel SSH"
+        tcp dport { 80, 443 } accept comment "OWPanel HTTP and HTTPS"
+        udp dport 443 accept comment "OWPanel HTTP/3"
+
+        # Own rules from the panel (E-090)
+@OWN_RULES@
+
+        counter comment "OWPanel dropped"
+    }
+}

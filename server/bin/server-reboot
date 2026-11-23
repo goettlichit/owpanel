@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Restarts the server on request of the administrator (E-076). The reboot
+# starts 15 seconds later through a transient systemd timer, so the panel
+# still receives the result before SSH goes down. While a reboot is
+# pending, another call changes nothing.
+#
+#   server-reboot
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+
+readonly UNIT="owpanel-reboot"
+readonly DELAY=15
+
+main() {
+  owp_init "server-reboot"
+  [[ $# -eq 0 ]] || owp_die "invalid_arguments" "usage: server-reboot"
+  owp_require_root
+
+  if systemctl is-active --quiet "${UNIT}.timer"; then
+    owp_log "a reboot is already scheduled"
+    owp_result_ok "\"delay\":${DELAY},\"already_scheduled\":true"
+    return 0
+  fi
+
+  systemd-run --quiet --unit="$UNIT" --description="Reboot requested in OWPanel" \
+    --on-active="${DELAY}s" --timer-property=AccuracySec=1s \
+    /usr/bin/systemctl reboot \
+    || owp_die "reboot_failed" "could not schedule the reboot"
+  owp_log "reboot in ${DELAY} seconds"
+  owp_result_ok "\"delay\":${DELAY},\"already_scheduled\":false"
+}
+
+main "$@"

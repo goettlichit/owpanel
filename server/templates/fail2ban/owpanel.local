@@ -1,0 +1,26 @@
+# Managed by OWPanel. Do not edit, changes are overwritten.
+# Debian 13 logs SSH to the journal, there is no /var/log/auth.log by default.
+[DEFAULT]
+backend = systemd
+# Bans go into Fail2ban's own nftables table (E-044).
+banaction = nftables-multiport
+banaction_allports = nftables-allports
+
+[sshd]
+enabled = true
+maxretry = 5
+findtime = 10m
+bantime = 1h
+
+# Scanners looking for hidden files such as .env or .git on the websites
+# (E-174). nginx writes these refusals of all websites and the panel to one
+# log, so new websites need no reload. Banned are the web ports only.
+[owpanel-hidden]
+enabled = true
+backend = auto
+filter = owpanel-hidden
+logpath = /var/log/nginx/owpanel-hidden.log
+port = http,https
+maxretry = 5
+findtime = 10m
+bantime = 24h

@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Loads the blocklists of the panel into the firewall (E-170). The panel
+# sends the whole list on stdin each time, one network per line:
+#
+#   block<TAB>198.51.100.0/24
+#   block<TAB>2001:db8:1::/48
+#   allow<TAB>203.0.113.5/32
+#
+# "allow" are exceptions, such as the fail2ban exceptions and the panel's
+# own addresses; they are never dropped. An empty list removes the table.
+# --stats only reads which addresses were dropped how often.
+#
+#   server-blocklist < list
+#   server-blocklist --stats
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/firewall.sh
+source /opt/owpanel/lib/firewall.sh
+
+# The 1000 most frequent addresses are enough for the panel's table and
+# its count per list; the totals cover all of them.
+stats() {
+  command -v jq >/dev/null 2>&1 || owp_die "tool_missing" "jq is missing; run the base setup of the server again"
+  owp_result_ok "$(owp_blocklist_hits 1000)"
+}
+
+main() {
+  local list rules
+  owp_init "server-blocklist"
+  owp_require_root
+  owp_check_os
+  if [[ "${1:-}" == "--stats" && $# -eq 1 ]]; then
+    stats
+    return 0
+  fi
+  [[ $# -eq 0 ]] || owp_die "invalid_arguments" "server-blocklist takes only --stats, the list comes on stdin"
+  owp_firewall_loaded || owp_die "firewall_not_installed" "the firewall table is missing; run the base setup of the server again"
+
+  owp_tmpdir
+  list="${OWP_TMPDIR}/blocklist.list"
+  rules="${OWP_TMPDIR}/blocklist.nft"
+  # At most 16 MiB; owp_blocklist_render checks every line and the counts.
+  head -c 16777216 >"$list"
+  [[ "$(wc -c <"$list")" -lt 16777216 ]] || owp_die "too_many_entries" "the blocklist is larger than 16 MiB"
+
+  install -d -o root -g root -m 0700 /run/owpanel
+  exec 9>/run/owpanel/blocklist.lock
+  flock -w 60 9 || owp_die "firewall_busy" "another blocklist change is in progress"
+
+  owp_blocklist_render "$list" "$rules"
+  if [[ "$OWP_BL_COUNT_BLOCK" -eq 0 ]]; then
+    if nft list table "$OWP_BL_TABLE" >/dev/null 2>&1; then
+      nft delete table "$OWP_BL_TABLE" || owp_die "firewall_load_failed" "could not remove the blocklists"
+    fi
+    rm -f "$OWP_BL_SAVED"
+    owp_log "removed: blocklists"
+    owp_result_ok '"blocked":0,"exceptions":0'
+    return 0
+  fi
+
+  # The lists are swapped in the existing table, so the hit counts stay.
+  # A table from an older version that does not fit is replaced as a whole.
+  if nft -c -f "$rules" 2>/dev/null; then
+    nft -f "$rules" || owp_die "firewall_load_failed" "nft could not load the blocklists"
+  else
+    { printf 'table %s\ndelete table %s\n' "$OWP_BL_TABLE" "$OWP_BL_TABLE"; cat "$rules"; } >"${rules}.fresh"
+    nft -c -f "${rules}.fresh" || owp_die "firewall_rules_invalid" "nft rejected the blocklists"
+    nft -f "${rules}.fresh" || owp_die "firewall_load_failed" "nft could not load the blocklists"
+    owp_log "replaced: blocklist table of an older version"
+  fi
+  install -d -o root -g root -m 0755 "$(dirname "$OWP_BL_SAVED")"
+  install -o root -g root -m 0600 "$rules" "${OWP_BL_SAVED}.new"
+  mv -f "${OWP_BL_SAVED}.new" "$OWP_BL_SAVED"
+  owp_blocklist_unit
+  owp_log "loaded: ${OWP_BL_COUNT_BLOCK} blocked networks, ${OWP_BL_COUNT_ALLOW} exceptions"
+  owp_result_ok "\"blocked\":${OWP_BL_COUNT_BLOCK},\"exceptions\":${OWP_BL_COUNT_ALLOW}"
+}
+
+main "$@"

@@ -1,0 +1,132 @@
+# Builds the release archive (E-068): panel with PHP packages and built
+# assets, server scripts and installer. Servers need neither Composer nor
+# Node.js.
+#
+# - Tag vX.Y.Z: builds owpanel-X.Y.Z.tar.gz and publishes a GitHub release.
+# - Push to main, pull request or run by hand: builds owpanel-dev-<commit>.tar.gz
+#   as an artifact, which get-owpanel --dev downloads on a test VM.
+#
+# A separate job signs the archive (E-167). It runs no code from the build
+# (no Composer, no npm), and only it sees the private key in the secret
+# OWPANEL_RELEASE_SIGNING_KEY. Tags need the secret; other builds without it
+# (e.g. pull requests from forks) stay unsigned, and get-owpanel --dev warns.
+name: Release
+
+on:
+  push:
+    # main as well, so get-owpanel --dev always finds a current test build.
+    branches: [main]
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # Actions are pinned to a commit, because tags can be moved (E-040).
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.5'
+          extensions: mbstring, intl
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Build archive
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version=""
+          if [[ "$REF_TYPE" == "tag" ]]; then
+            version="${REF_NAME#v}"
+          fi
+          scripts/build-release "$version" dist
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: owpanel-unsigned
+          path: dist/
+          if-no-files-found: error
+          # Only passed on to the sign job.
+          retention-days: 1
+
+  sign:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Only for release-signers; nothing from the checkout is run.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+          sparse-checkout: release-signers
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: owpanel-unsigned
+          path: dist
+
+      - name: Sign archive
+        env:
+          SIGNING_KEY: ${{ secrets.OWPANEL_RELEASE_SIGNING_KEY }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          if [[ -z "$SIGNING_KEY" ]]; then
+            if [[ "$REF_TYPE" == "tag" ]]; then
+              echo "::error::OWPANEL_RELEASE_SIGNING_KEY is missing; releases must be signed"
+              exit 1
+            fi
+            echo "::warning::No signing key; this test build stays unsigned"
+            exit 0
+          fi
+          key="${RUNNER_TEMP}/release-key"
+          (umask 077 && printf '%s\n' "$SIGNING_KEY" >"$key")
+          for archive in dist/*.tar.gz; do
+            ssh-keygen -q -Y sign -f "$key" -n owpanel-release "$archive" </dev/null
+            # The key in the secret must match the one in release-signers.
+            ssh-keygen -Y verify -f release-signers -I owpanel-release -n owpanel-release \
+              -s "${archive}.sig" <"$archive"
+          done
+          rm -f "$key"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: owpanel-release
+          path: dist/
+          if-no-files-found: error
+          # Test builds only; releases live on the Releases page. 30 days filled
+          # the artifact storage of the account (2026-11-18).
+          retention-days: 7
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: sign
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: owpanel-release
+          path: dist
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_NAME: ${{ github.ref_name }}
+        run: gh release create "$REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "OWPanel ${REF_NAME#v}" --generate-notes

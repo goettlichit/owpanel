@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Harmless script to test the way from the panel to a server: SSH, sudo, the
+# queue job and the live log (milestone 2). It changes nothing and needs no
+# root; through sudo it reports "root" as user, which proves the sudo rule.
+#
+#   panel-test [--steps <1-10>] [--fail]
+#
+# --steps prints that many progress lines, one per second.
+# --fail ends with the error code "test_failed", to test error handling.
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+
+usage() {
+  owp_die "invalid_arguments" "usage: panel-test [--steps <1-10>] [--fail]"
+}
+
+main() {
+  local steps=3 fail=0 step user
+  owp_init "panel-test"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --steps)
+        [[ $# -ge 2 ]] || usage
+        steps="$2"
+        shift 2
+        ;;
+      --fail)
+        fail=1
+        shift
+        ;;
+      *) usage ;;
+    esac
+  done
+  [[ "$steps" =~ ^([1-9]|10)$ ]] || owp_die "invalid_steps" "steps must be a number from 1 to 10"
+
+  user="$(id -un)"
+  [[ "$user" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || owp_die "unexpected_user" "unexpected user name"
+  owp_log "running as ${user}"
+
+  for ((step = 1; step <= steps; step++)); do
+    owp_log "step ${step} of ${steps}"
+    if ((step < steps)); then
+      sleep 1
+    fi
+  done
+  # Shows that error output reaches the panel log as well.
+  owp_warn "test message on stderr"
+
+  if [[ "$fail" -eq 1 ]]; then
+    owp_die "test_failed" "failure requested with --fail"
+  fi
+  owp_result_ok "\"steps\":${steps},\"user\":\"${user}\""
+}
+
+main "$@"

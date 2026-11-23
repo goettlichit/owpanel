@@ -1,0 +1,178 @@
+<?php
+
+return [
+    'title' => 'Databases',
+    'list_title' => 'Databases of the website',
+    'empty' => 'This website has no database yet.',
+    'site_not_ready' => 'Databases can be created once the website is active and no task runs for it.',
+    'busy' => 'A task is already running for this database, or it is not ready right now.',
+
+    'columns' => [
+        'name' => 'Database and user',
+        'status' => 'Status',
+        'created' => 'Created',
+    ],
+
+    'form' => [
+        'title' => 'New database',
+        'name' => 'Name',
+        'name_hint' => 'Lowercase letters, digits and underscore, up to 16 characters, for example shop or wordpress. The panel creates a strong password.',
+        'submit' => 'Create database',
+    ],
+
+    'about' => [
+        'title' => 'Good to know',
+        'same_name' => 'Database and user share one name. The user only has rights on its own database.',
+        'host' => 'Connections only from the server itself: host localhost or 127.0.0.1, port :port. Character set utf8mb4.',
+        'password' => 'The panel stores the password encrypted. It can be shown after entering your panel password again.',
+        'site_delete' => 'Deleting the website deletes its databases too.',
+    ],
+
+    'credentials' => [
+        'title' => 'Credentials',
+        'host' => 'Host',
+        'host_alt' => 'or 127.0.0.1',
+        'port' => 'Port',
+        'database' => 'Database',
+        'user' => 'User',
+        'password' => 'Password',
+        'reveal' => 'Show',
+        'revealed_hint' => 'Showing the password is recorded in the audit log.',
+    ],
+
+    'password' => [
+        'title' => 'New password',
+        'text' => 'Sets a new random password. The old one stays valid until the server has taken over the new one. After that the website must use the new password, or it loses its database connection.',
+        'submit' => 'Set new password',
+    ],
+
+    'retry' => [
+        'title' => 'Try again',
+        'text' => 'Runs db-create once more with the same name and password.',
+        'submit' => 'Create again',
+    ],
+
+    'delete' => [
+        'title' => 'Delete database',
+        'text' => 'Deletes the database with all tables and its user for good. There are no backups yet, this cannot be undone.',
+        'confirm' => 'Type the name of the database to confirm',
+        'submit' => 'Delete for good',
+        'busy' => 'Deleting is possible once the running task has finished.',
+    ],
+
+    'state' => [
+        'pending' => 'The database is being created.',
+        'deleting' => 'The database is being deleted.',
+        'password' => 'The new password is being set. Until then the old one stays valid.',
+        'failed_create' => 'Creating the database failed: :error',
+        'failed_delete' => 'Deleting the database failed: :error',
+    ],
+
+    'validation' => [
+        'suffix' => 'Use lowercase letters, digits and underscore, up to 16 characters, not starting with an underscore.',
+        'taken' => 'This website already has a database with this name.',
+        'confirm_mismatch' => 'The name does not match the database.',
+    ],
+
+    // Database tool in the panel (E-079).
+    'tool' => [
+        'error_title' => 'Query failed',
+        'nav' => [
+            'overview' => 'Overview',
+            'tables' => 'Tables',
+            'sql' => 'SQL',
+            'transfer' => 'Export/Import',
+        ],
+        'tables' => [
+            'title' => 'Tables',
+            'empty' => 'The database has no tables yet.',
+            'name' => 'Name',
+            'rows' => 'Rows',
+            'rows_hint' => 'For InnoDB the row count in this overview is only an estimate.',
+            'size' => 'Size',
+            'engine' => 'Engine',
+            'collation' => 'Collation',
+            'view' => 'View',
+            'total' => ':count tables, :size in total',
+        ],
+        'table' => [
+            'pretitle' => 'Table',
+            'rows_title' => 'Content',
+            'columns_title' => 'Columns',
+            'column' => 'Column',
+            'type' => 'Type',
+            'nullable' => 'NULL allowed',
+            'key' => 'Key',
+            'extra' => 'Extra',
+            'count' => ':count rows',
+            'range' => 'Rows :from to :to of :count',
+            'empty' => 'The table is empty.',
+            'sort_asc' => 'Sort by :column ascending',
+            'sort_desc' => 'Sort by :column descending',
+            'previous' => 'Previous',
+            'next' => 'Next',
+            'page' => 'Page :page of :pages',
+            'in_sql' => 'Open in SQL',
+            'back' => 'All tables',
+            'yes' => 'yes',
+            'no' => 'no',
+        ],
+        'sql' => [
+            'title' => 'SQL command',
+            'label' => 'SQL',
+            'hint' => 'Separate several statements with a semicolon. They run as user :name and reach only this database. Each result shows at most 1000 rows; a statement may take 25 seconds.',
+            'warning' => 'Statements run at once and without asking. DELETE, DROP and UPDATE cannot be undone.',
+            'submit' => 'Run',
+            'shortcut' => 'Ctrl+Enter',
+            'statement' => 'Statement :number',
+            'affected' => ':count rows affected',
+            'rows' => ':count rows',
+            'truncated' => ':shown of :count rows shown',
+            'no_rows' => 'No rows.',
+            'error' => 'Error in statement :number (:code): :message',
+            'done' => '{1} :count statement run|[0,*] :count statements run',
+            'not_logged' => 'The audit log records only that a statement ran, not the statement itself.',
+        ],
+        'cell' => [
+            'null' => 'NULL',
+            'binary' => 'Binary data, :size',
+            'cut' => 'cut, :size in total',
+        ],
+        'errors' => [
+            'database_not_ready' => 'The database is not ready right now.',
+            'query_worker_timeout' => 'The query service did not answer. Is owpanel-query running on the panel server?',
+            'query_failed' => 'The query failed unexpectedly. Details are in the panel log.',
+            'database_login_failed' => 'Signing in to the database failed. Is the stored password still valid? Setting a new password fixes this.',
+            'mariadb_unavailable' => 'MariaDB is not running on the server.',
+            'query_timeout' => 'The query took too long and was stopped.',
+            'query_too_large' => 'The statement is too long.',
+            'result_too_large' => 'The result is too large. Please ask for fewer rows or columns.',
+            'invalid_result' => 'The server sent an unexpected answer.',
+            'site_not_found' => 'The website no longer exists on the server.',
+            'ssh_connection_failed' => 'The server cannot be reached.',
+            'unknown' => 'The query failed (:code).',
+        ],
+    ],
+
+    // Export and import (E-082).
+    'transfer' => [
+        'title' => 'Export/Import',
+        'busy' => 'A task is running for this database. Export and import are possible again afterwards.',
+        'export_title' => 'Export',
+        'export_text' => 'Creates an SQL file of the database with tables, data, views, triggers and routines, compressed with gzip. Runs as a task; then the file can be downloaded.',
+        'export_submit' => 'Create export',
+        'available' => 'Available exports',
+        'kept' => 'Files are deleted after :hours hours.',
+        'download' => 'Download',
+        'import_title' => 'Import',
+        'import_text' => 'Loads an SQL file into this database, for example an export from another panel or from phpMyAdmin. Tables with the same name are usually replaced. The import stops at the first error; what ran before stays.',
+        'file' => 'SQL file',
+        'file_hint' => 'As .sql or compressed with gzip (.sql.gz), at most :size MB. DEFINER clauses of other users are removed.',
+        'confirm' => 'I know that the import can overwrite data in :name.',
+        'confirm_required' => 'Please confirm that the import can overwrite data.',
+        'import_submit' => 'Import',
+        'wrong_type' => 'Please choose an .sql file or a file compressed with gzip.',
+        'export_started' => 'Export started.',
+        'import_started' => 'Import started.',
+    ],
+];

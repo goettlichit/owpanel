@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+# Downloads an OWPanel release archive from GitHub, checks its checksum and
+# signature, unpacks it and starts the installer (E-071, E-167). Run as root on a fresh
+# Debian 13 server. Options it does not know go on to ./install.
+#
+#   bash get-owpanel                       newest release (public repository)
+#   bash get-owpanel --version 1.2.0       a given release
+#   bash get-owpanel --dev [--branch B]    newest test build of a branch (default: main)
+#
+# Test builds are GitHub Actions artifacts. GitHub hands them out only with
+# a token, also for public repositories: a fine-grained token for this
+# repository with "Actions: Read" (and "Contents: Read" while the repository
+# is private). The script asks for it or reads GITHUB_TOKEN. The token never
+# appears on a command line, so it stays out of the process list.
+#
+# Releases must carry a valid signature of the key below. Test builds are
+# checked when they are signed and installed with a warning when not.
+set -euo pipefail
+
+readonly REPO="goettlichit/owpanel"
+readonly API="https://api.github.com/repos/${REPO}"
+# Key lines of the file release-signers in the repository (E-167); the
+# tests check that both are the same.
+readonly RELEASE_SIGNERS='owpanel-release namespaces="owpanel-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID668zKpcURWItatv7D0P9JS7ClQwzpw8ri5C9NYaYB/'
+readonly SIGNER_IDENTITY="owpanel-release"
+readonly VERSION_RE='^([0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}(-[0-9A-Za-z.]{1,32})?|dev-[0-9a-f]{7,40})$'
+
+MODE="release"
+VERSION=""
+BRANCH="main"
+WORK=""
+HEADERS=""
+INSTALL_ARGS=()
+INSTALL_DIR=""
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+warn() {
+  printf '\033[33mWarning: %s\033[0m\n' "$*" >&2
+}
+
+cleanup() {
+  [[ -z "$HEADERS" ]] || rm -f "$HEADERS"
+  [[ -z "$WORK" ]] || rm -rf "$WORK"
+}
+
+# Plain HTTPS download, no redirects to anything but HTTPS.
+fetch() {
+  curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+    --tlsv1.2 --retry 3 --max-time 600 "$@"
+}
+
+# Requests with the token read the header from a file (-H @file).
+fetch_auth() {
+  fetch -H "@${HEADERS}" "$@"
+}
+
+read_token() {
+  local token="${GITHUB_TOKEN:-}"
+  if [[ -z "$token" ]]; then
+    [[ -r /dev/tty ]] || die "set GITHUB_TOKEN or run in a terminal"
+    read -r -s -p "GitHub token: " token </dev/tty
+    printf '\n' >/dev/tty
+  fi
+  [[ "$token" =~ ^[A-Za-z0-9_]{20,255}$ ]] || die "this does not look like a GitHub token"
+  HEADERS="$(mktemp)"
+  chmod 0600 "$HEADERS"
+  printf 'Authorization: Bearer %s\nAccept: application/vnd.github+json\nX-GitHub-Api-Version: 2022-11-28\n' \
+    "$token" >"$HEADERS"
+}
+
+# First number after "id" in a JSON answer. In the answers used here, that is
+# the ID of the first run or artifact in the list.
+first_id() {
+  grep -o '"id": *[0-9]\+' | head -n 1 | grep -o '[0-9]\+$' || true
+}
+
+parse_arguments() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dev)
+        MODE="dev"
+        shift
+        ;;
+      --branch | --version)
+        [[ $# -ge 2 ]] || die "$1 needs a value"
+        if [[ "$1" == "--branch" ]]; then BRANCH="$2"; else VERSION="${2#v}"; fi
+        shift 2
+        ;;
+      *)
+        INSTALL_ARGS+=("$1")
+        shift
+        ;;
+    esac
+  done
+  [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]{1,100}$ && "$BRANCH" != *..* ]] || die "invalid branch name"
+  [[ -z "$VERSION" || "$VERSION" =~ $VERSION_RE ]] || die "invalid version"
+}
+
+# Newest successful run of the Release workflow on the branch, then its
+# archive artifact (a zip with the archive and its .sha256 file).
+download_dev() {
+  local run newest artifact branch_query
+  read_token
+  branch_query="$(printf '%s' "$BRANCH" | sed 's#/#%2F#g')"
+  printf 'Looking for the newest test build of %s ...\n' "$BRANCH"
+  run="$(fetch_auth "${API}/actions/workflows/release.yml/runs?branch=${branch_query}&status=success&per_page=1" | first_id)"
+  [[ -n "$run" ]] || die "no successful build found for ${BRANCH}"
+  # A failed or running newest build would otherwise go unnoticed, and an
+  # older state gets installed (2026-11-18).
+  newest="$(fetch_auth "${API}/actions/workflows/release.yml/runs?branch=${branch_query}&per_page=1" | first_id)"
+  if [[ -n "$newest" && "$newest" != "$run" ]]; then
+    printf '\033[33mWarning: the newest build of %s failed or is still running.\n' "$BRANCH" >&2
+    printf 'Installing the last successful one, which is older. See https://github.com/%s/actions/runs/%s\033[0m\n' "$REPO" "$newest" >&2
+  fi
+  artifact="$(fetch_auth "${API}/actions/runs/${run}/artifacts?name=owpanel-release" | first_id)"
+  [[ -n "$artifact" ]] || die "the build ${run} has no archive (expired after 7 days?)"
+
+  fetch_auth --output "${WORK}/archive.zip" "${API}/actions/artifacts/${artifact}/zip"
+  if ! command -v unzip >/dev/null 2>&1; then
+    # A fresh server has empty package lists until the first apt update.
+    printf 'Installing unzip ...\n'
+    apt-get update -qq || die "apt-get update failed"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq unzip >/dev/null \
+      || die "could not install unzip"
+  fi
+  unzip -q -d "${WORK}/download" "${WORK}/archive.zip"
+}
+
+# Releases are public downloads. Without --version the newest one is used;
+# GitHub forwards .../releases/latest to the page of its tag.
+download_release() {
+  local location base
+  if [[ -z "$VERSION" ]]; then
+    location="$(curl --silent --show-error --head --proto '=https' --max-time 60 \
+      "https://github.com/${REPO}/releases/latest" | tr -d '\r' | sed -n 's/^[Ll]ocation: //p' | tail -n 1)"
+    VERSION="${location##*/tag/v}"
+    [[ "$VERSION" =~ $VERSION_RE ]] \
+      || die "no public release found (while the repository is private, use --dev)"
+  fi
+  base="https://github.com/${REPO}/releases/download/v${VERSION}"
+  printf 'Downloading OWPanel %s ...\n' "$VERSION"
+  mkdir -p "${WORK}/download"
+  fetch --output "${WORK}/download/owpanel-${VERSION}.tar.gz" "${base}/owpanel-${VERSION}.tar.gz"
+  fetch --output "${WORK}/download/owpanel-${VERSION}.tar.gz.sha256" "${base}/owpanel-${VERSION}.tar.gz.sha256"
+  fetch --output "${WORK}/download/owpanel-${VERSION}.tar.gz.sig" "${base}/owpanel-${VERSION}.tar.gz.sig"
+}
+
+# Checks the signature of the archive against RELEASE_SIGNERS (E-167).
+# Releases need a valid one; a test build without signature or a script
+# without key only warns. A signature that does not match always stops.
+verify_signature() {
+  local archive="$1" required=0 signers
+  if [[ "$MODE" == "release" ]]; then
+    required=1
+  fi
+  if [[ -z "$RELEASE_SIGNERS" ]]; then
+    [[ "$required" -eq 0 ]] || die "this get-owpanel contains no release key, download the current one"
+    warn "this get-owpanel contains no release key, the signature is not checked"
+    return 0
+  fi
+  if [[ ! -f "${archive}.sig" ]]; then
+    [[ "$required" -eq 0 ]] || die "the release has no signature"
+    warn "this test build is not signed"
+    return 0
+  fi
+  command -v ssh-keygen >/dev/null 2>&1 || die "ssh-keygen is missing (apt install openssh-client)"
+  signers="${WORK}/release-signers"
+  printf '%s\n' "$RELEASE_SIGNERS" >"$signers"
+  ssh-keygen -Y verify -f "$signers" -I "$SIGNER_IDENTITY" -n "$SIGNER_IDENTITY" \
+    -s "${archive}.sig" <"$archive" >/dev/null 2>&1 \
+    || die "invalid signature, the download is damaged or was not built by the OWPanel project"
+  printf 'Signature checked\n'
+}
+
+# Exactly one archive with a valid name, checked against its .sha256 file,
+# unpacked into a directory of the same name next to this script's caller.
+unpack() {
+  local archive name version target
+  local -a found=()
+  mapfile -t found < <(cd "${WORK}/download" && ls -1 -- *.tar.gz 2>/dev/null)
+  [[ "${#found[@]}" -eq 1 ]] || die "expected exactly one archive in the download"
+  archive="${found[0]}"
+  name="${archive%.tar.gz}"
+  version="${name#owpanel-}"
+  [[ "$name" == "owpanel-${version}" && "$version" =~ $VERSION_RE ]] || die "unexpected archive name ${archive}"
+  [[ -f "${WORK}/download/${archive}.sha256" ]] || die "checksum file missing"
+
+  (cd "${WORK}/download" && sha256sum --check --strict "${archive}.sha256") \
+    || die "checksum mismatch, the download is damaged or was changed"
+  verify_signature "${WORK}/download/${archive}"
+
+  target="${PWD}/${name}"
+  rm -rf "$target"
+  tar -xzf "${WORK}/download/${archive}" -C "$PWD" --no-same-owner
+  [[ -x "${target}/install" && "$(<"${target}/VERSION")" == "$version" ]] \
+    || die "the archive does not contain the expected installer"
+  printf 'Unpacked to %s\n' "$target"
+  INSTALL_DIR="$target"
+}
+
+main() {
+  [[ "$(id -u)" -eq 0 ]] || die "run as root"
+  command -v curl >/dev/null 2>&1 || die "curl is missing (apt install curl)"
+  parse_arguments "$@"
+  trap cleanup EXIT
+  WORK="$(mktemp -d)"
+
+  if [[ "$MODE" == "dev" ]]; then
+    download_dev
+  else
+    download_release
+  fi
+  unpack
+  # The token file is gone before the installer starts.
+  cleanup
+  WORK=""
+  HEADERS=""
+
+  cd "$INSTALL_DIR"
+  exec ./install "${INSTALL_ARGS[@]}"
+}
+
+main "$@"

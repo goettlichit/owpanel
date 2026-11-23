@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Confirms a firewall change: saves the loaded rules for reboots and stops the
+# rollback timer. The panel calls it over a new SSH connection, which proves
+# that SSH still works with the new rules (E-044). Takes no parameters.
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/firewall.sh
+source /opt/owpanel/lib/firewall.sh
+
+main() {
+  owp_init "firewall-confirm"
+  [[ $# -eq 0 ]] || owp_die "invalid_arguments" "firewall-confirm takes no parameters"
+  owp_require_root
+  owp_check_os
+  owp_firewall_lock
+
+  if [[ ! -e "${OWP_FW_STATE}/pending.nft" ]]; then
+    owp_log "no firewall change waits for confirmation"
+    owp_result_ok '"confirmed":false'
+    return 0
+  fi
+  systemctl stop "${OWP_FW_TIMER}.timer" >/dev/null 2>&1 || true
+  install -d -o root -g root -m 0755 "$(dirname "$OWP_FW_SAVED")"
+  install -o root -g root -m 0600 "${OWP_FW_STATE}/pending.nft" "$OWP_FW_SAVED"
+  if [[ -e "${OWP_FW_STATE}/pending.list" ]]; then
+    install -o root -g root -m 0600 "${OWP_FW_STATE}/pending.list" "$OWP_FW_RULES"
+  fi
+  rm -f "${OWP_FW_STATE}/pending.nft" "${OWP_FW_STATE}/pending.list" "${OWP_FW_STATE}/previous.nft"
+  owp_log "saved: ${OWP_FW_SAVED}"
+  owp_result_ok '"confirmed":true'
+}
+
+main "$@"
