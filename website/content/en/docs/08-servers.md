@@ -22,7 +22,7 @@ If the server has more than one network card, for example a Hetzner Cloud privat
 
 The panel checks this every hour. **Check now** first refreshes the package lists of all sources and then reads the list again. **Install all** installs exactly this list (`apt-get dist-upgrade`), including the regular Debian updates that do not come automatically at night. Changed configuration files stay as they are; a restart may be needed afterwards. The panel deliberately does not move to a new Debian release.
 
-On the server the panel runs on, the card **OWPanel** shows the installed and the newest published version; the panel asks GitHub once a day. Until the first public release you update the panel itself by hand by running `get-owpanel` again; after that an update button in the panel follows.
+On the server the panel runs on, the card **OWPanel** shows the installed and the newest published version; the panel asks GitHub once a day. Until the update button in the panel arrives, you update the panel by hand by running `get-owpanel` again; it downloads the newest release and keeps all data and settings.
 
 ## Restart
 

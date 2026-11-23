@@ -18,7 +18,7 @@
     },
     "docs": {
         "title": "Dokumentation",
-        "lead": "Für Administratoren von der Installation bis zur Wiederherstellung nach einem Ausfall, für Kunden alles rund um ihre Webseiten im Kundenbereich.",
+        "lead": "Zwei Dokumentationen: eine für den Betrieb von OWPanel, eine für Kunden und ihre Webseiten im Kundenbereich.",
         "menu": "Inhalt der Dokumentation",
         "on_this_page": "Auf dieser Seite",
         "pager": "Vorherige und nächste Seite",
@@ -26,6 +26,11 @@
             "admin": "Für Administratoren",
             "customer": "Für Kunden"
         },
+        "audience_docs": {
+            "admin": "Dokumentation für Administratoren",
+            "customer": "Dokumentation für Kunden"
+        },
+        "open": "Öffnen",
         "audience_leads": {
             "admin": "Installation, Server, Webseiten, Kunden, Sicherungen und Sicherheit: So richtest du OWPanel ein und betreibst es.",
             "customer": "Wenn Ihr Anbieter OWPanel nutzt: Ihre Webseiten, PHP, Dateien, Datenbanken, Cronjobs und Backups im Kundenbereich."
@@ -37,12 +42,12 @@
         "home": "Zur Startseite"
     },
     "home": {
-        "status_badge": "Frühe Entwicklung",
+        "status_badge": "Version 0.1",
         "title": "Server-Panel für Debian: einfach, nativ, zweisprachig",
-        "lead": "OWPanel richtet Webseiten mit HTTPS und HTTP/3, Datenbanken, Backups und Benachrichtigungen auf deinem eigenen Debian-Server ein. Ohne Docker, ohne Konfigurationsdateien, auf Deutsch und Englisch.",
+        "lead": "OWPanel richtet Webseiten mit HTTPS und HTTP/3, Datenbanken, Backups und Benachrichtigungen nativ auf deinem eigenen Debian-Server ein. Ohne Konfigurationsdateien, auf Deutsch und Englisch.",
         "cta_docs": "Dokumentation lesen",
         "cta_install": "Installation",
-        "status_text": "OWPanel ist in Entwicklung und auf Servern in der Hetzner Cloud erprobt. Bitte noch nicht produktiv einsetzen.",
+        "status_text": "Die erste öffentliche Version, erprobt auf Servern in der Hetzner Cloud. Bis Version 1.0 kann sich noch einiges ändern.",
         "preview": {
             "title": "Webseiten auf diesem Server",
             "site": "Webseite",
@@ -89,7 +94,8 @@
                 { "state": "done", "title": "Pocket ID", "text": "Anmeldung per Passkey über eine eigene Pocket-ID-Instanz, für Administratoren und Kunden" },
                 { "state": "done", "title": "DNS über die Hetzner-API", "text": "Einträge je Webseite prüfen, anlegen, korrigieren und beim Löschen entfernen" },
                 { "state": "done", "title": "Kundenbereich", "text": "Pakete, Kundenzugang, Webseiten, Datenbanken, Cronjobs, Backups, Speicherplatz und Sperren" },
-                { "state": "next", "title": "Öffentliche Version", "text": "SSH-Härtung, Sicherheitsprüfung, Sperrlisten, signierte Releases, erste öffentliche Releases, danach Updates aus dem Panel" },
+                { "state": "done", "title": "Öffentliche Version", "text": "SSH-Härtung, Sicherheitsprüfung, Sperrlisten, signierte Releases, Version 0.1" },
+                { "state": "next", "title": "Updates aus dem Panel", "text": "Panel und Serverskripte per Klick aktualisieren, jedes Release mit geprüfter Signatur" },
                 { "state": "planned", "title": "Multi-Server", "text": "Weitere Server hinter dem Panel als Eingangstor, eine IPv6 je Webseite, Webseiten mit ihren Sicherungen umziehen" },
                 { "state": "planned", "title": "Docker-Apps", "text": "Eigene Dienste wie Pocket ID als Compose-Projekt auf einem Server, erreichbar über das Panel, nur für Administratoren" },
                 { "state": "planned", "title": "API", "text": "Anbindung der eigenen Homepage: Kunden, Pakete, Status und Hinweis auf offene Zahlungen" }

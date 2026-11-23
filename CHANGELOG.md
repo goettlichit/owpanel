@@ -4,6 +4,12 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 
 ## [Unreleased]
 
+### Changed
+- The documentation starts with a choice between "Documentation for administrators" (`/docs/admin/`) and "Documentation for customers" (`/docs/customer/`); the sidebar shows only the pages of one of them, under a plain heading. The panel's "Documentation" link for administrators leads to `/docs/admin/` (E-183).
+- The website shows version 0.1 instead of "early development" and links to the source code.
+- The start page, introduction and READMEs describe OWPanel as native instead of "without Docker", since Docker apps for administrators are planned.
+- The website adds a hash of the content to the addresses of its CSS and JavaScript, so browsers fetch a changed file at once instead of keeping the old one for up to 7 days.
+
 ## [0.1.0] - 2026-11-23
 
 First public release. It runs as a single server (standalone); the history before this release is not public (E-181).

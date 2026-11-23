@@ -22,7 +22,7 @@ Debian-Updates spielt `unattended-upgrades` jede Nacht von selbst ein: Sicherhei
 
 Das Panel prüft das stündlich. **Jetzt prüfen** lädt zuerst die Paketlisten aller Quellen frisch und liest die Liste danach neu ein. Mit **Alle installieren** spielst du genau diese Liste ein (`apt-get dist-upgrade`), auch die normalen Debian-Updates, die nachts nicht automatisch kommen. Geänderte Konfigurationsdateien bleiben dabei, wie sie sind; danach kann ein Neustart nötig sein. Einen Wechsel der Debian-Version spielt das Panel bewusst nicht ein.
 
-Auf dem Server, auf dem das Panel läuft, zeigt die Karte **OWPanel** die installierte und die neueste veröffentlichte Version; das Panel fragt einmal am Tag bei GitHub nach. Bis zum ersten öffentlichen Release aktualisierst du das Panel selbst noch von Hand, indem du `get-owpanel` erneut ausführst; danach kommt ein Update-Knopf im Panel.
+Auf dem Server, auf dem das Panel läuft, zeigt die Karte **OWPanel** die installierte und die neueste veröffentlichte Version; das Panel fragt einmal am Tag bei GitHub nach. Bis der Update-Knopf im Panel kommt, aktualisierst du das Panel von Hand, indem du `get-owpanel` erneut ausführst; es lädt das neueste Release und behält alle Daten und Einstellungen.
 
 ## Neustart
 

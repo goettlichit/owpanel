@@ -12,7 +12,7 @@
 - **Einfach:** Nur Funktionen, die für den Betrieb von Websites gebraucht werden.
 - **Standalone zuerst:** Die Ersteinrichtung ergibt ein vollständiges Panel auf einem Server. Weitere Server lassen sich später ohne Neuinstallation oder Migration hinzufügen; das Panel nimmt dann als Eingangstor alle Anfragen an und reicht sie an den Server der Website weiter (geplant nach dem ersten Release, E-161).
 - **Deutsch und Englisch:** Beide Sprachen sind von Anfang an gleichwertig.
-- **Nativ statt Docker:** Websites laufen direkt auf dem Debian-Server, jede mit eigenem Linux-Benutzer.
+- **Nativ:** Websites laufen direkt auf dem Debian-Server, jede mit eigenem Linux-Benutzer.
 - **Schnell:** HTTP/3 über QUIC ist für alle Websites mit Zertifikat aktiv, HTTP/2 und HTTP/1.1 bleiben als Rückfall.
 - **Hetzner Cloud zuerst:** Entwickelt und getestet wird auf Servern in der Hetzner Cloud. Snapshots und Backups nutzen die Hetzner-API und die Hetzner Storage Box (E-105). Andere Anbieter mit Debian 13 sollten für den Grundbetrieb funktionieren, sind aber nicht getestet; weitere Backup-Ziele wie S3 können folgen.
 - **Backups und Benachrichtigungen:** Tägliche oder stündliche Sicherungen mit restic, Hetzner-Snapshots, Wiederherstellung einzelner Websites und des ganzen Panels sowie Meldungen per E-Mail und Push aufs Handy.
@@ -117,4 +117,4 @@ Der Installer fragt Domain, Hostname, Zeitzone und den ersten Administrator ab u
 
 ## Nächster Schritt
 
-Meilenstein 6 (Pocket ID) und 6.1 (DNS über die Hetzner-API) der [Roadmap](docs/ROADMAP.md) sind abgeschlossen; die Projekt-Website läuft unter https://owpanel.org. Meilenstein 7 mit Paketen, Kundenzugang, Kundenbereich, Speicherplatz und dem Sperren von Webseiten ist abgeschlossen. Aus Meilenstein 8, der öffentlichen Version, sind Updates von Hand, die SSH-Einstellungen, die Sicherheitsprüfung und weitere Benachrichtigungen (Updates, Dienste, Storage Box, Anmeldungen, Überwachung von außen) fertig; als Nächstes folgen ein vollständiger Test von der Grundinstallation an, externe Testnutzer und das erste Release; Multi-Server mit dem Panel als Eingangstor (Meilenstein 5), der Umzug von Websites (5.1) und Docker-Apps (9) sind geklärt und folgen nach dem ersten Release (E-161 bis E-169); die API für die eigene Homepage (7.1) ist unabhängig davon und kann vorgezogen werden. Wie das Panel lokal startet, steht in [panel/README.md](panel/README.md).
+Version 0.1 ist das erste öffentliche Release (Meilenstein 8). Als Nächstes folgen externe Testnutzer und Updates per Klick für Panel und Serverskripte, danach Multi-Server mit dem Panel als Eingangstor (Meilenstein 5), der Umzug von Websites (5.1) und eigene Dienste für Administratoren (9); die API für die eigene Homepage (7.1) kann vorgezogen werden. Details stehen in der [Roadmap](docs/ROADMAP.md). Wie das Panel lokal startet, steht in [panel/README.md](panel/README.md).

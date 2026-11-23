@@ -9,14 +9,14 @@ slug: introduction
 OWPanel (Open Web Panel) is a control panel for Debian servers. It sets up websites, databases, certificates, backups and notifications on your own server, without you editing configuration files. The interface is available in English and German.
 
 ::: warning
-OWPanel is in early development and tested on servers in the Hetzner Cloud. Please do not use it yet for websites that must run reliably.
+OWPanel is at version 0.1 and tested on servers in the Hetzner Cloud. Things may still change until version 1.0; read the notes in the [CHANGELOG](https://github.com/goettlichit/owpanel/blob/main/CHANGELOG.md) before an update and keep your backups current.
 :::
 
 ## Who OWPanel is for
 
 - Agencies and freelancers who run their clients' websites on their own servers.
 - Anyone who wants to manage one or more Debian servers with PHP websites simply.
-- Anyone looking for a panel without Docker: websites run directly on the server, each with its own Linux user.
+- Anyone who wants to run websites natively: websites run directly on the server, each with its own Linux user.
 
 ## Principles
 

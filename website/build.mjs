@@ -9,6 +9,7 @@
 // Everything the pages need is served from the site itself: no CDN, no
 // external fonts (docs/DESIGN.md, rule 1).
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +44,21 @@ const slugify = (text) => String(text).toLowerCase()
 
 const prefix = (lang) => (lang === defaultLanguage ? '' : `/${lang}`);
 const pagePath = (lang, rest = '/') => `${prefix(lang)}${rest}`;
+// Browsers keep CSS and JavaScript for days (E-176). The address of an asset
+// carries a hash of its content, so a changed file is fetched again.
+const assetSources = {
+    'theme.js': 'src/theme.js',
+    'site.css': 'src/site.css',
+    'site.js': 'src/site.js',
+    'vendor/tabler.min.css': 'node_modules/@tabler/core/dist/css/tabler.min.css',
+    'vendor/icons/tabler-icons.min.css': 'node_modules/@tabler/icons-webfont/dist/tabler-icons.min.css',
+    'vendor/inter/wght.css': 'node_modules/@fontsource-variable/inter/wght.css',
+};
+const asset = (name) => {
+    const hash = crypto.createHash('sha256').update(fs.readFileSync(path.join(root, assetSources[name]))).digest('hex').slice(0, 10);
+    return `/assets/${name}?v=${hash}`;
+};
+
 const icon = (name, extra = '') => `<i class="ti ti-${escape(name)}${extra ? ' ' + extra : ''}" aria-hidden="true"></i>`;
 
 function write(relative, content) {
@@ -145,6 +161,12 @@ const docs = Object.fromEntries(languages.map((lang) => {
     return [lang, pages];
 }));
 
+// /docs/admin/ and /docs/customer/ list the pages of one audience; no page may take these names.
+for (const lang of languages) {
+    const taken = docs[lang].find((page) => audiences.includes(page.slug));
+    if (taken) throw new Error(`${lang}/docs: the slug "${taken.slug}" is reserved for an overview page`);
+}
+
 // Both languages must have the same pages, so the language switch always leads somewhere.
 const slugs = (lang) => docs[lang].map((page) => page.slug).join(',');
 if (slugs('de') !== slugs('en')) {
@@ -187,12 +209,12 @@ function layout({ lang, title, description, rest, active, body, alternate = rest
     ${baseUrl ? `<link rel="canonical" href="${escape(url(lang, rest))}">` : ''}
     ${baseUrl ? languages.map((l) => `<link rel="alternate" hreflang="${l}" href="${escape(url(l, alternate))}">`).join('\n    ') : ''}
     <meta name="color-scheme" content="light dark">
-    <script src="/assets/theme.js"></script>
+    <script src="${asset('theme.js')}"></script>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/assets/vendor/tabler.min.css">
-    <link rel="stylesheet" href="/assets/vendor/icons/tabler-icons.min.css">
-    <link rel="stylesheet" href="/assets/vendor/inter/wght.css">
-    <link rel="stylesheet" href="/assets/site.css">
+    <link rel="stylesheet" href="${asset('vendor/tabler.min.css')}">
+    <link rel="stylesheet" href="${asset('vendor/icons/tabler-icons.min.css')}">
+    <link rel="stylesheet" href="${asset('vendor/inter/wght.css')}">
+    <link rel="stylesheet" href="${asset('site.css')}">
 </head>
 <body>
     <a class="visually-hidden-focusable ow-skip" href="#inhalt">${escape(t.skip)}</a>
@@ -252,7 +274,7 @@ ${body}
             </ul>
         </div>
     </footer>
-    <script src="/assets/site.js" defer></script>
+    <script src="${asset('site.js')}" defer></script>
 </body>
 </html>
 `;
@@ -406,18 +428,20 @@ function sections(lang) {
     }).filter((s) => s.groups.length > 0);
 }
 
-function sidebar(lang, current) {
+// The sidebar shows only the pages for the same readers (E-183); the main
+// menu leads back to the choice between both documentations.
+function sidebar(lang, audience, current) {
     const t = site[lang];
+    const section = sections(lang).find((s) => s.audience === audience);
     return `
             <aside class="ow-sidebar">
                 <nav aria-label="${escape(t.docs.menu)}">
-                    ${sections(lang).map((s) => `
-                    <div class="ow-sidebar-audience">${escape(s.title)}</div>
-                    ${s.groups.map((g) => `${g.name ? `
+                    <div class="ow-sidebar-audience">${escape(section.title)}</div>
+                    ${section.groups.map((g) => `${g.name ? `
                     <div class="ow-sidebar-group">${escape(g.name)}</div>` : ''}
                     <div class="nav flex-column">
                         ${g.pages.map((p) => `<a class="nav-link${p.slug === current ? ' active' : ''}" href="${pagePath(lang, `/docs/${p.slug}/`)}"${p.slug === current ? ' aria-current="page"' : ''}>${icon(p.icon)}<span>${escape(p.title)}</span></a>`).join('\n                        ')}
-                    </div>`).join('')}`).join('')}
+                    </div>`).join('')}
                 </nav>
             </aside>`;
 }
@@ -438,10 +462,10 @@ function docPage(lang, index) {
             </aside>` : '';
     const body = `
         <div class="ow-body">
-${sidebar(lang, page.slug)}
+${sidebar(lang, page.audience, page.slug)}
             <div class="ow-content">
                 <div class="page-header mb-3">
-                    <div class="page-pretitle">${escape(page.group || t.docs.audiences[page.audience])}</div>
+                    <div class="page-pretitle">${escape(t.docs.audiences[page.audience])}${page.group ? ` · ${escape(page.group)}` : ''}</div>
                     <h1 class="page-title">${escape(page.title)}</h1>
                 </div>
                 <div class="card">
@@ -459,36 +483,67 @@ ${page.html}
     return layout({ lang, title: `${page.title} – ${t.docs.title} – OWPanel`, description: page.description, rest: `/docs/${page.slug}/`, active: 'docs', body });
 }
 
+// /docs/: first the choice between the documentation for administrators and
+// for customers (E-183), so customers do not land among server topics.
 function docsIndex(lang) {
     const t = site[lang];
+    const icons = { admin: 'server-cog', customer: 'user' };
     const body = `
         <div class="ow-body">
-${sidebar(lang, null)}
-            <div class="ow-content">
-                <div class="page-header mb-3">
+            <div class="ow-content ow-docs-choice">
+                <div class="page-header mb-4">
                     <h1 class="page-title">${escape(t.docs.title)}</h1>
                     <p class="text-secondary mt-1 mb-0">${escape(t.docs.lead)}</p>
                 </div>
-                ${sections(lang).map((s) => `
-                <h2 class="ow-audience-title" id="${s.audience}">${escape(s.title)}</h2>
-                <p class="text-secondary">${escape(t.docs.audience_leads[s.audience])}</p>
-                ${s.groups.map((g) => `${g.name ? `
-                <h3 class="ow-section-title">${escape(g.name)}</h3>` : ''}
+                <div class="row row-cards">
+                    ${sections(lang).map((s) => `
+                    <div class="col-md-6">
+                        <a class="card card-link h-100" href="${pagePath(lang, `/docs/${s.audience}/`)}">
+                            <div class="card-status-top bg-blue"></div>
+                            <div class="card-body">
+                                <div class="ow-feature-icon">${icon(icons[s.audience])}</div>
+                                <h2 class="card-title mb-2">${escape(t.docs.audience_docs[s.audience])}</h2>
+                                <p class="text-secondary mb-3">${escape(t.docs.audience_leads[s.audience])}</p>
+                                <span class="btn btn-primary">${escape(t.docs.open)}${icon('arrow-right', 'ms-1')}</span>
+                            </div>
+                        </a>
+                    </div>`).join('')}
+                </div>
+            </div>
+        </div>`;
+    return layout({ lang, title: `${t.docs.title} – OWPanel`, description: t.docs.lead, rest: '/docs/', active: 'docs', body });
+}
+
+// /docs/admin/ and /docs/customer/: the pages for one audience by group.
+function audienceIndex(lang, section) {
+    const t = site[lang];
+    const body = `
+        <div class="ow-body">
+${sidebar(lang, section.audience, null)}
+            <div class="ow-content">
+                <div class="page-header mb-3">
+                    <div class="page-pretitle">${escape(t.docs.title)}</div>
+                    <h1 class="page-title">${escape(t.docs.audience_docs[section.audience])}</h1>
+                    <p class="text-secondary mt-1 mb-0">${escape(t.docs.audience_leads[section.audience])}</p>
+                </div>
+                ${section.groups.map((g) => `${g.name ? `
+                <h2 class="ow-section-title">${escape(g.name)}</h2>` : ''}
                 <div class="row row-cards mb-4">
                     ${g.pages.map((p) => `
                     <div class="col-md-6 col-xl-4">
                         <a class="card card-link h-100" href="${pagePath(lang, `/docs/${p.slug}/`)}">
                             <div class="card-status-top bg-blue"></div>
                             <div class="card-body">
-                                <div class="d-flex align-items-center gap-2 mb-2">${icon(p.icon, 'ow-doc-icon')}<h4 class="card-title mb-0">${escape(p.title)}</h4></div>
+                                <div class="d-flex align-items-center gap-2 mb-2">${icon(p.icon, 'ow-doc-icon')}<h3 class="card-title mb-0">${escape(p.title)}</h3></div>
                                 <p class="text-secondary mb-0">${escape(p.description)}</p>
                             </div>
                         </a>
                     </div>`).join('')}
-                </div>`).join('')}`).join('')}
+                </div>`).join('')}
             </div>
         </div>`;
-    return layout({ lang, title: `${t.docs.title} – OWPanel`, description: t.docs.lead, rest: '/docs/', active: 'docs', body });
+    const title = t.docs.audience_docs[section.audience];
+    return layout({ lang, title: `${title} – OWPanel`, description: t.docs.audience_leads[section.audience], rest: `/docs/${section.audience}/`, active: 'docs', body });
 }
 
 function notFound() {
@@ -543,6 +598,10 @@ for (const lang of languages) {
     write(path.join(prefix(lang), 'index.html'), startPage(lang));
     write(path.join(prefix(lang), 'docs', 'index.html'), docsIndex(lang));
     urls.push(pagePath(lang, '/'), pagePath(lang, '/docs/'));
+    for (const section of sections(lang)) {
+        write(path.join(prefix(lang), 'docs', section.audience, 'index.html'), audienceIndex(lang, section));
+        urls.push(pagePath(lang, `/docs/${section.audience}/`));
+    }
     docs[lang].forEach((page, i) => {
         write(path.join(prefix(lang), 'docs', page.slug, 'index.html'), docPage(lang, i));
         urls.push(pagePath(lang, `/docs/${page.slug}/`));

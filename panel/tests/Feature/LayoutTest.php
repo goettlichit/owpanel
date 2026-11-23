@@ -75,7 +75,7 @@ class LayoutTest extends TestCase
         $this->actingAs(User::factory()->admin()->withTwoFactor()->create())
             ->get('/')
             ->assertSee('Über OWPanel')
-            ->assertSee('href="https://owpanel.org/docs/"', false)
+            ->assertSee('href="https://owpanel.org/docs/admin/"', false)
             ->assertSee('href="https://github.com/goettlichit/owpanel/blob/main/CHANGELOG.md"', false)
             ->assertSee('href="https://github.com/goettlichit/owpanel/issues"', false)
             ->assertSee(PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION.'.'.PHP_RELEASE_VERSION)
@@ -118,9 +118,9 @@ class LayoutTest extends TestCase
     {
         $user = User::factory()->admin()->withTwoFactor()->create();
 
-        $this->actingAs($user)->get('/')->assertSee('href="https://owpanel.org/docs/"', false);
+        $this->actingAs($user)->get('/')->assertSee('href="https://owpanel.org/docs/admin/"', false);
         $user->forceFill(['locale' => 'en'])->save();
-        $this->actingAs($user)->get('/')->assertSee('href="https://owpanel.org/en/docs/"', false);
+        $this->actingAs($user)->get('/')->assertSee('href="https://owpanel.org/en/docs/admin/"', false);
     }
 
     public function test_customers_find_help_in_their_documentation_in_their_language(): void

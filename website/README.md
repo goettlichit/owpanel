@@ -12,7 +12,7 @@ Die Projekt-Website von OWPanel mit Vorstellung und Dokumentation auf Deutsch un
 | `site.json` | Einstellungen: Adresse der Website, Quellcode, Impressum und Datenschutz |
 | `build.mjs` | Baut alles nach `dist/` |
 
-Seiten für Kunden tragen im Kopf `audience: customer` und sind in der Sie-Form geschrieben wie der Kundenbereich (E-132); ohne Angabe gilt eine Seite für Administratoren. Die Seitenleiste zeigt zuerst die Seiten für Administratoren nach Gruppen, dann die für Kunden (E-178). Beide Sprachen brauchen dieselben Seiten mit demselben `slug`; sonst bricht der Build ab. Links auf andere Seiten der Dokumentation schreibst du als `[Text](docs:installation)` oder `[Text](docs:backups#notfalldaten)`. Hinweisboxen stehen zwischen `::: info` (oder `tip`, `warning`, `danger`) und `:::`.
+Seiten für Kunden tragen im Kopf `audience: customer` und sind in der Sie-Form geschrieben wie der Kundenbereich (E-132); ohne Angabe gilt eine Seite für Administratoren. `/docs/` bietet die Wahl zwischen beiden; `/docs/admin/` und `/docs/customer/` listen die Seiten einer Zielgruppe nach Gruppen, und die Seitenleiste zeigt nur die Seiten der gleichen Zielgruppe (E-178, E-183). Die Slugs `admin` und `customer` sind deshalb für Seiten gesperrt. Beide Sprachen brauchen dieselben Seiten mit demselben `slug`; sonst bricht der Build ab. Links auf andere Seiten der Dokumentation schreibst du als `[Text](docs:installation)` oder `[Text](docs:backups#notfalldaten)`. Hinweisboxen stehen zwischen `::: info` (oder `tip`, `warning`, `danger`) und `:::`.
 
 ## Bauen
 
