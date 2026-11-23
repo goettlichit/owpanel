@@ -13,7 +13,7 @@
 - **Backups and notifications:** Daily or hourly backups with restic, Hetzner snapshots, restore of single websites and of the whole panel, and alerts by email and push to your phone.
 - **Standalone first:** Initial setup gives you a complete panel on one server. Add more servers later without reinstalling or migrating; the panel then takes every request as the gateway and passes it on to the server of the website (planned after the first release, E-161).
 - **German and English:** Both languages are equal from day one.
-- **Native, not Docker:** Sites run directly on Debian, each under its own Linux user.
+- **Native:** Sites run directly on Debian, each under its own Linux user.
 - **Fast:** HTTP/3 over QUIC is enabled for every site with a certificate, with HTTP/2 and HTTP/1.1 as fallback.
 - **Secure by default:** An nftables firewall allows only the required ports and rolls back faulty changes automatically.
 - **Customer area:** Customers manage their own sites. Billing stays in your own system; an API to connect your own homepage is planned (E-165).

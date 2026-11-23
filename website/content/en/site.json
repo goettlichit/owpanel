@@ -44,7 +44,7 @@
     "home": {
         "status_badge": "Version 0.1",
         "title": "Server panel for Debian: simple, native, bilingual",
-        "lead": "OWPanel sets up websites with HTTPS and HTTP/3, databases, backups and notifications on your own Debian server. No Docker, no configuration files, in English and German.",
+        "lead": "OWPanel sets up websites with HTTPS and HTTP/3, databases, backups and notifications natively on your own Debian server. No configuration files, in English and German.",
         "cta_docs": "Read the documentation",
         "cta_install": "Installation",
         "status_text": "The first public version, tested on servers in the Hetzner Cloud. Things may still change until version 1.0.",

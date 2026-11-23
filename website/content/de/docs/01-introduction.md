@@ -16,7 +16,7 @@ OWPanel ist in Version 0.1 und auf Servern in der Hetzner Cloud erprobt. Bis Ver
 
 - Für Agenturen und Freiberufler, die Webseiten ihrer Kunden auf eigenen Servern betreiben.
 - Für alle, die einen oder mehrere Debian-Server mit PHP-Webseiten einfach verwalten wollen.
-- Für alle, die ein Panel ohne Docker suchen: Webseiten laufen direkt auf dem Server, jede mit eigenem Linux-Benutzer.
+- Für alle, die Webseiten nativ betreiben wollen: Webseiten laufen direkt auf dem Server, jede mit eigenem Linux-Benutzer.
 
 ## Grundsätze
 
