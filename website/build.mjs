@@ -428,16 +428,15 @@ function sections(lang) {
     }).filter((s) => s.groups.length > 0);
 }
 
-// The sidebar shows only the pages for the same readers (E-183), with a way
-// back to the choice between both documentations.
+// The sidebar shows only the pages for the same readers (E-183); the main
+// menu leads back to the choice between both documentations.
 function sidebar(lang, audience, current) {
     const t = site[lang];
     const section = sections(lang).find((s) => s.audience === audience);
     return `
             <aside class="ow-sidebar">
                 <nav aria-label="${escape(t.docs.menu)}">
-                    <a class="ow-sidebar-back" href="${pagePath(lang, '/docs/')}">${icon('arrow-left')}<span>${escape(t.docs.choose_other)}</span></a>
-                    <a class="ow-sidebar-audience${current === null ? ' active' : ''}" href="${pagePath(lang, `/docs/${audience}/`)}"${current === null ? ' aria-current="page"' : ''}>${escape(section.title)}</a>
+                    <div class="ow-sidebar-audience">${escape(section.title)}</div>
                     ${section.groups.map((g) => `${g.name ? `
                     <div class="ow-sidebar-group">${escape(g.name)}</div>` : ''}
                     <div class="nav flex-column">
@@ -466,7 +465,7 @@ function docPage(lang, index) {
 ${sidebar(lang, page.audience, page.slug)}
             <div class="ow-content">
                 <div class="page-header mb-3">
-                    <div class="page-pretitle"><a class="link-secondary" href="${pagePath(lang, `/docs/${page.audience}/`)}">${escape(t.docs.audiences[page.audience])}</a>${page.group ? ` · ${escape(page.group)}` : ''}</div>
+                    <div class="page-pretitle">${escape(t.docs.audiences[page.audience])}${page.group ? ` · ${escape(page.group)}` : ''}</div>
                     <h1 class="page-title">${escape(page.title)}</h1>
                 </div>
                 <div class="card">
@@ -523,7 +522,7 @@ function audienceIndex(lang, section) {
 ${sidebar(lang, section.audience, null)}
             <div class="ow-content">
                 <div class="page-header mb-3">
-                    <div class="page-pretitle"><a class="link-secondary" href="${pagePath(lang, '/docs/')}">${escape(t.docs.title)}</a></div>
+                    <div class="page-pretitle">${escape(t.docs.title)}</div>
                     <h1 class="page-title">${escape(t.docs.audience_docs[section.audience])}</h1>
                     <p class="text-secondary mt-1 mb-0">${escape(t.docs.audience_leads[section.audience])}</p>
                 </div>

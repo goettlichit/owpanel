@@ -30,7 +30,6 @@
             "admin": "Dokumentation für Administratoren",
             "customer": "Dokumentation für Kunden"
         },
-        "choose_other": "Dokumentation wählen",
         "open": "Öffnen",
         "audience_leads": {
             "admin": "Installation, Server, Webseiten, Kunden, Sicherungen und Sicherheit: So richtest du OWPanel ein und betreibst es.",

@@ -270,34 +270,15 @@ main { flex: 1 0 auto; }
 
 .ow-sidebar-group:first-child { margin-top: 0; }
 
-/* Readers of the documentation (E-178, E-183): the sidebar shows one audience,
-   with a link back to the choice between both. */
-.ow-sidebar-back {
-    display: flex;
-    align-items: center;
-    gap: .375rem;
-    font-size: .8125rem;
-    color: var(--tblr-secondary);
-    padding: .25rem .75rem;
-    margin-bottom: .5rem;
-    text-decoration: none;
-}
-
-.ow-sidebar-back:hover { color: var(--tblr-primary); }
-
+/* Readers of the documentation (E-178, E-183): the sidebar shows one audience
+   under a plain heading. */
 .ow-sidebar-audience {
-    display: block;
     font-size: .875rem;
     font-weight: 700;
     color: var(--tblr-body-color);
-    padding: .375rem .75rem;
-    border-radius: var(--tblr-border-radius);
-    text-decoration: none;
+    padding: 0 .75rem;
+    margin-bottom: .375rem;
 }
-
-.ow-sidebar-audience:hover { color: var(--tblr-primary); }
-
-.ow-sidebar-audience.active { color: var(--tblr-primary); background: var(--tblr-active-bg); }
 
 .ow-sidebar-audience + .ow-sidebar-group { margin-top: .75rem; }
 

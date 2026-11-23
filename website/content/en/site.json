@@ -30,7 +30,6 @@
             "admin": "Documentation for administrators",
             "customer": "Documentation for customers"
         },
-        "choose_other": "Choose documentation",
         "open": "Open",
         "audience_leads": {
             "admin": "Installation, servers, websites, customers, backups and security: how to set up and run OWPanel.",
