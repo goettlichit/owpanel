@@ -9,6 +9,7 @@
 // Everything the pages need is served from the site itself: no CDN, no
 // external fonts (docs/DESIGN.md, rule 1).
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +44,21 @@ const slugify = (text) => String(text).toLowerCase()
 
 const prefix = (lang) => (lang === defaultLanguage ? '' : `/${lang}`);
 const pagePath = (lang, rest = '/') => `${prefix(lang)}${rest}`;
+// Browsers keep CSS and JavaScript for days (E-176). The address of an asset
+// carries a hash of its content, so a changed file is fetched again.
+const assetSources = {
+    'theme.js': 'src/theme.js',
+    'site.css': 'src/site.css',
+    'site.js': 'src/site.js',
+    'vendor/tabler.min.css': 'node_modules/@tabler/core/dist/css/tabler.min.css',
+    'vendor/icons/tabler-icons.min.css': 'node_modules/@tabler/icons-webfont/dist/tabler-icons.min.css',
+    'vendor/inter/wght.css': 'node_modules/@fontsource-variable/inter/wght.css',
+};
+const asset = (name) => {
+    const hash = crypto.createHash('sha256').update(fs.readFileSync(path.join(root, assetSources[name]))).digest('hex').slice(0, 10);
+    return `/assets/${name}?v=${hash}`;
+};
+
 const icon = (name, extra = '') => `<i class="ti ti-${escape(name)}${extra ? ' ' + extra : ''}" aria-hidden="true"></i>`;
 
 function write(relative, content) {
@@ -193,12 +209,12 @@ function layout({ lang, title, description, rest, active, body, alternate = rest
     ${baseUrl ? `<link rel="canonical" href="${escape(url(lang, rest))}">` : ''}
     ${baseUrl ? languages.map((l) => `<link rel="alternate" hreflang="${l}" href="${escape(url(l, alternate))}">`).join('\n    ') : ''}
     <meta name="color-scheme" content="light dark">
-    <script src="/assets/theme.js"></script>
+    <script src="${asset('theme.js')}"></script>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/assets/vendor/tabler.min.css">
-    <link rel="stylesheet" href="/assets/vendor/icons/tabler-icons.min.css">
-    <link rel="stylesheet" href="/assets/vendor/inter/wght.css">
-    <link rel="stylesheet" href="/assets/site.css">
+    <link rel="stylesheet" href="${asset('vendor/tabler.min.css')}">
+    <link rel="stylesheet" href="${asset('vendor/icons/tabler-icons.min.css')}">
+    <link rel="stylesheet" href="${asset('vendor/inter/wght.css')}">
+    <link rel="stylesheet" href="${asset('site.css')}">
 </head>
 <body>
     <a class="visually-hidden-focusable ow-skip" href="#inhalt">${escape(t.skip)}</a>
@@ -258,7 +274,7 @@ ${body}
             </ul>
         </div>
     </footer>
-    <script src="/assets/site.js" defer></script>
+    <script src="${asset('site.js')}" defer></script>
 </body>
 </html>
 `;
