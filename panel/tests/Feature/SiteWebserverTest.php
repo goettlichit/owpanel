@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Servers\ScriptCall;
 use App\Sites\WebserverRules;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\Queue;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -100,6 +101,8 @@ class SiteWebserverTest extends TestCase
     public function test_invalid_rules_are_refused_with_their_line(): void
     {
         Queue::fake();
+        // More attempts than the route allows per minute.
+        $this->withoutMiddleware(ThrottleRequests::class);
         $site = $this->site();
         $admin = $this->admin();
 
