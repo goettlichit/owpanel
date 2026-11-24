@@ -176,15 +176,13 @@ class SiteDnsWriter
      * Sets the chosen records of a check to exactly their expected value,
      * read from the check; $done is called after each record that was set.
      * Stops at the first error. Also used for the host name of a server
-     * (E-153).
+     * (E-153). The request waits at most $waitSeconds in total for
+     * Hetzner; records whose change is still running then count as done,
+     * and "pending" says so.
      *
      * @param  array<string, mixed>  $check  result of SiteDns::check or checkHosts
      * @param  list<string>  $keys
      * @param  callable(array<string, mixed>, array{id: string, name: string, mode: string}): void  $done
-     * The request waits at most $waitSeconds in total for Hetzner; records
-     * whose change is still running then count as done, and "pending" says
-     * so.
-     *
      * @return array{done: int, error: string|null, pending: bool}
      */
     public static function setRecords(array $check, array $keys, int $ttl, callable $done): array
