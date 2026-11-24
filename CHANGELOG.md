@@ -15,6 +15,7 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 - The website adds a hash of the content to the addresses of its CSS and JavaScript, so browsers fetch a changed file at once instead of keeping the old one for up to 7 days.
 
 ### Fixed
+- Security: `web-auth/webauthn-lib` (passkeys) updated from 5.3.12 to 5.3.14; `composer audit` reported six advisories for versions below 5.3.13, among them metadata and attestation trust path checks.
 - "Correct all" on the DNS page no longer ends in "504 Gateway Time-out": the panel waited up to 30 seconds per record (twice when the TTL changed) for Hetzner. A request now waits at most 40 seconds in total; changes Hetzner is still applying then count as done, and the message says to check again in a minute.
 
 ## [0.1.0] - 2026-11-23
