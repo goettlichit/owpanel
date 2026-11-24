@@ -89,6 +89,11 @@ return [
         'paths_hint' => 'One path per line, at most :max. Ending in / it blocks the whole folder (/vendor/), otherwise exactly one file (/composer.json). Visitors get "404 Not Found".',
         'submit' => 'Save and transfer',
         'sync' => 'Transfer',
+        'state' => [
+            'none' => 'No own rules',
+            'applied' => 'Applied',
+            'failed' => 'Not applied – view log',
+        ],
         'busy' => 'The website is busy right now. Please try again in a moment.',
         'about_title' => 'What this is for',
         'about' => [

@@ -17,12 +17,23 @@
                     @csrf
                     @method('PUT')
                     <x-card :title="__('sites.webserver.title')">
-                        {{-- How the last transfer to the server went. --}}
-                        @if ($lastTask?->status === \App\Enums\TaskStatus::Failed)
-                            <x-slot:actions>
-                                <livewire:task-badge :task="$lastTask" :label="__('sites.webserver.sync')" :key="$lastTask->id" />
-                            </x-slot:actions>
-                        @endif
+                        {{-- Blue without rules, green once on the server, orange if the
+                             last transfer failed; a running transfer updates itself. --}}
+                        <x-slot:actions>
+                            @switch($state)
+                                @case('pending')
+                                    <livewire:task-badge :task="$lastTask" :label="__('sites.webserver.sync')" :key="$lastTask->id" />
+                                    @break
+                                @case('failed')
+                                    <a href="{{ route('tasks.show', $lastTask) }}" class="badge bg-orange-lt text-decoration-none"><x-icon name="alert-triangle" class="me-1" />{{ __('sites.webserver.state.failed') }}</a>
+                                    @break
+                                @case('applied')
+                                    <span class="badge bg-green-lt"><x-icon name="check" class="me-1" />{{ __('sites.webserver.state.applied') }}</span>
+                                    @break
+                                @default
+                                    <span class="badge bg-blue-lt"><x-icon name="info-circle" class="me-1" />{{ __('sites.webserver.state.none') }}</span>
+                            @endswitch
+                        </x-slot:actions>
                         <div class="mb-3">
                             <label class="form-label" for="headers">{{ __('sites.webserver.headers') }}</label>
                             <textarea id="headers" name="headers" rows="6" spellcheck="false" aria-describedby="headers-hint"

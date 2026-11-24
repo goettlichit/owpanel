@@ -84,6 +84,33 @@ class SiteWebserverTest extends TestCase
         $this->assertSame(1, ServerTask::count());
     }
 
+    public function test_the_page_shows_blue_green_or_orange(): void
+    {
+        Queue::fake();
+        $site = $this->site();
+        $admin = $this->admin();
+        $page = fn () => $this->actingAs($admin)->get("/sites/{$site->id}/webserver");
+
+        // No rules yet: blue.
+        $page()->assertSee('bg-blue-lt', false)->assertSee(__('sites.webserver.state.none'));
+
+        $site->forceFill(['nginx_blocked_paths' => ['/vendor/']])->save();
+        $task = ServerTask::start($site->server, ScriptCall::siteNginx('ow38217', [], []), $admin, $site);
+        // While the transfer runs, its badge updates itself.
+        $page()->assertDontSee(__('sites.webserver.state.applied'))->assertDontSee(__('sites.webserver.state.none'));
+
+        $task->forceFill(['status' => TaskStatus::Succeeded])->save();
+        $page()->assertSee('bg-green-lt', false)->assertSee(__('sites.webserver.state.applied'));
+
+        $task->forceFill(['status' => TaskStatus::Failed])->save();
+        $page()->assertSee('bg-orange-lt', false)->assertSee(__('sites.webserver.state.failed'))
+            ->assertSee(route('tasks.show', $task));
+
+        // Without a task (removed after 90 days) the rules count as applied.
+        $task->delete();
+        $page()->assertSee(__('sites.webserver.state.applied'));
+    }
+
     public function test_empty_lists_remove_all_rules(): void
     {
         Queue::fake();

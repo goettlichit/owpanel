@@ -26,12 +26,15 @@ class SiteWebserverController extends Controller
     {
         Gate::authorize('manageWebserver', $site);
 
+        $lastTask = $site->tasks()->where('script', ServerScript::SiteNginx->value)->latest('id')->first();
+
         return view('sites.webserver', [
             'site' => $site,
             'headers' => WebserverRules::headersText($site),
             'paths' => WebserverRules::pathsText($site),
             'busy' => $site->hasOpenTasks(),
-            'lastTask' => $site->tasks()->where('script', ServerScript::SiteNginx->value)->latest('id')->first(),
+            'lastTask' => $lastTask,
+            'state' => WebserverRules::state($site, $lastTask),
         ]);
     }
 

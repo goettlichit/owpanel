@@ -89,6 +89,11 @@ return [
         'paths_hint' => 'Ein Pfad pro Zeile, höchstens :max. Mit / am Ende sperrt er den ganzen Ordner (/vendor/), sonst genau eine Datei (/composer.json). Besucher bekommen „404 Nicht gefunden“.',
         'submit' => 'Speichern und übertragen',
         'sync' => 'Übertragung',
+        'state' => [
+            'none' => 'Keine eigenen Regeln',
+            'applied' => 'Übernommen',
+            'failed' => 'Nicht übernommen – Protokoll ansehen',
+        ],
         'busy' => 'Die Webseite ist gerade beschäftigt. Versuche es gleich noch einmal.',
         'about_title' => 'Wofür das ist',
         'about' => [

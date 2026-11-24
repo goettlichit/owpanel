@@ -2,6 +2,8 @@
 
 namespace App\Sites;
 
+use App\Enums\TaskStatus;
+use App\Models\ServerTask;
 use App\Models\Site;
 
 /**
@@ -134,6 +136,22 @@ final class WebserverRules
     public static function pathsText(Site $site): string
     {
         return implode("\n", $site->nginx_blocked_paths ?? []);
+    }
+
+    /**
+     * The state shown on the page: "pending" while the last transfer runs,
+     * "failed" if it failed, otherwise "applied" with rules and "none"
+     * without. Old tasks are removed after 90 days; then the rules count
+     * as applied.
+     */
+    public static function state(Site $site, ?ServerTask $last): string
+    {
+        return match (true) {
+            $last !== null && ! $last->isFinished() => 'pending',
+            $last?->status === TaskStatus::Failed => 'failed',
+            self::any($site) => 'applied',
+            default => 'none',
+        };
     }
 
     public static function any(Site $site): bool
