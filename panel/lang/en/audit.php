@@ -129,6 +129,7 @@ return [
             'unsuspended' => 'Website unsuspended',
             'www_enabled' => 'www address of a website turned on',
             'php_settings_changed' => 'PHP settings of a website changed',
+            'webserver_changed' => 'Web server rules of a website changed',
             'php_changed' => 'PHP version of a website switched',
             'www_disabled' => 'www address of a website turned off',
             'domain_change_started' => 'Domain change of a website started',

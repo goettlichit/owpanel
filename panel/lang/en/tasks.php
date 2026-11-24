@@ -29,6 +29,7 @@ return [
         'unban' => 'Unbanning address …',
         'www' => 'Switching www …',
         'php' => 'Switching PHP …',
+        'webserver' => 'Transferring rules …',
     ],
 
     'feedback' => [
@@ -47,6 +48,7 @@ return [
         'cron' => 'the cron jobs',
         'sftp' => 'SFTP',
         'backups' => 'Backups',
+        'webserver' => 'the web server',
     ],
 
     'columns' => [
@@ -111,6 +113,7 @@ return [
         'site-cron' => 'Send cron jobs',
         'site-delete' => 'Delete website',
         'site-logs' => 'Read logs',
+        'site-nginx' => 'Transfer web server rules',
         'site-stats' => 'Count visitors',
         'site-suspend' => 'Suspend website',
         'site-unsuspend' => 'Unsuspend website',
@@ -161,6 +164,12 @@ return [
         'mariadb_unavailable' => 'MariaDB is not installed or not running on the server.',
         'database_create_failed' => 'MariaDB could not create the database or the user.',
         'database_delete_failed' => 'MariaDB could not delete the database or the user.',
+        'invalid_rule' => 'A web server rule has an invalid format.',
+        'invalid_header' => 'A header is not allowed.',
+        'duplicate_header' => 'A header is listed twice.',
+        'invalid_path' => 'A blocked path is not allowed.',
+        'duplicate_path' => 'A path is listed twice.',
+        'too_many_rules' => 'Too many rules for one website.',
         'invalid_cron_job' => 'A cron job has an invalid format.',
         'invalid_cron_schedule' => 'A schedule is invalid.',
         'invalid_cron_command' => 'A command is invalid.',

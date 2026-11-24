@@ -135,6 +135,7 @@ Grundlage ist E-163. Die Regeln gelten ab Meilenstein 9.
 2. Linux-Benutzernamen erhalten eine zufällige Nummer (E-034) und enthalten keine Kundennamen, Domains oder fortlaufenden IDs.
 3. Fremde Website-Verzeichnisse sind nicht lesbar.
 4. Datenbankbenutzer erhalten nur Rechte auf ihre eigene Datenbank.
+5. Eigene Regeln für NGINX (E-184) setzen nur Administratoren, und nur als Header (`Name: Wert`) und gesperrte Pfade. Freier NGINX-Text ist ausgeschlossen, weil Anweisungen wie `access_log`, `include` oder `alias` Dateien als root schreiben oder fremde Dateien ausliefern könnten. Panel und `site-nginx` prüfen jede Zeile mit denselben Mustern: Namen nur aus Buchstaben, Ziffern und Bindestrichen, ohne die Header, die OWPanel selbst setzt; Werte nur druckbares ASCII ohne `"`, `\`, `$`, `{` und `}`; Pfade nur aus Buchstaben, Ziffern und `._~/-`, ohne `//` und ohne Teile mit Punkt am Anfang. Das Skript schreibt sie in fester Form, prüft mit `nginx -t` und stellt bei Fehlern die vorherigen Regeln wieder her.
 
 ## SFTP
 

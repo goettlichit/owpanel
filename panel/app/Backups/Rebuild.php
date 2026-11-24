@@ -10,6 +10,7 @@ use App\Models\Site;
 use App\Models\User;
 use App\Servers\ScriptCall;
 use App\Sites\PhpSettings;
+use App\Sites\WebserverRules;
 use App\Support\Audit;
 use Illuminate\Support\Collection;
 
@@ -37,6 +38,10 @@ final class Rebuild
         $server = $site->server;
 
         $first = $previous = ServerTask::start($server, ScriptCall::siteCreate($site->domain, $site->system_user, false, $site->www, php: $server->phpFor($site), settings: PhpSettings::effective($site)), $user, $site, after: $after);
+        // Own nginx rules, read when the task runs (E-184).
+        if (WebserverRules::any($site)) {
+            $previous = ServerTask::start($server, ScriptCall::siteNginx($site->system_user, [], []), $user, $site, after: $previous);
+        }
 
         $site->databases()->where('status', SiteStatus::Active->value)->orderBy('name')->get()
             ->each(function (Database $database) use ($server, $site, $user, &$previous) {

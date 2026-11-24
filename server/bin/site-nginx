@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Writes the own nginx rules of a website (E-184): extra response headers
+# and blocked paths. The panel sends all rules of the website on stdin, one
+# per line: "header<TAB>name<TAB>value" or "path<TAB>/path". The rules are
+# replaced as a whole; no line means no rules. A second run with the same
+# rules changes nothing.
+#
+#   site-nginx --user ow38217   < rules
+#
+# Both files are checked with nginx -t together; if nginx refuses them, the
+# previous rules come back. See server/lib/site-rules.sh for the patterns.
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/site-rules.sh
+source /opt/owpanel/lib/site-rules.sh
+
+# Tests point this elsewhere; sudo drops it.
+OWP_NGINX_SITES="${OWP_NGINX_SITES:-/etc/nginx/owpanel-sites}"
+
+usage() {
+  owp_die "invalid_arguments" "usage: site-nginx --user <owNNNNN> < rules"
+}
+
+# Installs both snippets, checks nginx and reloads it. On failure the
+# previous files come back. Returns 1 if nginx refused the new rules.
+# Usage: apply_rules <user> <headers> <paths>
+apply_rules() {
+  local user="$1" headers="$2" paths="$3" headers_file paths_file
+  headers_file="$(owp_rules_headers_file "$user")"
+  paths_file="$(owp_rules_paths_file "$user")"
+  if cmp -s "$headers" "$headers_file" && cmp -s "$paths" "$paths_file"; then
+    owp_log "unchanged: rules of ${user}"
+    return 0
+  fi
+
+  owp_rules_ensure "$user"
+  cp -p "$headers_file" "${OWP_TMPDIR}/previous-headers"
+  cp -p "$paths_file" "${OWP_TMPDIR}/previous-paths"
+  if install -o root -g root -m 0644 "$headers" "$headers_file" \
+    && install -o root -g root -m 0644 "$paths" "$paths_file" \
+    && nginx -t \
+    && owp_service_action nginx reload; then
+    owp_log "updated: rules of ${user}"
+    return 0
+  fi
+
+  owp_warn "rolling back the rules of ${user}"
+  cp -p "${OWP_TMPDIR}/previous-headers" "$headers_file"
+  cp -p "${OWP_TMPDIR}/previous-paths" "$paths_file"
+  owp_service_action nginx reload || owp_warn "nginx did not recover"
+  return 1
+}
+
+main() {
+  local user=""
+  owp_init "site-nginx"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --user)
+        [[ $# -ge 2 ]] || usage
+        user="$2"
+        shift 2
+        ;;
+      *) usage ;;
+    esac
+  done
+  owp_valid_site_user "$user" || owp_die "invalid_user" "invalid site user"
+  owp_reserved_site_user "$user" && owp_die "reserved_user" "${user} belongs to the panel"
+
+  # All rules are checked before anything on the server changes.
+  owp_tmpdir
+  owp_rules_render /dev/stdin "${OWP_TMPDIR}/headers" "${OWP_TMPDIR}/paths"
+
+  [[ -f "${OWP_NGINX_SITES}/${user}.conf" ]] || owp_die "site_not_found" "website ${user} does not exist"
+  owp_lock 120
+  apply_rules "$user" "${OWP_TMPDIR}/headers" "${OWP_TMPDIR}/paths" \
+    || owp_die "nginx_config_invalid" "nginx rejected the rules; the previous ones stay"
+
+  owp_result_ok "\"headers\":${OWP_RULES_HEADERS},\"paths\":${OWP_RULES_PATHS}"
+}
+
+main "$@"

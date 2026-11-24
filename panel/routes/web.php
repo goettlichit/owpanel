@@ -34,6 +34,7 @@ use App\Http\Controllers\SiteDnsController;
 use App\Http\Controllers\SiteLogController;
 use App\Http\Controllers\SiteSftpController;
 use App\Http\Controllers\SiteSuspensionController;
+use App\Http\Controllers\SiteWebserverController;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\UserController;
 use App\Oidc\OidcSettings;
@@ -226,6 +227,9 @@ Route::middleware('auth')->group(function () {
         // DNS of a website, administrators only (E-116).
         Route::get('/sites/{site}/delete', [SiteController::class, 'confirmDestroy'])->name('sites.delete');
         // Suspension (E-127).
+        // Own nginx rules of a website (E-184).
+        Route::get('/sites/{site}/webserver', [SiteWebserverController::class, 'show'])->name('sites.webserver');
+        Route::put('/sites/{site}/webserver', [SiteWebserverController::class, 'update'])->middleware('throttle:10,1')->name('sites.webserver.update');
         Route::get('/sites/{site}/suspension', [SiteSuspensionController::class, 'show'])->name('sites.suspension');
         Route::post('/sites/{site}/suspension', [SiteSuspensionController::class, 'store'])->middleware('throttle:10,1')->name('sites.suspension.store');
         Route::delete('/sites/{site}/suspension', [SiteSuspensionController::class, 'destroy'])->middleware('throttle:10,1')->name('sites.suspension.destroy');

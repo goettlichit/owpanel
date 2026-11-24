@@ -129,6 +129,7 @@ return [
             'unsuspended' => 'Webseite entsperrt',
             'www_enabled' => 'www-Adresse einer Webseite eingeschaltet',
             'php_settings_changed' => 'PHP-Einstellungen einer Webseite geändert',
+            'webserver_changed' => 'Webserver-Regeln einer Webseite geändert',
             'php_changed' => 'PHP-Version einer Webseite umgestellt',
             'www_disabled' => 'www-Adresse einer Webseite ausgeschaltet',
             'domain_change_started' => 'Domainwechsel einer Webseite gestartet',

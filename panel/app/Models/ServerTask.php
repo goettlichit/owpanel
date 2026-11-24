@@ -175,6 +175,12 @@ class ServerTask extends Model
                 $this->site->cronJobs()->where('enabled', true)->orderBy('created_at')->get(['schedule', 'command'])
                     ->map(fn (CronJob $job) => ['schedule' => $job->schedule, 'command' => $job->command])->all(),
             ),
+            // The own nginx rules as they are when the task runs (E-184).
+            $this->script === ServerScript::SiteNginx && $this->site !== null => ScriptCall::siteNginx(
+                $this->site->system_user,
+                $this->site->nginx_headers ?? [],
+                $this->site->nginx_blocked_paths ?? [],
+            ),
             // The SFTP state as it is when the task runs (E-089).
             $this->script === ServerScript::SiteSftp && $this->site !== null => $this->site->sftpCall(),
             // Backup target with its secrets as they are now (E-096).
@@ -250,6 +256,10 @@ class ServerTask extends Model
             $this->script === ServerScript::SiteCron && $site !== null => [
                 'url' => route('sites.cron', $site),
                 'name' => __('tasks.back.cron'),
+            ],
+            $this->script === ServerScript::SiteNginx && $site !== null => [
+                'url' => route('sites.webserver', $site),
+                'name' => __('tasks.back.webserver'),
             ],
             in_array($this->script, [ServerScript::SiteBackup, ServerScript::SiteRestore], true) && $site !== null => [
                 'url' => route('sites.backups', $site),
