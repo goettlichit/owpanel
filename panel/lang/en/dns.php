@@ -67,6 +67,7 @@ return [
         'nothing' => 'Nothing to change in the zone.',
         'done' => '{0} Nothing changed; the zone was already right.|{1} Record set. Resolvers may need up to the old TTL to see it.|[2,*] :count records set. Resolvers may need up to the old TTL to see them.',
         'failed' => 'Stopped after :done records: :error',
+        'pending' => 'Hetzner is still applying part of it; check again in a minute.',
         'about' => [
             'The panel only sets A and AAAA for the domain and www to the addresses of this server. Other records of the zone stay as they are.',
             'Further values in the same record, such as a second IP address, are replaced; afterwards it holds exactly one address.',

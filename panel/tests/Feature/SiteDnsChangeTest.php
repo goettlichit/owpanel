@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Dns\SiteDnsWriter;
 use App\Hetzner\HetznerCloud;
 use App\Models\AuditLog;
 use App\Models\Customer;
@@ -55,16 +56,22 @@ class SiteDnsChangeTest extends TestCase
         return User::factory()->admin()->withTwoFactor()->create();
     }
 
+    protected function tearDown(): void
+    {
+        SiteDnsWriter::$waitSeconds = 40;
+        parent::tearDown();
+    }
+
     /**
      * Zone example.de: the apex points elsewhere, www is missing.
      */
-    private function fakeZone(int $writeStatus = 201): void
+    private function fakeZone(int $writeStatus = 201, string $actionStatus = 'success'): void
     {
         Setting::put(Setting::HETZNER_DNS_TOKEN, Crypt::encryptString(self::DNS_TOKEN));
         $writes = $writeStatus === 403
             ? Http::response(['error' => ['code' => 'forbidden']], 403)
             : Http::response(['action' => ['id' => 7, 'status' => 'running']], $writeStatus);
-        Http::fake(function (Request $request) use ($writes) {
+        Http::fake(function (Request $request) use ($writes, $actionStatus) {
             $url = $request->url();
 
             return match (true) {
@@ -72,11 +79,30 @@ class SiteDnsChangeTest extends TestCase
                 str_contains($url, '/zones?') => Http::response(['zones' => []]),
                 str_ends_with($url, '/zones/42/rrsets/@/A') => Http::response(['rrset' => ['ttl' => 7200, 'records' => [['value' => '198.51.100.7'], ['value' => '198.51.100.8']]]]),
                 str_ends_with($url, '/zones/42/rrsets/www/A') => Http::response(['error' => ['code' => 'not_found']], 404),
-                str_ends_with($url, '/zones/actions/7') => Http::response(['action' => ['id' => 7, 'status' => 'success']]),
+                str_ends_with($url, '/zones/actions/7') => Http::response(['action' => ['id' => 7, 'status' => $actionStatus]]),
                 $request->method() === 'POST' => $writes,
                 default => Http::response(['error' => ['code' => 'not_found']], 404),
             };
         });
+    }
+
+    public function test_slow_hetzner_actions_end_the_request_in_time(): void
+    {
+        // Hetzner keeps every action running; the request must not wait
+        // 30 seconds per record (504 from nginx), but end at the deadline.
+        SiteDnsWriter::$waitSeconds = 0;
+        $site = $this->site();
+        $this->fakeZone(actionStatus: 'running');
+
+        $this->actingAs($this->admin())->post(route('sites.dns.apply', $site), [
+            'records' => ['example.de|A', 'www.example.de|A'], 'ttl' => 300, 'confirmed' => '1',
+        ])->assertRedirect(route('sites.dns', $site))
+            ->assertSessionHas('status', trans_choice('dns.change.done', 2, ['count' => 2]).' '.__('dns.change.pending'));
+
+        // All three writes were sent: set_records and change_ttl for the
+        // apex, the new record for www.
+        $this->assertCount(3, Http::recorded(fn (Request $request) => $request->method() === 'POST'));
+        $this->assertSame(2, $site->dnsRecords()->count());
     }
 
     public function test_the_page_offers_create_and_correct(): void
