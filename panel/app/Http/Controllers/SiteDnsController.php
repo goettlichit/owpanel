@@ -88,6 +88,7 @@ class SiteDnsController extends Controller
             ]));
         }
 
-        return $redirect->with('status', trans_choice('dns.change.done', $result['done'], ['count' => $result['done']]));
+        return $redirect->with('status', trim(trans_choice('dns.change.done', $result['done'], ['count' => $result['done']])
+            .($result['pending'] ? ' '.__('dns.change.pending') : '')));
     }
 }

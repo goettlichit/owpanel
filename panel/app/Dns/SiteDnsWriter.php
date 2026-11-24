@@ -21,6 +21,12 @@ class SiteDnsWriter
 
     public const DEFAULT_TTL = 3600;
 
+    /**
+     * How long one request waits for Hetzner in total; nginx gives up on
+     * the panel after 60 seconds. Tests make it shorter.
+     */
+    public static float $waitSeconds = 40;
+
     public function __construct(private readonly SiteDns $dns) {}
 
     /**
@@ -60,7 +66,7 @@ class SiteDnsWriter
      * first error; changes made before it stay and are logged.
      *
      * @param  list<string>  $keys  "host|type" of the records to set
-     * @return array{done: int, error: string|null}
+     * @return array{done: int, error: string|null, pending: bool}
      */
     public function apply(Site $site, array $keys, int $ttl, User $user): array
     {
@@ -73,7 +79,7 @@ class SiteDnsWriter
      * page shows them as different. Null when the zone is not reachable
      * through the API.
      *
-     * @return array{done: int, different: int, error: string|null}|null
+     * @return array{done: int, different: int, error: string|null, pending: bool}|null
      */
     public function createMissing(Site $site, User $user): ?array
     {
@@ -147,7 +153,7 @@ class SiteDnsWriter
     /**
      * @param  array<string, mixed>  $check
      * @param  list<string>  $keys
-     * @return array{done: int, error: string|null}
+     * @return array{done: int, error: string|null, pending: bool}
      */
     private function applyTo(Site $site, array $check, array $keys, int $ttl, User $user): array
     {
@@ -175,12 +181,16 @@ class SiteDnsWriter
      * @param  array<string, mixed>  $check  result of SiteDns::check or checkHosts
      * @param  list<string>  $keys
      * @param  callable(array<string, mixed>, array{id: string, name: string, mode: string}): void  $done
-     * @return array{done: int, error: string|null}
+     * The request waits at most $waitSeconds in total for Hetzner; records
+     * whose change is still running then count as done, and "pending" says
+     * so.
+     *
+     * @return array{done: int, error: string|null, pending: bool}
      */
     public static function setRecords(array $check, array $keys, int $ttl, callable $done): array
     {
         $changes = array_values(array_filter(self::changes($check), fn (array $change) => in_array($change['key'], $keys, true)));
-        $cloud = HetznerCloud::forDns();
+        $cloud = HetznerCloud::forDns()->withZoneDeadline(self::$waitSeconds);
         $zone = $check['zone'];
         $count = 0;
 
@@ -189,7 +199,7 @@ class SiteDnsWriter
                 $cloud->putRrset($zone['id'], $change['name'], $change['type'], [$change['expected']], $ttl,
                     $change['current'] === [] && $change['ttl'] === null ? null : ['ttl' => $change['ttl'], 'values' => $change['current']]);
             } catch (HetznerException $e) {
-                return ['done' => $count, 'error' => $e->errorCode];
+                return ['done' => $count, 'error' => $e->errorCode, 'pending' => $cloud->zoneActionsPending()];
             }
             $done($change, $zone);
             $count++;
@@ -198,6 +208,6 @@ class SiteDnsWriter
             app(DnsResolver::class)->forget($host);
         }
 
-        return ['done' => $count, 'error' => null];
+        return ['done' => $count, 'error' => null, 'pending' => $cloud->zoneActionsPending()];
     }
 }

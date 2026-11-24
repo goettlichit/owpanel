@@ -397,6 +397,13 @@ class HetznerCloud
     public static int $pollMicroseconds = 2_000_000;
 
     /**
+     * Shared deadline for zone actions (microtime), see withZoneDeadline.
+     */
+    private ?float $zoneDeadline = null;
+
+    private bool $zoneActionsPending = false;
+
+    /**
      * A password Hetzner accepts for a subaccount: letters, digits and a
      * few special characters, at least one of each kind.
      */
@@ -537,6 +544,13 @@ class HetznerCloud
             return;
         }
         $until = microtime(true) + $seconds;
+        // With a shared deadline, an action still running at its end counts
+        // as accepted: Hetzner applies it anyway, and the page must answer
+        // before nginx gives up after 60 seconds.
+        $deadline = $this->zoneDeadline !== null && $this->zoneDeadline <= $until;
+        if ($deadline) {
+            $until = $this->zoneDeadline;
+        }
         while (true) {
             $action = $this->get('/zones/actions/'.$actionId)['action'] ?? [];
             $status = (string) ($action['status'] ?? 'running');
@@ -547,10 +561,36 @@ class HetznerCloud
                 throw new HetznerException('action_failed', (string) ($action['error']['message'] ?? ''));
             }
             if (microtime(true) >= $until) {
+                if ($deadline) {
+                    $this->zoneActionsPending = true;
+
+                    return;
+                }
                 throw new HetznerException('timeout');
             }
             usleep(min(self::$pollMicroseconds, 500_000));
         }
+    }
+
+    /**
+     * Sets one deadline for following zone actions, in seconds from now. A
+     * request that writes several records waits at most this long in total
+     * instead of up to 30 seconds per action.
+     */
+    public function withZoneDeadline(float $seconds): static
+    {
+        $this->zoneDeadline = microtime(true) + $seconds;
+        $this->zoneActionsPending = false;
+
+        return $this;
+    }
+
+    /**
+     * Whether an action was still running when the deadline was reached.
+     */
+    public function zoneActionsPending(): bool
+    {
+        return $this->zoneActionsPending;
     }
 
     /**

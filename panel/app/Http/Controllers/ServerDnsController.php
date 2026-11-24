@@ -67,7 +67,8 @@ class ServerDnsController extends Controller
             return $redirect->with('error', __('dns.change.failed', ['done' => $result['done'], 'error' => $this->error($result['error'])]));
         }
 
-        return $redirect->with('status', trans_choice('dns.change.done', $result['done'], ['count' => $result['done']]));
+        return $redirect->with('status', trim(trans_choice('dns.change.done', $result['done'], ['count' => $result['done']])
+            .($result['pending'] ? ' '.__('dns.change.pending') : '')));
     }
 
     /**

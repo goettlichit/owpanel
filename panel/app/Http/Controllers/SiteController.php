@@ -191,7 +191,8 @@ class SiteController extends Controller
         }
 
         return trim(trans_choice('dns.create.done', $result['done'], ['count' => $result['done']])
-            .' '.($result['different'] > 0 ? trans_choice('dns.create.different', $result['different'], ['count' => $result['different']]) : ''));
+            .' '.($result['different'] > 0 ? trans_choice('dns.create.different', $result['different'], ['count' => $result['different']]) : '')
+            .($result['pending'] ? ' '.__('dns.change.pending') : ''));
     }
 
     /**

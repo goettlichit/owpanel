@@ -67,6 +67,7 @@ return [
         'nothing' => 'In der Zone ist nichts zu ändern.',
         'done' => '{0} Nichts geändert; die Zone war schon richtig.|{1} Eintrag gesetzt. Bis Resolver ihn sehen, kann es bis zur alten TTL dauern.|[2,*] :count Einträge gesetzt. Bis Resolver sie sehen, kann es bis zur alten TTL dauern.',
         'failed' => 'Nach :done Einträgen abgebrochen: :error',
+        'pending' => 'Hetzner übernimmt einen Teil noch; prüfe in einer Minute erneut.',
         'about' => [
             'Das Panel setzt nur A und AAAA für die Domain und www auf die Adressen dieses Servers. Andere Einträge der Zone bleiben unverändert.',
             'Weitere Werte im selben Eintrag, etwa eine zweite IP-Adresse, ersetzt das Panel; danach steht genau eine Adresse darin.',

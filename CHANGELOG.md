@@ -4,6 +4,9 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 
 ## [Unreleased]
 
+### Fixed
+- "Correct all" on the DNS page no longer ends in "504 Gateway Time-out": the panel waited up to 30 seconds per record (twice when the TTL changed) for Hetzner. A request now waits at most 40 seconds in total; changes Hetzner is still applying then count as done, and the message says to check again in a minute.
+
 ### Changed
 - The documentation starts with a choice between "Documentation for administrators" (`/docs/admin/`) and "Documentation for customers" (`/docs/customer/`); the sidebar shows only the pages of one of them, under a plain heading. The panel's "Documentation" link for administrators leads to `/docs/admin/` (E-183).
 - The website shows version 0.1 instead of "early development" and links to the source code.
