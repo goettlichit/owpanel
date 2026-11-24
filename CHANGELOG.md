@@ -5,6 +5,7 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 ## [Unreleased]
 
 ### Added
+- The documentation explains uploads from the command line: `scp`, `lftp mirror -R` and `rclone` over SFTP, and why `rsync` does not work for website users.
 - Own nginx rules per website (E-184): under Website -> Web server administrators add extra response headers ("Name: value", e.g. HSTS or a Content-Security-Policy) and blocked paths (a folder ending in /, or exactly one file; answered with 404). The new script `site-nginx` checks every line against strict patterns, writes it in a fixed form, tests nginx and keeps the previous rules if nginx refuses. There is no free nginx text. A rebuild from a backup writes the rules again.
 
 ### Changed

@@ -98,6 +98,7 @@ Unter **Webseite → SFTP** schaltest du den Zugang ein. Der Benutzername ist de
 
 - Der Zugang kann nur SFTP: keine Shell, keine Weiterleitungen.
 - Er sieht nur den Ordner der Webseite und startet in `htdocs`.
+- Von der Kommandozeile gehen `scp` (OpenSSH ab 9), `lftp mirror -R` und `rclone`, aber kein `rsync`, weil es auf dem Server eine Shell bräuchte; Beispiele stehen in der [Kunden-Doku](docs:customer-websites#von-der-kommandozeile). Als root auf dem Server geht `rsync` natürlich, danach mit `chown -R <Benutzer>:<Benutzer>` die Rechte setzen.
 - Das Anzeigen eines Passworts steht im Audit-Log.
 - Als Server zeigt das Panel die Domain, sobald ihr DNS auf diesen Server zeigt. Zeigt sie noch woandershin, etwa während eines Umzugs, steht dort die IP-Adresse des Servers, die sofort funktioniert. Das Panel prüft das bei jedem Aufruf der Seite, das Ergebnis gilt fünf Minuten.
 - Administratoren, die lieber auf der Kommandozeile arbeiten, melden sich per SSH als root an und wechseln mit `runuser -l <Benutzer> -s /bin/bash` in den Benutzer der Webseite. Den passenden Befehl zeigt die SFTP-Seite an.
