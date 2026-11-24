@@ -41,6 +41,19 @@ To make websites load faster, NGINX compresses text such as HTML, CSS, JavaScrip
 
 PHP sessions get safe cookies: JavaScript cannot read them (`HttpOnly`), requests from other sites do not carry them (`SameSite=Lax`) and, once the website has a certificate, they only travel over HTTPS (`Secure`). If an application needs other values, such as `SameSite=None` for a return from a payment provider by POST, it sets them itself with `session_set_cookie_params()` or in a `.user.ini`.
 
+## Own rules for the web server
+
+What an application would otherwise have in its `.htaccess` or vhost, you enter as an administrator under **Web server**. Customers do not see this page.
+
+- **Extra headers:** one header per line as `Name: value`, such as `Strict-Transport-Security: max-age=31536000` or a `Content-Security-Policy`. They apply to every response of the website, including images and PDFs, but only with a certificate. OWPanel already sets `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` itself.
+- **Blocked paths:** one path per line. Ending in `/` it blocks a whole folder such as `/vendor/`, otherwise exactly one file such as `/composer.json`. Visitors get "404 Not Found". OWPanel blocks hidden files such as `.env` or `.git` anyway.
+
+There is deliberately no free NGINX text: every line is checked, and the server writes it in a fixed form. Before activating them it checks everything with `nginx -t`; if NGINX refuses the rules, the previous ones stay.
+
+::: tip
+Better than blocked paths is a layout where only public files are in `htdocs/public/`, as with Laravel. Blocked paths help with applications that do not provide for that.
+:::
+
 ## Placeholder page
 
 While the folder `htdocs/public` holds neither an `index.php` nor an `index.html`, the start page shows a simple placeholder page with the domain and a note that a new website is on its way, in German and English. As soon as an index file is uploaded, it disappears by itself; if the customer later deletes everything, it comes back. Other folders without an index file still answer with 403.

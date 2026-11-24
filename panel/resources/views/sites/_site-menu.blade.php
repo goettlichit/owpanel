@@ -14,6 +14,9 @@
     @can('viewAny', [\App\Models\Database::class, $site])
         <x-nav-link route="databases.index" :params="$site" icon="database" active="databases.*">{{ __('sites.menu.databases') }}</x-nav-link>
     @endcan
+    @can('manageWebserver', $site)
+        <x-nav-link route="sites.webserver" :params="$site" icon="server-cog">{{ __('sites.menu.webserver') }}</x-nav-link>
+    @endcan
     @can('manageCron', $site)
         <x-nav-link route="sites.cron" :params="$site" icon="clock">{{ __('sites.menu.cron') }}</x-nav-link>
     @endcan

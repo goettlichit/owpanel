@@ -4,14 +4,17 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 
 ## [Unreleased]
 
-### Fixed
-- "Correct all" on the DNS page no longer ends in "504 Gateway Time-out": the panel waited up to 30 seconds per record (twice when the TTL changed) for Hetzner. A request now waits at most 40 seconds in total; changes Hetzner is still applying then count as done, and the message says to check again in a minute.
+### Added
+- Own nginx rules per website (E-184): under Website -> Web server administrators add extra response headers ("Name: value", e.g. HSTS or a Content-Security-Policy) and blocked paths (a folder ending in /, or exactly one file; answered with 404). The new script `site-nginx` checks every line against strict patterns, writes it in a fixed form, tests nginx and keeps the previous rules if nginx refuses. There is no free nginx text. A rebuild from a backup writes the rules again.
 
 ### Changed
 - The documentation starts with a choice between "Documentation for administrators" (`/docs/admin/`) and "Documentation for customers" (`/docs/customer/`); the sidebar shows only the pages of one of them, under a plain heading. The panel's "Documentation" link for administrators leads to `/docs/admin/` (E-183).
 - The website shows version 0.1 instead of "early development" and links to the source code.
 - The start page, introduction and READMEs describe OWPanel as native instead of "without Docker", since Docker apps for administrators are planned.
 - The website adds a hash of the content to the addresses of its CSS and JavaScript, so browsers fetch a changed file at once instead of keeping the old one for up to 7 days.
+
+### Fixed
+- "Correct all" on the DNS page no longer ends in "504 Gateway Time-out": the panel waited up to 30 seconds per record (twice when the TTL changed) for Hetzner. A request now waits at most 40 seconds in total; changes Hetzner is still applying then count as done, and the message says to check again in a minute.
 
 ## [0.1.0] - 2026-11-23
 

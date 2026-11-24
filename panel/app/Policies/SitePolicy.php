@@ -154,6 +154,15 @@ class SitePolicy
      * Suspend and unsuspend a website (E-127): administrators only. The
      * API (milestone 7.1) lifts only the suspensions it set itself.
      */
+    /**
+     * Own nginx rules of a website (E-184): only administrators, since
+     * headers and blocked paths change how the whole website answers.
+     */
+    public function manageWebserver(User $user, Site $site): bool
+    {
+        return $user->isAdmin();
+    }
+
     public function suspend(User $user, Site $site): bool
     {
         return $user->isAdmin();

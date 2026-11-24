@@ -32,6 +32,7 @@ Cmnd_Alias OWPANEL_SCRIPTS = /opt/owpanel/bin/backup-setup, \
                              /opt/owpanel/bin/site-cron, \
                              /opt/owpanel/bin/site-delete, \
                              /opt/owpanel/bin/site-logs, \
+                             /opt/owpanel/bin/site-nginx, \
                              /opt/owpanel/bin/site-restore, \
                              /opt/owpanel/bin/site-sftp, \
                              /opt/owpanel/bin/site-stats, \

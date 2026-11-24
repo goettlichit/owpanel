@@ -30,6 +30,7 @@ enum ServerScript: string
     case SiteCron = 'site-cron';
     case SiteDelete = 'site-delete';
     case SiteLogs = 'site-logs';
+    case SiteNginx = 'site-nginx';
     case SiteSftp = 'site-sftp';
     case SiteStats = 'site-stats';
     case SiteSuspend = 'site-suspend';
@@ -65,7 +66,7 @@ enum ServerScript: string
             self::ServerProvision => 3600,
             // Let's Encrypt may take a while.
             self::SiteCreate, self::SiteDelete => 600,
-            self::FirewallConfirm, self::FirewallRules, self::ServerFail2ban, self::ServerBlocklist, self::PanelTest, self::ServerTimezone, self::SiteCron, self::SiteSftp => 120,
+            self::FirewallConfirm, self::FirewallRules, self::ServerFail2ban, self::ServerBlocklist, self::PanelTest, self::ServerTimezone, self::SiteCron, self::SiteNginx, self::SiteSftp => 120,
             self::DbCreate, self::DbDelete => 180,
             // Runs while the user waits; the script stops itself after 35 s.
             self::DbQuery => 40,
