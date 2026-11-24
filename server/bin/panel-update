@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# Updates the panel on its own server to a newer release (F-012, E-185).
+#
+#   panel-update --version 1.2.3   download, check and start the update
+#   panel-update --status          state of the last update
+#
+# Only tagged releases from the project's GitHub releases, each checked
+# against its .sha256 file and its signature with the keys in
+# /etc/owpanel/release-signers (E-167). Never an older version, unless the
+# installed one is a test build. The installer then runs detached as the
+# unit owpanel-update (lib/panel-update-run.sh), because it restarts the
+# queue worker that started this script.
+set -euo pipefail
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/release.sh
+source /opt/owpanel/lib/release.sh
+
+OWP_UPDATE_DIR="${OWP_UPDATE_DIR:-/var/lib/owpanel/update}"
+OWP_UPDATE_STATE_FILE="${OWP_UPDATE_STATE_FILE:-/etc/owpanel/panel.conf}"
+readonly OWP_UPDATE_UNIT="owpanel-update"
+readonly OWP_UPDATE_RUNNER="/opt/owpanel/lib/panel-update-run.sh"
+# An archive with vendor/ and the built assets is about 30 MB.
+readonly OWP_UPDATE_MAX_BYTES=536870912
+readonly OWP_UPDATE_STATES_RE='^(idle|running|succeeded|failed)$'
+readonly OWP_UPDATE_TIME_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+readonly OWP_UPDATE_ERROR_RE='^[a-z0-9_]{1,64}$'
+
+usage() {
+  owp_die "invalid_arguments" "usage: panel-update --version <x.y.z> | --status"
+}
+
+# Reads key=value from the status file without sourcing it.
+status_value() {
+  [[ -f "${OWP_UPDATE_DIR}/status" ]] || return 0
+  sed -n "s/^${1}=//p" "${OWP_UPDATE_DIR}/status" | tail -n 1
+}
+
+# Writes the status file in one step. Values are validated by the caller.
+write_status() {
+  local tmp="${OWP_UPDATE_DIR}/.status.new"
+  printf 'state=%s\nversion=%s\nfrom=%s\nstarted_at=%s\nfinished_at=%s\nerror=%s\n' "$@" >"$tmp"
+  chmod 0600 "$tmp"
+  mv -f "$tmp" "${OWP_UPDATE_DIR}/status"
+}
+
+# A JSON string member, or null when the value does not match its pattern.
+json_member() {
+  local name="$1" value="$2" pattern="$3"
+  if [[ -n "$value" && "$value" =~ $pattern ]]; then
+    printf '"%s":"%s"' "$name" "$value"
+  else
+    printf '"%s":null' "$name"
+  fi
+}
+
+show_status() {
+  local state
+  state="$(status_value state)"
+  [[ "$state" =~ $OWP_UPDATE_STATES_RE ]] || state="idle"
+  # A run that ended without writing its result, e.g. after a power cut.
+  if [[ "$state" == "running" ]] && ! systemctl is-active --quiet "${OWP_UPDATE_UNIT}.service" 2>/dev/null; then
+    state="failed"
+  fi
+  owp_result_ok "\"state\":\"${state}\",$(json_member version "$(status_value version)" "$OWP_VERSION_RE"),$(json_member from "$(status_value from)" "$OWP_VERSION_RE"),$(json_member started_at "$(status_value started_at)" "$OWP_UPDATE_TIME_RE"),$(json_member finished_at "$(status_value finished_at)" "$OWP_UPDATE_TIME_RE"),$(json_member error "$(status_value error)" "$OWP_UPDATE_ERROR_RE")"
+}
+
+fetch() {
+  curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+    --tlsv1.2 --retry 3 --max-time 600 --max-filesize "$OWP_UPDATE_MAX_BYTES" "$@"
+}
+
+start_update() {
+  local target="$1" installed work base archive name now
+  [[ -f "$OWP_UPDATE_STATE_FILE" ]] || owp_die "not_panel_server" "the panel is not installed on this server"
+  installed="$(sed -n 's/^VERSION=//p' "$OWP_UPDATE_STATE_FILE" | tail -n 1)"
+  [[ "$installed" =~ $OWP_VERSION_RE ]] || owp_die "unknown_version" "cannot read the installed version"
+  # A test build may go to any release; a release only forward.
+  if owp_release_tagged "$installed" && ! owp_release_newer "$target" "$installed"; then
+    owp_die "not_newer" "${target} is not newer than the installed ${installed}"
+  fi
+  if systemctl is-active --quiet "${OWP_UPDATE_UNIT}.service"; then
+    owp_die "update_running" "an update is already running"
+  fi
+
+  install -d -o root -g root -m 0700 "$OWP_UPDATE_DIR"
+  work="${OWP_UPDATE_DIR}/${target}"
+  rm -rf -- "$work"
+  install -d -o root -g root -m 0700 "$work"
+  name="owpanel-${target}"
+  archive="${work}/${name}.tar.gz"
+  base="https://github.com/${OWP_RELEASE_REPO}/releases/download/v${target}"
+
+  owp_log "downloading OWPanel ${target}"
+  if ! fetch --output "$archive" "${base}/${name}.tar.gz" \
+    || ! fetch --output "${archive}.sha256" "${base}/${name}.tar.gz.sha256" \
+    || ! fetch --output "${archive}.sig" "${base}/${name}.tar.gz.sig"; then
+    owp_die "download_failed" "could not download release ${target}"
+  fi
+
+  owp_release_check_sum "$archive" || owp_die "checksum_mismatch" "the checksum of the archive does not match"
+  owp_release_verify "$archive" || owp_die "invalid_signature" "the signature of the archive is not valid"
+  owp_log "checksum and signature checked"
+
+  tar -xzf "$archive" -C "$work" --no-same-owner || owp_die "unpack_failed" "could not unpack the archive"
+  [[ -x "${work}/${name}/install" && -f "${work}/${name}/VERSION" && "$(<"${work}/${name}/VERSION")" == "$target" ]] \
+    || owp_die "not_a_release" "the archive does not contain the expected installer"
+
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  write_status running "$target" "$installed" "$now" "" ""
+  # The installer replaces /opt/owpanel/lib while the update runs, so the
+  # unit runs a copy of the runner.
+  install -o root -g root -m 0700 "$OWP_UPDATE_RUNNER" "${work}/run.sh"
+  systemctl reset-failed "${OWP_UPDATE_UNIT}.service" >/dev/null 2>&1 || true
+  if ! systemd-run --unit="$OWP_UPDATE_UNIT" --description="OWPanel update to ${target}" --collect --quiet \
+    /bin/bash "${work}/run.sh" "$target" "$installed"; then
+    write_status failed "$target" "$installed" "$now" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "start_failed"
+    owp_die "start_failed" "could not start the update"
+  fi
+  owp_log "update to ${target} started; it continues in the background"
+  owp_result_ok "\"version\":\"${target}\",\"from\":\"${installed}\",\"started\":true"
+}
+
+main() {
+  owp_init "panel-update"
+  case "${1:-}" in
+    --status)
+      [[ $# -eq 1 ]] || usage
+      show_status
+      ;;
+    --version)
+      [[ $# -eq 2 ]] || usage
+      owp_release_tagged "$2" || owp_die "invalid_version" "not a release version: ${2}"
+      owp_require_root
+      owp_check_os
+      start_update "$2"
+      ;;
+    *) usage ;;
+  esac
+}
+
+main "$@"

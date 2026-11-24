@@ -17,6 +17,7 @@ enum ServerScript: string
     case FirewallConfirm = 'firewall-confirm';
     case FirewallRules = 'firewall-rules';
     case PanelTest = 'panel-test';
+    case PanelUpdate = 'panel-update';
     case ServerLogs = 'server-logs';
     case ServerProvision = 'server-provision';
     case ServerReboot = 'server-reboot';
@@ -96,6 +97,9 @@ enum ServerScript: string
             self::PanelBackup => 3600,
             // A safety backup first, then the restore (E-098).
             self::SiteRestore => 3600,
+            // Downloads and checks a release, then starts the installer in
+            // the background and returns (E-185).
+            self::PanelUpdate => 900,
         };
     }
 }
