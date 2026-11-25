@@ -4,6 +4,10 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-25
+
+First release that can be installed from within the panel (from 0.2.0).
+
 ### Fixed
 - Server → Updates no longer shows an older "newest version" than the installed one after an update: the installer asks GitHub for the newest release at the end, and a stored version older than the installed one shows as "–" with a hint to check again.
 
