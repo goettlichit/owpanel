@@ -104,6 +104,18 @@ class ServerUpgradeTest extends TestCase
         $this->actingAs($this->admin())->post("/servers/{$other->id}/updates/release")->assertNotFound();
     }
 
+    public function test_a_newest_version_older_than_the_installed_one_is_not_shown(): void
+    {
+        config(['owpanel.version' => '1.2.0', 'owpanel.source_url' => 'https://github.com/example/owpanel']);
+        Setting::put(Setting::PANEL_RELEASE, (string) json_encode(['version' => '1.1.0', 'checked_at' => now()->subHour()->toIso8601String(), 'error' => null]));
+        $panel = Server::factory()->create(['host' => '127.0.0.1']);
+
+        $this->actingAs($this->admin())->get("/servers/{$panel->id}/updates")->assertOk()
+            ->assertSee('Die letzte Prüfung war vor dem Update')
+            ->assertDontSee('<code>1.1.0</code>', false)
+            ->assertDontSee('Neue Version verfügbar');
+    }
+
     public function test_a_private_repository_and_test_builds_are_said_so(): void
     {
         config(['owpanel.version' => 'dev-099a9a2dfc84', 'owpanel.source_url' => 'https://github.com/example/owpanel']);

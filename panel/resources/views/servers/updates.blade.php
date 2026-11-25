@@ -90,6 +90,8 @@
         @if ($server->hostsPanel())
             {{-- The panel itself (E-154): installed and newest version, update by hand or at night (E-185). --}}
             @php($release = \App\Support\PanelRelease::latest())
+            {{-- A "newest" version older than the installed one is out of date: the check ran before the update. --}}
+            @php($outdated = $release['version'] !== null && ! \App\Support\PanelRelease::isTestBuild() && version_compare($release['version'], \App\Support\PanelRelease::installed(), '<'))
             @php($newer = \App\Support\PanelRelease::updateAvailable())
             @php($updating = \App\Support\PanelUpdate::inProgress())
             @php($repository = \App\Support\PanelRelease::repository())
@@ -110,7 +112,10 @@
                         </dd>
                         <dt class="col-sm-4">{{ __('servers.updates.panel.latest') }}</dt>
                         <dd class="col-sm-8">
-                            @if ($release['version'])
+                            @if ($outdated)
+                                <span class="text-secondary">–</span>
+                                <div class="small text-secondary">{{ __('servers.updates.panel.outdated_check') }}</div>
+                            @elseif ($release['version'])
                                 <code>{{ $release['version'] }}</code>
                                 @if ($repository)
                                     <a class="small ms-1" href="https://github.com/{{ $repository }}/releases/tag/v{{ $release['version'] }}" target="_blank" rel="noopener">{{ __('servers.updates.panel.changes') }}</a>
