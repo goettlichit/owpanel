@@ -5,6 +5,7 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 ## [Unreleased]
 
 ### Added
+- Server script `server-scripts-update` (E-187): installs the server scripts of a release that the panel sends over stdin, signature first, checked against `/etc/owpanel/release-signers` before anything is unpacked; only `server/` and `VERSION` are used, installed by the new `setup-agent --keep-key`. Never an older release. Test builds (`unsigned`) only on servers whose installer was a test build itself (`/etc/owpanel/allow-unsigned`). The panel uses it in a following step.
 - Server script `panel-update` (E-185), the first step of updating the panel from within: `panel-update --version x.y.z` downloads a tagged release of the project from GitHub, checks its checksum and its signature against `/etc/owpanel/release-signers`, and runs the installer of the new release in the background (unit `owpanel-update`), after waiting up to ten minutes for running tasks. Only newer versions are taken. `panel-update --status` reports the state of the last update.
 - Update the panel from within (E-185): under **Server → Updates** the card OWPanel links to the release notes of a newer version and installs it after confirming; the page follows the update and reloads when the new version runs. Optionally the panel installs patch versions by itself at night (at 4:47, a day after the release at the earliest, postponed while tasks run). New notifications "OWPanel updated" and "OWPanel update failed".
 - The documentation explains uploads from the command line: `scp`, `lftp mirror -R` and `rclone` over SFTP, and why `rsync` does not work for website users.
@@ -17,6 +18,7 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 - The website adds a hash of the content to the addresses of its CSS and JavaScript, so browsers fetch a changed file at once instead of keeping the old one for up to 7 days.
 
 ### Fixed
+- Server → Updates: "Last update" shows "–" instead of nothing before the first update of the panel.
 - Security: `web-auth/webauthn-lib` (passkeys) updated from 5.3.12 to 5.3.14; `composer audit` reported six advisories for versions below 5.3.13, among them metadata and attestation trust path checks.
 - "Correct all" on the DNS page no longer ends in "504 Gateway Time-out": the panel waited up to 30 seconds per record (twice when the TTL changed) for Hetzner. A request now waits at most 40 seconds in total; changes Hetzner is still applying then count as done, and the message says to check again in a minute.
 

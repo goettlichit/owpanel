@@ -978,6 +978,21 @@ write_release_key() {
   ok "release key in ${RELEASE_KEY_FILE}"
 }
 
+# A server that runs a test build also takes the server scripts of test
+# builds, which are not signed (server-scripts-update, E-167). A release
+# removes the permission again.
+write_unsigned_permission() {
+  local file="/etc/owpanel/allow-unsigned"
+  if [[ "$VERSION" == dev-* ]]; then
+    install -d -o root -g root -m 0755 /etc/owpanel
+    printf '# Written by the OWPanel installer of test build %s.\n' "$VERSION" >"${file}.new"
+    chmod 0644 "${file}.new"
+    mv -f "${file}.new" "$file"
+  else
+    rm -f "$file"
+  fi
+}
+
 main() {
   owp_init "install"
   parse_arguments "$@"
@@ -1027,6 +1042,7 @@ main() {
   refresh_sites
   write_state
   write_release_key
+  write_unsigned_permission
   final_updates
 
   printf '\n%s%s✓ OWPanel %s is ready%s\n\n' "$C_GREEN" "$C_BOLD" "$VERSION" "$C_RESET"

@@ -26,5 +26,7 @@
             <x-icon name="clock" class="me-1" />{{ __('servers.updates.panel.state.postponed', ['version' => $update['version']]) }}
             <x-time :value="$update['finished_at']" />
         </div>
+    @else
+        <span class="text-secondary">–</span>
     @endif
 </div>

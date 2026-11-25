@@ -18,6 +18,7 @@ enum ServerScript: string
     case FirewallRules = 'firewall-rules';
     case PanelTest = 'panel-test';
     case PanelUpdate = 'panel-update';
+    case ServerScriptsUpdate = 'server-scripts-update';
     case ServerLogs = 'server-logs';
     case ServerProvision = 'server-provision';
     case ServerReboot = 'server-reboot';
@@ -100,6 +101,9 @@ enum ServerScript: string
             // Downloads and checks a release, then starts the installer in
             // the background and returns (E-185).
             self::PanelUpdate => 900,
+            // Receives a release archive over SSH and installs its scripts
+            // (E-167).
+            self::ServerScriptsUpdate => 900,
         };
     }
 }

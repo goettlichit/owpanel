@@ -102,6 +102,7 @@ return [
         'firewall-confirm' => 'Confirm firewall change',
         'panel-test' => 'Test script',
         'panel-update' => 'Update panel',
+        'server-scripts-update' => 'Update server scripts',
         'server-status' => 'Server status',
         'server-provision' => 'Base setup',
         'server-reboot' => 'Restart server',
@@ -253,6 +254,11 @@ return [
         'invalid_path' => 'Invalid path.',
         'invalid_database' => 'Invalid database name.',
         'panel_not_found' => 'The panel is not installed on this server.',
+        // server-scripts-update (E-167)
+        'signature_required' => 'A release must be signed.',
+        'unsigned_not_allowed' => 'This server takes no test builds.',
+        'no_key' => 'The key of the panel is missing on the server.',
+        'scripts_install_failed' => 'The new server scripts could not be installed; the previous ones stay.',
         // panel-update (E-185)
         'update_timeout' => 'The update did not end within an hour. Details in /var/lib/owpanel/update/update.log.',
         'task_missing' => 'The task of the update no longer exists.',

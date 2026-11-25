@@ -12,7 +12,7 @@ source "${SOURCE_ROOT}/lib/common.sh"
 readonly SUDOERS_FILE="/etc/sudoers.d/owpanel-agent"
 
 usage() {
-  owp_die "invalid_arguments" "usage: setup-agent --public-key-file <path>"
+  owp_die "invalid_arguments" "usage: setup-agent --public-key-file <path> | --keep-key"
 }
 
 ensure_user() {
@@ -104,7 +104,7 @@ warn_on_ssh_restrictions() {
 }
 
 main() {
-  local key_file=""
+  local key_file="" keep_key=0
   owp_init "setup-agent"
 
   while [[ $# -gt 0 ]]; do
@@ -114,12 +114,19 @@ main() {
         key_file="$2"
         shift 2
         ;;
+      # Updates of the scripts (server-scripts-update, E-167) keep the key
+      # the panel already uses.
+      --keep-key)
+        keep_key=1
+        shift
+        ;;
       *) usage ;;
     esac
   done
-  [[ -n "$key_file" ]] || usage
+  [[ -n "$key_file" || "$keep_key" -eq 1 ]] || usage
+  [[ -z "$key_file" || "$keep_key" -eq 0 ]] || usage
 
-  owp_read_public_key "$key_file"
+  [[ "$keep_key" -eq 1 ]] || owp_read_public_key "$key_file"
   owp_require_root
   owp_check_os
 
@@ -128,7 +135,11 @@ main() {
   # only warns about a failing update.
   owp_apt_install sudo openssh-server
   ensure_user
-  install_key "$OWP_PUBLIC_KEY"
+  if [[ "$keep_key" -eq 1 ]]; then
+    [[ -s "${OWP_AGENT_HOME}/.ssh/authorized_keys" ]] || owp_die "no_key" "there is no key of the panel to keep"
+  else
+    install_key "$OWP_PUBLIC_KEY"
+  fi
   install_tree
   install_sudoers
   warn_on_ssh_restrictions
