@@ -14,6 +14,7 @@ Cmnd_Alias OWPANEL_SCRIPTS = /opt/owpanel/bin/backup-setup, \
                              /opt/owpanel/bin/panel-backup-files, \
                              /opt/owpanel/bin/panel-backups, \
                              /opt/owpanel/bin/panel-test, \
+                             /opt/owpanel/bin/panel-update, \
                              /opt/owpanel/bin/server-blocklist, \
                              /opt/owpanel/bin/server-fail2ban, \
                              /opt/owpanel/bin/server-logs, \

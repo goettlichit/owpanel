@@ -5,6 +5,7 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 ## [Unreleased]
 
 ### Added
+- Server script `panel-update` (E-185), the first step of updating the panel from within: `panel-update --version x.y.z` downloads a tagged release of the project from GitHub, checks its checksum and its signature against `/etc/owpanel/release-signers`, and runs the installer of the new release in the background (unit `owpanel-update`), after waiting up to ten minutes for running tasks. Only newer versions are taken. `panel-update --status` reports the state of the last update. The button in the panel follows.
 - Own nginx rules per website (E-184): under Website -> Web server administrators add extra response headers ("Name: value", e.g. HSTS or a Content-Security-Policy) and blocked paths (a folder ending in /, or exactly one file; answered with 404). The new script `site-nginx` checks every line against strict patterns, writes it in a fixed form, tests nginx and keeps the previous rules if nginx refuses. There is no free nginx text. A rebuild from a backup writes the rules again.
 
 ### Changed

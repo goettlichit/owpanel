@@ -109,12 +109,13 @@ Grundlage ist Entscheidung E-024.
 4. Das Panel speichert den SSH-Host-Schlüssel und prüft ihn bei jeder Verbindung.
 5. Releases werden in GitHub Actions in einem eigenen Job signiert, der keinen fremden Code ausführt; der private Schlüssel steht nur diesem Job zur Verfügung. `get-owpanel` prüft die Signatur gegen einen fest eingetragenen öffentlichen Schlüssel, der Installer hinterlegt ihn in `/etc/owpanel/release-signers`. Serverskripte werden später nur mit gültiger Signatur installiert, gleich ob das Archiv vom Panel oder von GitHub kommt; das Panel selbst kann keine Skripte unterschieben (E-167). Testbauten ohne Signatur nimmt nur `--dev` an, mit Warnung.
 6. Weitere Server (geplant, E-166): Das Einmal-Token fragt der Installer ab, es steht nie in Parametern. Das Panel liefert Skripte und seinen öffentlichen Schlüssel nur gegen ein gültiges Token und prüft danach SSH gegen den gemeldeten Host-Schlüssel.
+7. Das Panel aktualisiert sich nur über `panel-update` (E-185): getaggte Releases von den GitHub-Releases des Projekts, nur neuere Versionen, geprüft mit Prüfsumme und Signatur durch root auf dem Server, bevor etwas entpackt wird. Das Panel nennt nur die Versionsnummer, nie eine Adresse oder Datei.
 
 ## Multi-Server (geplant)
 
 Grundlage sind E-161 bis E-168. Die Regeln gelten ab der Umsetzung in Meilenstein 5.
 
-1. Weitere Server hängen im privaten Hetzner-Netz des Panel-Servers. Das Panel steuert sie nur über die private Adresse. Hetzner trennt Netze verschiedener Projekte, verschlüsselt sie aber nicht; deshalb laufen über das Netz nur SSH und HTTP vom Gateway, nie Passwörter im Klartext.
+1. Weitere Server hängen im privaten Hetzner-Netz des Panel-Servers. Das Panel steuert sie nur über die private Adresse. Hetzner trennt Netze verschiedener Projekte, verschlüsselt sie aber nicht; deshalb laufen über das Netz nur SSH und HTTPS vom Gateway, nie etwas im Klartext. Das Gateway prüft das Zertifikat jedes Website-Servers gegen das beim Einbinden gemeldete (E-186), so wie das Panel den SSH-Host-Schlüssel prüft.
 2. Auf Website-Servern ist öffentlich nur Port 22 für SSH und SFTP offen. HTTP und alles andere nehmen sie nur aus dem privaten Subnetz an. Die Regeln für SSH und die automatische Rücknahme der Firewall gelten unverändert.
 3. Der NGINX eines Website-Servers übernimmt die Besucheradresse aus Kopfzeilen nur von der privaten Adresse des Gateways (`set_real_ip_from`), nie von anderen Absendern.
 4. Ein Panel steuert keine ändernden Aufgaben auf einem Server, dessen Skriptversion abweicht (E-167).
