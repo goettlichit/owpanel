@@ -25,7 +25,7 @@ echo "8c7d3149b9e48bf6323f3255338bde6049e8113548420d5b4723889cd9565271  get-owpa
 bash get-owpanel
 ```
 
-With `--version 0.1.0` you install a given release instead of the newest.
+With `--version 0.2.0` you install a given release instead of the newest.
 
 ::: info
 The public key of the releases has the fingerprint `SHA256:nyG5UqHzb6roksup2dgAXJoWO57px1eDWM2zLWh+z4E`. GitHub hands out test builds for development (`bash get-owpanel --dev`) only with a fine-grained token with "Actions: Read"; the script asks for it.

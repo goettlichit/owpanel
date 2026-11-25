@@ -9,7 +9,7 @@ slug: introduction
 OWPanel (Open Web Panel) ist ein Control-Panel für Debian-Server. Es richtet Webseiten, Datenbanken, Zertifikate, Backups und Benachrichtigungen auf deinem eigenen Server ein, ohne dass du Konfigurationsdateien bearbeiten musst. Die Oberfläche gibt es auf Deutsch und Englisch.
 
 ::: warning
-OWPanel ist in Version 0.1 und auf Servern in der Hetzner Cloud erprobt. Bis Version 1.0 kann sich noch einiges ändern; lies vor einem Update die Hinweise im [CHANGELOG](https://github.com/goettlichit/owpanel/blob/main/CHANGELOG.md) und halte Backups aktuell.
+OWPanel ist in Version 0.2 und auf Servern in der Hetzner Cloud erprobt. Bis Version 1.0 kann sich noch einiges ändern; lies vor einem Update die Hinweise im [CHANGELOG](https://github.com/goettlichit/owpanel/blob/main/CHANGELOG.md) und halte Backups aktuell.
 :::
 
 ## Für wen OWPanel gedacht ist
