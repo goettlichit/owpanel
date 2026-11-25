@@ -202,15 +202,16 @@ Grundlage sind E-021, E-084, E-085 und E-123 bis E-130. Die API folgt in Meilens
 - [x] Schnellere Seiten: Laravel-Caches im Installer, Teile vom Server werden nachgeladen, Sperrlisten-Index im Cache (E-175)
 - [x] gzip, Browser-Cache für statische Dateien und sichere Session-Cookies für Websites (E-176, PR #108, abgenommen am 2026-11-23)
 - [x] Repository in die Organisation `goettlichit` verschoben, alle Verweise umgestellt (E-179)
-- [ ] Eigene NGINX-Regeln je Website: zusätzliche Header und gesperrte Pfade, nur für Administratoren (E-184), für den Umzug von CloudPanel
+- [x] Eigene NGINX-Regeln je Website: zusätzliche Header und gesperrte Pfade, nur für Administratoren, mit Zustand in Farbe (E-184, PR #2, abgenommen am 2026-11-24), für den Umzug von CloudPanel
+- [x] DNS-Seite ohne „504 Gateway Time-out“: gemeinsame Wartezeit von 40 Sekunden für alle Einträge (PR #3, 2026-11-24)
 - [ ] Externe Testnutzer
 - [x] Versionierte Releases auf GitHub: Tag `vX.Y.Z` baut, signiert und veröffentlicht Archiv, `.sha256` und `.sig` (E-068, E-167); erste Version `v0.1.0` (E-180)
 - [x] Frisches öffentliches Repository mit neuem Release-Schlüssel, altes als privates Archiv (E-181); Name bleibt OWPanel (E-182)
-- [ ] Erstes öffentliches Release `v0.1.0`, mit der Prüfsumme von `get-owpanel` in der Anleitung (E-071, E-180)
+- [x] Erstes öffentliches Release `v0.1.0` am 2026-11-23, mit der Prüfsumme von `get-owpanel` in der Anleitung (E-071, E-180)
 
 ## Meilenstein 5: Multi-Server mit dem Panel als Eingangstor
 
-Am 2026-11-14 pausiert, am 2026-11-20 geklärt (E-161 bis E-168). Umgesetzt wird nach dem ersten öffentlichen Release und dem Update-Mechanismus (E-169). Der Panel-Server nimmt als Eingangstor (Gateway) alle Anfragen an und reicht sie über das private Hetzner-Netz an den Server der Website weiter. Lastverteilung heißt Platzierung; Ausfallsicherheit einzelner Websites gehört nicht dazu.
+Am 2026-11-14 pausiert, am 2026-11-20 geklärt (E-161 bis E-168). Umgesetzt wird nach dem ersten öffentlichen Release (erledigt mit `v0.1.0` am 2026-11-23) und dem Update-Mechanismus (E-169). PR-Nummern vor dem 2026-11-23 (#1 bis #112) beziehen sich auf das private Archiv `goettlichit/owpanel-archive` (E-181). Der Panel-Server nimmt als Eingangstor (Gateway) alle Anfragen an und reicht sie über das private Hetzner-Netz an den Server der Website weiter. Lastverteilung heißt Platzierung; Ausfallsicherheit einzelner Websites gehört nicht dazu.
 
 - [ ] Serveraufgaben laufen je Server nacheinander und für verschiedene Server parallel (mehrere Worker, Sperre je Server); die Statusabfrage läuft als Job je Server, damit ein ausgefallener Server die anderen nicht aufhält
 - [ ] „Server hinzufügen“ mit Einmal-Token und `bash get-owpanel --join <Panel-Adresse>` (E-166)
