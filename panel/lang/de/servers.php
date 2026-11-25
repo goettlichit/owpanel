@@ -71,7 +71,7 @@ return [
         'kernel' => 'Kernel',
         'scripts' => 'Serverskripte',
         'scripts_differ' => 'Weicht von der Version des Panels (:version) ab.',
-        'scripts_differ_hint' => 'Das Panel aktualisiert sie selbst, höchstens alle 15 Minuten. Bis dahin starten hier nur Sicherungen, Wartung und lesende Aufgaben.',
+        'scripts_differ_hint' => 'Das Panel spielt die passenden Skripte von selbst ein, höchstens alle 15 Minuten. Bis dahin starten hier nur Sicherungen, Wartung und lesende Aufgaben.',
         'php' => 'PHP für Webseiten',
         'release_key' => 'Release-Schlüssel',
         'release_key_none' => 'Kein Schlüssel hinterlegt',

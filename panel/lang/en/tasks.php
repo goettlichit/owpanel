@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'outdated_log' => 'The server scripts (:scripts) have another version than the panel (:panel). The task starts only after their update; the panel updates them by itself.',
+    'outdated_log' => 'The server scripts (:scripts) have another version than the panel (:panel). The task starts only once the panel has installed the matching scripts; that happens by itself.',
     'empty' => 'No tasks yet.',
     'console' => 'Console',
     'seconds' => ':count s',

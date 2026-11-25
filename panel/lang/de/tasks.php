@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'outdated_log' => 'Die Serverskripte (:scripts) haben eine andere Version als das Panel (:panel). Die Aufgabe startet erst nach ihrem Update; das Panel aktualisiert sie selbst.',
+    'outdated_log' => 'Die Serverskripte (:scripts) haben eine andere Version als das Panel (:panel). Die Aufgabe startet erst, wenn das Panel die passenden Skripte eingespielt hat; das geschieht von selbst.',
     'empty' => 'Noch keine Aufgaben.',
     'console' => 'Konsole',
     'seconds' => ':count s',
