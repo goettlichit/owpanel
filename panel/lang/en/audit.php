@@ -93,6 +93,10 @@ return [
             'import_started' => 'Database import started',
         ],
         'server' => [
+            'panel_update_started' => 'Panel update started',
+            'panel_updated' => 'Panel updated',
+            'panel_update_failed' => 'Panel update failed',
+            'panel_auto_update_changed' => 'Automatic panel updates changed',
             'ssh_password_login' => 'SSH password login changed',
             'updates_installed' => 'Updates installed',
             'dns_record_set' => 'DNS record of the host name set',

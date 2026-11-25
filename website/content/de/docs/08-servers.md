@@ -22,7 +22,9 @@ Debian-Updates spielt `unattended-upgrades` jede Nacht von selbst ein: Sicherhei
 
 Das Panel prüft das stündlich. **Jetzt prüfen** lädt zuerst die Paketlisten aller Quellen frisch und liest die Liste danach neu ein. Mit **Alle installieren** spielst du genau diese Liste ein (`apt-get dist-upgrade`), auch die normalen Debian-Updates, die nachts nicht automatisch kommen. Geänderte Konfigurationsdateien bleiben dabei, wie sie sind; danach kann ein Neustart nötig sein. Einen Wechsel der Debian-Version spielt das Panel bewusst nicht ein.
 
-Auf dem Server, auf dem das Panel läuft, zeigt die Karte **OWPanel** die installierte und die neueste veröffentlichte Version; das Panel fragt einmal am Tag bei GitHub nach. Bis der Update-Knopf im Panel kommt, aktualisierst du das Panel von Hand, indem du `get-owpanel` erneut ausführst; es lädt das neueste Release und behält alle Daten und Einstellungen.
+Auf dem Server, auf dem das Panel läuft, zeigt die Karte **OWPanel** die installierte und die neueste veröffentlichte Version; das Panel fragt einmal am Tag bei GitHub nach. Ist eine neuere Version erschienen, führt **Änderungen** zu ihren Release-Notizen. Mit dem Haken „Änderungen gelesen“ und **Panel aktualisieren** spielst du sie ein: Der Server lädt das Release, prüft Prüfsumme und Signatur, wartet höchstens zehn Minuten auf laufende Aufgaben und startet dann den Installer. Das Panel ist dabei kurz nicht erreichbar; die Seite lädt sich neu, sobald die neue Version läuft. Daten und Einstellungen bleiben erhalten. Schlägt etwas fehl, läuft die bisherige Version weiter, und unter **Letztes Update** steht der Grund.
+
+Mit **Fehlerbehebungen automatisch einspielen** aktualisiert sich das Panel nachts um 4:47 Uhr selbst, aber nur auf Patch-Versionen (etwa 1.2.3 auf 1.2.4) und frühestens einen Tag nach ihrem Erscheinen. Laufen gerade Aufgaben, versucht es das Panel in der nächsten Nacht wieder. Größere Versionen spielst du immer von Hand ein; eine Testversion wird nie automatisch aktualisiert. Von Hand geht es auch weiterhin auf dem Server mit `get-owpanel`.
 
 ## Neustart
 

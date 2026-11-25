@@ -61,6 +61,13 @@ class Setting extends Model
     // checked_at and error. Written by owpanel:release-check.
     public const PANEL_RELEASE = 'panel_release';
 
+    // The last update of the panel (E-185), as JSON: state, versions,
+    // automatic or by hand, task, times and error. Written by PanelUpdate.
+    public const PANEL_UPDATE = 'panel_update';
+
+    // "1" when the panel installs patch versions by itself at night (E-185).
+    public const PANEL_AUTO_UPDATE = 'panel_auto_update';
+
     // Fill level of the Storage Boxes the backups use (E-160), JSON per
     // box id: name, used and total bytes, time of the reading.
     public const STORAGE_BOXES = 'storage_boxes';
@@ -85,7 +92,7 @@ class Setting extends Model
         self::IMPRINT_URL, self::PRIVACY_URL, self::HELP_URL,
         self::MAIL_HOST, self::MAIL_PORT, self::MAIL_ENCRYPTION, self::MAIL_USERNAME,
         self::MAIL_PASSWORD, self::MAIL_FROM_ADDRESS, self::MAIL_FROM_NAME,
-        self::HETZNER_TOKEN, self::HETZNER_DNS_TOKEN, self::POCKET_ID_API_KEY, self::VAPID_PUBLIC, self::VAPID_PRIVATE, self::PANEL_RESTORED, self::PANEL_RELEASE, self::STORAGE_BOXES, self::HEARTBEAT_URL, self::HEARTBEAT_STATE,
+        self::HETZNER_TOKEN, self::HETZNER_DNS_TOKEN, self::POCKET_ID_API_KEY, self::VAPID_PUBLIC, self::VAPID_PRIVATE, self::PANEL_RESTORED, self::PANEL_RELEASE, self::PANEL_UPDATE, self::PANEL_AUTO_UPDATE, self::STORAGE_BOXES, self::HEARTBEAT_URL, self::HEARTBEAT_STATE,
         self::OIDC_ISSUER, self::OIDC_CLIENT_ID, self::OIDC_CLIENT_SECRET, self::OIDC_NAME,
     ];
 

@@ -93,6 +93,10 @@ return [
             'import_started' => 'Import in eine Datenbank gestartet',
         ],
         'server' => [
+            'panel_update_started' => 'Update des Panels gestartet',
+            'panel_updated' => 'Panel aktualisiert',
+            'panel_update_failed' => 'Update des Panels fehlgeschlagen',
+            'panel_auto_update_changed' => 'Automatische Updates des Panels geändert',
             'ssh_password_login' => 'SSH-Passwort-Anmeldung geändert',
             'updates_installed' => 'Updates installiert',
             'dns_record_set' => 'DNS-Eintrag des Hostnamens gesetzt',

@@ -99,7 +99,7 @@ class ServerUpgradeTest extends TestCase
         $this->actingAs($this->admin())->get("/servers/{$panel->id}/updates")->assertOk()
             ->assertSee('OWPanel')->assertSee('1.2.0')->assertSee('1.3.0')
             ->assertSee('Neue Version verfügbar')
-            ->assertSee('Das Aktualisieren des Panels kommt mit Meilenstein 8.');
+            ->assertSee('Änderungen von 1.3.0 gelesen, jetzt aktualisieren');
         $this->actingAs($this->admin())->get("/servers/{$other->id}/updates")->assertOk()->assertDontSee('Panel aktualisieren');
         $this->actingAs($this->admin())->post("/servers/{$other->id}/updates/release")->assertNotFound();
     }

@@ -131,6 +131,18 @@ return [
             'resolved' => 'OWPanel is up to date',
             'resolved_body' => 'Installed is :installed.',
         ],
+        'panel_updated' => [
+            'label' => 'OWPanel updated',
+            'hint' => 'By hand or automatically',
+            'raised' => 'OWPanel :version is installed',
+            'raised_body' => 'Before, :from was running.',
+        ],
+        'panel_update_failed' => [
+            'label' => 'OWPanel update failed',
+            'hint' => 'The panel keeps running the previous version',
+            'raised' => 'Update to OWPanel :version failed',
+            'raised_body' => ':error :from keeps running.',
+        ],
         'service_down' => [
             'label' => 'Service stopped',
             'hint' => 'nginx, PHP-FPM, MariaDB, fail2ban or nftables is not running',
