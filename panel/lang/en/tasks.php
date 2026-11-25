@@ -254,6 +254,8 @@ return [
         'invalid_database' => 'Invalid database name.',
         'panel_not_found' => 'The panel is not installed on this server.',
         // panel-update (E-185)
+        'update_timeout' => 'The update did not end within an hour. Details in /var/lib/owpanel/update/update.log.',
+        'task_missing' => 'The task of the update no longer exists.',
         'invalid_version' => 'This is not a valid release version.',
         'not_panel_server' => 'The panel is not installed on this server.',
         'unknown_version' => 'The installed version of the panel cannot be read.',

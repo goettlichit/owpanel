@@ -9,8 +9,8 @@ use Throwable;
 /**
  * The installed version of the panel and the newest published one (E-154).
  * The newest comes from the releases of the source repository on GitHub,
- * checked once a day and on request; installing it follows in milestone 8
- * (F-012). Test builds ("dev-…") are not compared.
+ * checked once a day and on request; PanelUpdate installs it (E-185). Test
+ * builds ("dev-…") are not compared.
  */
 class PanelRelease
 {
@@ -25,7 +25,10 @@ class PanelRelease
     }
 
     /**
-     * @return array{version: string|null, checked_at: string|null, error: string|null}
+     * published_at is when GitHub published the newest release; automatic
+     * updates wait a day after it (E-185).
+     *
+     * @return array{version: string|null, published_at: string|null, checked_at: string|null, error: string|null}
      */
     public static function latest(): array
     {
@@ -33,9 +36,24 @@ class PanelRelease
 
         return [
             'version' => is_string($data['version'] ?? null) ? $data['version'] : null,
+            'published_at' => is_string($data['published_at'] ?? null) ? $data['published_at'] : null,
             'checked_at' => is_string($data['checked_at'] ?? null) ? $data['checked_at'] : null,
             'error' => is_string($data['error'] ?? null) ? $data['error'] : null,
         ];
+    }
+
+    /**
+     * Whether $version only fixes $installed: same major and minor version,
+     * neither a pre-release (E-185).
+     */
+    public static function isPatchOf(string $version, string $installed): bool
+    {
+        $pattern = '/^(\d+)\.(\d+)\.(\d+)$/';
+        if (! preg_match($pattern, $version, $new) || ! preg_match($pattern, $installed, $old)) {
+            return false;
+        }
+
+        return $new[1] === $old[1] && $new[2] === $old[2] && (int) $new[3] > (int) $old[3];
     }
 
     public static function updateAvailable(): bool
@@ -52,6 +70,7 @@ class PanelRelease
     public static function check(): void
     {
         $version = null;
+        $published = null;
         $error = null;
         $repository = self::repository();
         if ($repository === null) {
@@ -64,6 +83,8 @@ class PanelRelease
                 $tag = $response->successful() ? $response->json('tag_name') : null;
                 if (is_string($tag) && preg_match('/^v?(\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?)$/', $tag, $match)) {
                     $version = $match[1];
+                    $date = $response->json('published_at');
+                    $published = is_string($date) && strtotime($date) !== false ? $date : null;
                 } else {
                     $error = $response->status() === 404 ? 'not_found' : 'unreachable';
                 }
@@ -72,9 +93,11 @@ class PanelRelease
             }
         }
 
+        $previous = self::latest();
         Setting::put(Setting::PANEL_RELEASE, (string) json_encode([
             // Keep the last known version when a check fails.
-            'version' => $version ?? self::latest()['version'],
+            'version' => $version ?? $previous['version'],
+            'published_at' => $version !== null ? $published : $previous['published_at'],
             'checked_at' => now()->toIso8601String(),
             'error' => $error,
         ]));

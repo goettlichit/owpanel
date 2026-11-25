@@ -88,9 +88,11 @@
         @endcan
 
         @if ($server->hostsPanel())
-            {{-- The panel itself (E-154): installed and newest version; updating follows in milestone 8. --}}
+            {{-- The panel itself (E-154): installed and newest version, update by hand or at night (E-185). --}}
             @php($release = \App\Support\PanelRelease::latest())
             @php($newer = \App\Support\PanelRelease::updateAvailable())
+            @php($updating = \App\Support\PanelUpdate::inProgress())
+            @php($repository = \App\Support\PanelRelease::repository())
             <div class="col-12">
                 <x-card :title="__('servers.updates.panel.title')" :accent="$newer ? 'orange' : 'blue'">
                     @if ($newer)
@@ -98,7 +100,7 @@
                             <span class="badge bg-orange-lt">{{ __('servers.updates.panel.available') }}</span>
                         </x-slot:actions>
                     @endif
-                    <dl class="row mb-0">
+                    <dl class="row">
                         <dt class="col-sm-4">{{ __('servers.updates.panel.installed') }}</dt>
                         <dd class="col-sm-8">
                             <code>{{ \App\Support\PanelRelease::installed() }}</code>
@@ -110,6 +112,9 @@
                         <dd class="col-sm-8">
                             @if ($release['version'])
                                 <code>{{ $release['version'] }}</code>
+                                @if ($repository)
+                                    <a class="small ms-1" href="https://github.com/{{ $repository }}/releases/tag/v{{ $release['version'] }}" target="_blank" rel="noopener">{{ __('servers.updates.panel.changes') }}</a>
+                                @endif
                             @else
                                 <span class="text-secondary">–</span>
                             @endif
@@ -118,16 +123,46 @@
                             @endif
                         </dd>
                         <dt class="col-sm-4">{{ __('servers.updates.panel.checked') }}</dt>
-                        <dd class="col-sm-8 mb-0"><x-time :value="$release['checked_at'] ? \Illuminate\Support\Carbon::parse($release['checked_at']) : null" /></dd>
+                        <dd class="col-sm-8"><x-time :value="$release['checked_at'] ? \Illuminate\Support\Carbon::parse($release['checked_at']) : null" /></dd>
+                        <dt class="col-sm-4">{{ __('servers.updates.panel.last_update') }}</dt>
+                        <dd class="col-sm-8 mb-0"><livewire:panel-update-state :server="$server" /></dd>
                     </dl>
+
+                    @can('upgrade', $server)
+                        <hr class="my-3">
+                        <form method="POST" action="{{ route('servers.updates.panel_auto', $server) }}" class="d-flex flex-wrap align-items-center gap-3">
+                            @csrf
+                            <label class="form-check form-switch mb-0">
+                                <input type="hidden" name="enabled" value="0">
+                                <input type="checkbox" class="form-check-input" name="enabled" value="1" @checked(\App\Support\PanelUpdate::autoEnabled()) @disabled(\App\Support\PanelRelease::isTestBuild())>
+                                <span class="form-check-label">{{ __('servers.updates.panel.auto.label') }}</span>
+                            </label>
+                            <button type="submit" class="btn btn-outline-secondary btn-sm" @disabled(\App\Support\PanelRelease::isTestBuild())>{{ __('servers.updates.panel.auto.save') }}</button>
+                            <div class="form-hint w-100 mt-0">{{ __(\App\Support\PanelRelease::isTestBuild() ? 'servers.updates.panel.auto.test_build' : 'servers.updates.panel.auto.hint') }}</div>
+                        </form>
+                    @endcan
+
                     <x-slot:footer>
                         <div class="d-flex flex-wrap gap-2 justify-content-end align-items-center">
-                            <span class="text-secondary small me-auto">{{ __('servers.updates.panel.later') }}</span>
-                            <form method="POST" action="{{ route('servers.updates.release', $server) }}" data-ow-busy="{{ __('servers.updates.panel.checking') }}">
+                            <form method="POST" action="{{ route('servers.updates.release', $server) }}" data-ow-busy="{{ __('servers.updates.panel.checking') }}" class="me-auto">
                                 @csrf
                                 <button type="submit" class="btn btn-outline-primary"><x-icon name="refresh" class="me-1" />{{ __('servers.updates.automatic.check') }}</button>
                             </form>
-                            <button type="button" class="btn btn-primary" disabled><x-icon name="download" class="me-1" />{{ __('servers.updates.panel.update') }}</button>
+                            @can('upgrade', $server)
+                                @if ($newer && ! $updating)
+                                    <form method="POST" action="{{ route('servers.updates.panel', $server) }}" class="d-flex flex-wrap align-items-center gap-2" data-ow-busy="{{ __('servers.updates.panel.starting') }}" data-ow-task="panel-update">
+                                        @csrf
+                                        <input type="hidden" name="version" value="{{ $release['version'] }}">
+                                        <label class="form-check mb-0">
+                                            <input type="checkbox" name="confirm" value="1" required @class(['form-check-input', 'is-invalid' => $errors->has('confirm')])>
+                                            <span class="form-check-label">{{ __('servers.updates.panel.confirm', ['version' => $release['version']]) }}</span>
+                                        </label>
+                                        <button type="submit" class="btn btn-primary"><x-icon name="download" class="me-1" />{{ __('servers.updates.panel.update') }}</button>
+                                    </form>
+                                @else
+                                    <button type="button" class="btn btn-primary" disabled><x-icon name="download" class="me-1" />{{ __('servers.updates.panel.update') }}</button>
+                                @endif
+                            @endcan
                         </div>
                     </x-slot:footer>
                 </x-card>

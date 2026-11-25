@@ -10,6 +10,7 @@ use App\Models\ServerTask;
 use App\Servers\ScriptCall;
 use App\Support\Audit;
 use App\Support\PanelRelease;
+use App\Support\PanelUpdate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -122,6 +123,49 @@ class ServerController extends Controller
         PanelRelease::check();
 
         return redirect()->route('servers.updates', $server);
+    }
+
+    /**
+     * Updates the panel to its newest release (E-185), after the
+     * administrator confirmed it. The version on the page must still be the
+     * newest one, so a stale page cannot install something else.
+     */
+    public function updatePanel(Request $request, Server $server): RedirectResponse
+    {
+        Gate::authorize('upgrade', $server);
+        abort_unless($server->hostsPanel(), 404);
+        $request->validate([
+            'version' => ['required', 'string', 'max:64'],
+            'confirm' => ['accepted'],
+        ]);
+        if ($request->input('version') !== PanelRelease::latest()['version']) {
+            return back()->with('error', __('servers.updates.panel.refused.changed'));
+        }
+
+        $error = PanelUpdate::start($request->user());
+        if ($error !== null) {
+            return back()->with('error', __('servers.updates.panel.refused.'.$error));
+        }
+
+        return redirect()->route('servers.updates', $server)
+            ->with('success', __('servers.updates.panel.started', ['version' => $request->input('version')]));
+    }
+
+    /**
+     * Switches the nightly automatic update of the panel on or off (E-185).
+     */
+    public function panelAutoUpdate(Request $request, Server $server): RedirectResponse
+    {
+        Gate::authorize('upgrade', $server);
+        abort_unless($server->hostsPanel(), 404);
+        $enabled = $request->boolean('enabled');
+        if ($enabled !== PanelUpdate::autoEnabled()) {
+            PanelUpdate::setAuto($enabled);
+            Audit::record('server.panel_auto_update_changed', $server, ['enabled' => $enabled], $request->user());
+        }
+
+        return redirect()->route('servers.updates', $server)
+            ->with('success', __($enabled ? 'servers.updates.panel.auto.enabled_saved' : 'servers.updates.panel.auto.disabled_saved'));
     }
 
     private function upgradeRunning(Server $server): bool

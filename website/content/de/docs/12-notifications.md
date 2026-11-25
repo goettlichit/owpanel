@@ -30,6 +30,7 @@ Das Panel meldet sich per E-Mail und als Push-Nachricht auf Handy oder Desktop, 
 - Server neu gestartet
 - Updates eingespielt, automatisch oder von Hand
 - eine neue Version von OWPanel ist erschienen, einmal je Version
+- OWPanel wurde aktualisiert oder das Update ist fehlgeschlagen
 - jede fehlgeschlagene Aufgabe, etwa ein Zertifikat oder eine Firewall-Änderung
 
 **Sicherheit:**
