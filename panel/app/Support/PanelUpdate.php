@@ -200,8 +200,18 @@ final class PanelUpdate
 
         if ($update['state'] === 'running') {
             $status = self::readStatus($runner);
-            if (($status['state'] ?? null) === 'failed' && ($status['version'] ?? null) === $update['version']) {
+            $mine = ($status['version'] ?? null) === $update['version'];
+            if ($mine && ($status['state'] ?? null) === 'failed') {
                 self::finish($update, 'failed', is_string($status['error'] ?? null) ? $status['error'] : 'install_failed');
+
+                return;
+            }
+            // The installer ended well, but this panel does not report the
+            // new version: another installation ran over it since (e.g.
+            // get-owpanel by hand). The update itself worked.
+            if ($mine && ($status['state'] ?? null) === 'succeeded' && is_string($status['finished_at'] ?? null)
+                && Carbon::parse((string) $status['finished_at'])->lt(now()->subMinutes(5))) {
+                self::finish($update, 'succeeded', null);
 
                 return;
             }

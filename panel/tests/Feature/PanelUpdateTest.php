@@ -227,6 +227,18 @@ class PanelUpdateTest extends TestCase
         $this->assertCount(0, $this->pushed('panel_update_failed'));
     }
 
+    public function test_a_finished_installer_counts_even_if_another_version_runs_now(): void
+    {
+        $this->state(['state' => 'running']);
+        $answer = ['state' => 'succeeded', 'version' => '1.3.0', 'from' => '1.2.0', 'finished_at' => now()->subMinute()->toIso8601String()];
+        $this->follow(new ScriptedRunner(['panel-update' => $answer]));
+        $this->assertSame('running', PanelUpdate::current()['state']);
+
+        $answer['finished_at'] = now()->subMinutes(10)->toIso8601String();
+        $this->follow(new ScriptedRunner(['panel-update' => $answer]));
+        $this->assertSame('succeeded', PanelUpdate::current()['state']);
+    }
+
     public function test_an_update_that_does_not_end_fails_after_an_hour(): void
     {
         $this->state(['state' => 'running', 'started_at' => now()->subMinutes(61)->toIso8601String()]);
