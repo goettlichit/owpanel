@@ -4,6 +4,10 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-25
+
+Updates from within the panel (E-185, E-187, E-188). From this version on, the panel updates itself and the scripts of its servers from signed releases; installations of 0.1.0 move to 0.2.0 once by hand with `get-owpanel`.
+
 ### Added
 - The panel keeps the scripts of its servers on its own version (E-188): after every status check a server with other scripts gets `server-scripts-update`, at most every 15 minutes, also after being offline. Until then only backups, maintenance and reading tasks start there; other tasks fail with a clear message. The archive comes from the release folder; `panel-update --fetch-archive` loads it for installations with `get-owpanel`, and the installer of a test build writes an unsigned one. New alert "Server scripts outdated" after 30 minutes, with all-clear.
 - Server script `server-scripts-update` (E-187): installs the server scripts of a release that the panel sends over stdin, signature first, checked against `/etc/owpanel/release-signers` before anything is unpacked; only `server/` and `VERSION` are used, installed by the new `setup-agent --keep-key`. Never an older release. Test builds (`unsigned`) only on servers whose installer was a test build itself (`/etc/owpanel/allow-unsigned`). The panel uses it in a following step.

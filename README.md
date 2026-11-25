@@ -4,7 +4,7 @@
 
 **OWPanel** steht für **Open Web Panel** und ist ein einfaches, zweisprachiges Server-Control-Panel für Debian: so leicht zu bedienen wie CloudPanel. Du startest mit einem einzelnen Server und erweiterst bei Bedarf auf mehrere.
 
-> **Status:** Version 0.1, die erste öffentliche Version. Sie läuft als einzelner Server (Standalone) mit Websites, Datenbanken, Kunden und Kundenbereich, Paketen, Backups und Wiederherstellung, Benachrichtigungen, Firewall mit Sperrlisten, Pocket ID und DNS über die Hetzner-API. Bis Version 1.0 kann sich noch einiges ändern; als Nächstes kommen Updates per Klick und der Betrieb mit mehreren Servern (siehe [docs/ROADMAP.md](docs/ROADMAP.md)).
+> **Status:** Version 0.2. Sie läuft als einzelner Server (Standalone) mit Websites, Datenbanken, Kunden und Kundenbereich, Paketen, Backups und Wiederherstellung, Benachrichtigungen, Firewall mit Sperrlisten, Pocket ID und DNS über die Hetzner-API und aktualisiert sich per Klick oder nachts selbst. Bis Version 1.0 kann sich noch einiges ändern; als Nächstes kommt der Betrieb mit mehreren Servern (siehe [docs/ROADMAP.md](docs/ROADMAP.md)).
 > Alle Festlegungen sind vorläufig. Änderungen werden in [docs/ENTSCHEIDUNGEN.md](docs/ENTSCHEIDUNGEN.md) festgehalten.
 
 ## Kernidee
@@ -88,7 +88,7 @@ Das Startskript `get-owpanel` lädt das neueste Release von GitHub, prüft Prüf
 ```sh
 curl -fsSL -o get-owpanel https://raw.githubusercontent.com/goettlichit/owpanel/main/get-owpanel
 echo "8c7d3149b9e48bf6323f3255338bde6049e8113548420d5b4723889cd9565271  get-owpanel" | sha256sum -c
-bash get-owpanel                 # neuestes Release, mit --version 0.1.0 ein bestimmtes
+bash get-owpanel                 # neuestes Release, mit --version 0.2.0 ein bestimmtes
 ```
 
 Bei einer ersten Installation fragt der Installer, ob er ein neues Panel einrichten oder ein verlorenes aus seiner Sicherung auf der Storage Box wiederherstellen soll; siehe [docs/WIEDERHERSTELLUNG.md](docs/WIEDERHERSTELLUNG.md).
@@ -117,4 +117,4 @@ Der Installer fragt Domain, Hostname, Zeitzone und den ersten Administrator ab u
 
 ## Nächster Schritt
 
-Version 0.1 ist das erste öffentliche Release (Meilenstein 8). Als Nächstes folgen externe Testnutzer und Updates per Klick für Panel und Serverskripte, danach Multi-Server mit dem Panel als Eingangstor (Meilenstein 5), der Umzug von Websites (5.1) und eigene Dienste für Administratoren (9); die API für die eigene Homepage (7.1) kann vorgezogen werden. Details stehen in der [Roadmap](docs/ROADMAP.md). Wie das Panel lokal startet, steht in [panel/README.md](panel/README.md).
+Version 0.1 war das erste öffentliche Release (Meilenstein 8), Version 0.2 bringt Updates aus dem Panel für Panel und Serverskripte. Als Nächstes folgen externe Testnutzer und Multi-Server mit dem Panel als Eingangstor (Meilenstein 5), der Umzug von Websites (5.1) und eigene Dienste für Administratoren (9); die API für die eigene Homepage (7.1) kann vorgezogen werden. Details stehen in der [Roadmap](docs/ROADMAP.md). Wie das Panel lokal startet, steht in [panel/README.md](panel/README.md).

@@ -42,7 +42,7 @@
         "home": "Zur Startseite"
     },
     "home": {
-        "status_badge": "Version 0.1",
+        "status_badge": "Version 0.2",
         "title": "Server-Panel für Debian: einfach, nativ, zweisprachig",
         "lead": "OWPanel richtet Webseiten mit HTTPS und HTTP/3, Datenbanken, Backups und Benachrichtigungen nativ auf deinem eigenen Debian-Server ein. Ohne Konfigurationsdateien, auf Deutsch und Englisch.",
         "cta_docs": "Dokumentation lesen",
@@ -95,8 +95,8 @@
                 { "state": "done", "title": "DNS über die Hetzner-API", "text": "Einträge je Webseite prüfen, anlegen, korrigieren und beim Löschen entfernen" },
                 { "state": "done", "title": "Kundenbereich", "text": "Pakete, Kundenzugang, Webseiten, Datenbanken, Cronjobs, Backups, Speicherplatz und Sperren" },
                 { "state": "done", "title": "Öffentliche Version", "text": "SSH-Härtung, Sicherheitsprüfung, Sperrlisten, signierte Releases, Version 0.1" },
-                { "state": "next", "title": "Updates aus dem Panel", "text": "Panel und Serverskripte per Klick aktualisieren, jedes Release mit geprüfter Signatur" },
-                { "state": "planned", "title": "Multi-Server", "text": "Weitere Server hinter dem Panel als Eingangstor, eine IPv6 je Webseite, Webseiten mit ihren Sicherungen umziehen" },
+                { "state": "done", "title": "Updates aus dem Panel", "text": "Panel per Klick oder nachts aktualisieren, Serverskripte ziehen selbst nach, jedes Release mit geprüfter Signatur, Version 0.2" },
+                { "state": "next", "title": "Multi-Server", "text": "Weitere Server hinter dem Panel als Eingangstor, eine IPv6 je Webseite, Webseiten mit ihren Sicherungen umziehen" },
                 { "state": "planned", "title": "Docker-Apps", "text": "Eigene Dienste wie Pocket ID als Compose-Projekt auf einem Server, erreichbar über das Panel, nur für Administratoren" },
                 { "state": "planned", "title": "API", "text": "Anbindung der eigenen Homepage: Kunden, Pakete, Status und Hinweis auf offene Zahlungen" }
             ]
