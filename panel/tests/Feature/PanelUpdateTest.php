@@ -146,8 +146,9 @@ class PanelUpdateTest extends TestCase
 
         $this->actingAs($customer)->post("/servers/{$this->panel->id}/updates/panel", ['version' => '1.3.0', 'confirm' => '1'])->assertForbidden();
         $this->actingAs($customer)->post("/servers/{$this->panel->id}/updates/panel-auto", ['enabled' => '1'])->assertForbidden();
-        $this->actingAs($this->admin())->post("/servers/{$other->id}/updates/panel", ['version' => '1.3.0', 'confirm' => '1'])->assertNotFound();
-        $this->actingAs($this->admin())->post("/servers/{$other->id}/updates/panel-auto", ['enabled' => '1'])->assertNotFound();
+        $admin = $this->admin();
+        $this->actingAs($admin)->post("/servers/{$other->id}/updates/panel", ['version' => '1.3.0', 'confirm' => '1'])->assertNotFound();
+        $this->actingAs($admin)->post("/servers/{$other->id}/updates/panel-auto", ['enabled' => '1'])->assertNotFound();
         $this->assertSame(0, ServerTask::count());
         $this->assertFalse(PanelUpdate::autoEnabled());
     }
