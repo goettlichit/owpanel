@@ -49,6 +49,23 @@ Unter **SFTP** schalten Sie den Dateizugang ein. Dort stehen Server, Port und Be
 
 Verbinden Sie sich mit einem SFTP-Programm wie FileZilla, WinSCP oder Cyberduck. Der Zugang sieht nur den Ordner Ihrer Webseite und startet in `htdocs`. Eine Kommandozeile gibt es nicht. Brauchen Sie den Zugang gerade nicht, schalten Sie ihn aus.
 
+### Von der Kommandozeile
+
+Pfade sind aus Sicht des Zugangs angegeben: Das Webroot ist `/htdocs/public`. Statt `server` und `owNNNNN` setzen Sie die Angaben von der Seite **SFTP** ein.
+
+- **Einzelne Dateien oder ein erster Upload** mit `scp` (OpenSSH ab Version 9, auf macOS und aktuellem Linux vorhanden):
+  ```sh
+  scp -r ./meine-seite/* owNNNNN@server:/htdocs/public/
+  ```
+- **Wiederholt abgleichen**, nur geänderte Dateien, mit `lftp`:
+  ```sh
+  lftp -u owNNNNN, sftp://server -e "mirror -R --only-newer ./meine-seite/ /htdocs/public/; bye"
+  ```
+  `--dry-run` zeigt vorher, was übertragen würde; `--delete` löscht auf dem Server, was lokal fehlt.
+- **`rclone`** geht ebenfalls, mit dem Ziel `:sftp:/htdocs/public` und `copy` statt `sync`, wenn auf dem Server nichts gelöscht werden soll.
+
+`rsync` funktioniert nicht, weil es auf dem Server eine Kommandozeile bräuchte. Meldet `scp` „Connection closed“, nutzt es noch das alte Protokoll: Lassen Sie die Option `-O` weg oder setzen Sie `-s`.
+
 ## Schneller und sicherer, ohne Ihr Zutun
 
 - Texte wie HTML, CSS und JavaScript werden komprimiert übertragen.

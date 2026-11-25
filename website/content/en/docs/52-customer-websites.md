@@ -49,6 +49,23 @@ Under **SFTP** you turn on file access. It shows server, port and user name. You
 
 Connect with an SFTP program such as FileZilla, WinSCP or Cyberduck. The access only sees the folder of your website and starts in `htdocs`. There is no command line. Turn the access off while you do not need it.
 
+### From the command line
+
+Paths are as the access sees them: the web root is `/htdocs/public`. Put in the server and user name from the **SFTP** page instead of `server` and `owNNNNN`.
+
+- **Single files or a first upload** with `scp` (OpenSSH 9 or later, included in macOS and current Linux):
+  ```sh
+  scp -r ./my-site/* owNNNNN@server:/htdocs/public/
+  ```
+- **Syncing again and again**, only changed files, with `lftp`:
+  ```sh
+  lftp -u owNNNNN, sftp://server -e "mirror -R --only-newer ./my-site/ /htdocs/public/; bye"
+  ```
+  `--dry-run` shows first what would be transferred; `--delete` removes on the server what is missing locally.
+- **`rclone`** works too, with the target `:sftp:/htdocs/public` and `copy` instead of `sync` if nothing on the server should be deleted.
+
+`rsync` does not work, since it would need a command line on the server. If `scp` reports "Connection closed", it still uses the old protocol: leave out the option `-O` or add `-s`.
+
 ## Faster and safer, without any effort
 
 - Text such as HTML, CSS and JavaScript is transferred compressed.

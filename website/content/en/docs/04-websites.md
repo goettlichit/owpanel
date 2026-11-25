@@ -98,6 +98,7 @@ Under **Website → SFTP** you turn access on. The user name is the website's Li
 
 - The access can only do SFTP: no shell, no forwarding.
 - It only sees the website's folder and starts in `htdocs`.
+- From the command line `scp` (OpenSSH 9 or later), `lftp mirror -R` and `rclone` work, but not `rsync`, since it would need a shell on the server; examples are in the [customer documentation](docs:customer-websites#from-the-command-line). As root on the server `rsync` works of course; set the owner afterwards with `chown -R <user>:<user>`.
 - Showing a password is recorded in the audit log.
 - As server the panel shows the domain once its DNS points to this server. While it still points elsewhere, for example during a move, it shows the server's IP address, which works at once. The panel checks this when the page is opened; the result is kept for five minutes.
 - Administrators who prefer the command line sign in by SSH as root and switch to the website user with `runuser -l <user> -s /bin/bash`. The SFTP page shows the matching command.
