@@ -183,6 +183,15 @@ final readonly class ScriptCall
         return new self(ServerScript::PanelUpdate, ['--status']);
     }
 
+    /**
+     * Loads the archive of the installed release next to it, for the
+     * servers of the panel (panel-update --fetch-archive, E-187).
+     */
+    public static function panelArchiveFetch(): self
+    {
+        return new self(ServerScript::PanelUpdate, ['--fetch-archive']);
+    }
+
     public static function serverUpgrade(bool $install): self
     {
         return new self(ServerScript::ServerUpgrade, [$install ? '--install' : '--refresh']);

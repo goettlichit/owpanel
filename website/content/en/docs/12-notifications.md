@@ -31,6 +31,7 @@ The panel reaches you by e-mail and as a push message on phone or desktop when s
 - Updates installed, automatically or by hand
 - A new version of OWPanel is out, once per version
 - OWPanel was updated, or its update failed
+- the server scripts of a server have been outdated for more than half an hour
 - every failed task, such as a certificate or a firewall change
 
 **Security:**

@@ -8,6 +8,11 @@ return [
     */
     'version' => env('OWPANEL_VERSION', 'dev'),
 
+    // Folder of the installed release, releases/<version>/, which holds the
+    // archive the panel sends to its servers (server-scripts-update, E-187).
+    // Null: the folder above the panel.
+    'release_dir' => env('OWPANEL_RELEASE_DIR'),
+
     /*
     | Public release keys of the project (E-167): release-signers next to the
     | panel code, the same file the installer keeps on every server. The

@@ -71,6 +71,7 @@ return [
         'kernel' => 'Kernel',
         'scripts' => 'Server scripts',
         'scripts_differ' => 'Differs from the panel version (:version).',
+        'scripts_differ_hint' => 'The panel updates them by itself, at most every 15 minutes. Until then only backups, maintenance and reading tasks start here.',
         'php' => 'PHP for websites',
         'release_key' => 'Release key',
         'release_key_none' => 'No key stored',

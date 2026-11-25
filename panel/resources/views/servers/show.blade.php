@@ -30,6 +30,7 @@
                         {{ $server->scripts_version ?? '–' }}
                         @if ($server->scripts_version !== null && $server->scripts_version !== \App\Support\PanelRelease::installed())
                             <div class="small text-warning">{{ __('servers.system.scripts_differ', ['version' => \App\Support\PanelRelease::installed()]) }}</div>
+                            <div class="small text-secondary">{{ __('servers.system.scripts_differ_hint') }}</div>
                         @endif
                     </dd>
 

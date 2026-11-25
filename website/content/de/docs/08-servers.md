@@ -10,6 +10,8 @@ slug: servers
 
 Das Panel fragt jeden Server einmal pro Minute ab. Unter **Server → Zustand** siehst du Betriebssystem, Kernel, Laufzeit, die Version der Serverskripte, den Fingerabdruck des Release-Schlüssels (mit grünem Haken, wenn er zum Panel passt), Prozessor, Arbeitsspeicher und Festplatte, unter **Auslastung** den Verlauf. **Dienste** zeigt, ob nginx, PHP-FPM, MariaDB, fail2ban und nftables laufen, soweit sie auf dem Server eingeschaltet sind; steht einer, kommt eine [Benachrichtigung](docs:notifications).
 
+Die Serverskripte haben immer die Version des Panels. Weicht ein Server ab, etwa weil er beim Update des Panels offline war, spielt das Panel die passenden Skripte selbst ein, höchstens alle 15 Minuten, und prüft dabei ihre Signatur. Bis dahin laufen auf diesem Server nur Sicherungen, Wartung und lesende Aufgaben; andere Aufgaben scheitern mit einem Hinweis. Dauert es länger als eine halbe Stunde, kommt eine Benachrichtigung.
+
 Hat der Server mehr als eine Netzwerkkarte, etwa zusätzlich ein privates Netzwerk der Hetzner Cloud, zeigt die Auslastung den Verkehr für jede Karte getrennt: „Netzwerk öffentlich“ ist die Karte mit der Standardroute ins Internet, „Netzwerk privat“ jede weitere. Einstellen musst du dafür nichts.
 
 ## Updates

@@ -3,6 +3,7 @@
 #
 #   panel-update --version 1.2.3   download, check and start the update
 #   panel-update --status          state of the last update
+#   panel-update --fetch-archive   load the archive of the installed release
 #
 # Only tagged releases from the project's GitHub releases, each checked
 # against its .sha256 file and its signature with the keys in
@@ -21,6 +22,8 @@ OWP_UPDATE_DIR="${OWP_UPDATE_DIR:-/var/lib/owpanel/update}"
 OWP_UPDATE_STATE_FILE="${OWP_UPDATE_STATE_FILE:-/etc/owpanel/panel.conf}"
 readonly OWP_UPDATE_UNIT="owpanel-update"
 readonly OWP_UPDATE_RUNNER="/opt/owpanel/lib/panel-update-run.sh"
+OWP_UPDATE_RELEASES="${OWP_UPDATE_RELEASES:-/var/www/ow10000/releases}"
+readonly OWP_UPDATE_PANEL_GROUP="ow10000"
 # An archive with vendor/ and the built assets is about 30 MB.
 readonly OWP_UPDATE_MAX_BYTES=536870912
 readonly OWP_UPDATE_STATES_RE='^(idle|running|succeeded|failed)$'
@@ -28,7 +31,7 @@ readonly OWP_UPDATE_TIME_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]
 readonly OWP_UPDATE_ERROR_RE='^[a-z0-9_]{1,64}$'
 
 usage() {
-  owp_die "invalid_arguments" "usage: panel-update --version <x.y.z> | --status"
+  owp_die "invalid_arguments" "usage: panel-update --version <x.y.z> | --status | --fetch-archive"
 }
 
 # Reads key=value from the status file without sourcing it.
@@ -66,13 +69,59 @@ show_status() {
   owp_result_ok "\"state\":\"${state}\",$(json_member version "$(status_value version)" "$OWP_VERSION_RE"),$(json_member from "$(status_value from)" "$OWP_VERSION_RE"),$(json_member started_at "$(status_value started_at)" "$OWP_UPDATE_TIME_RE"),$(json_member finished_at "$(status_value finished_at)" "$OWP_UPDATE_TIME_RE"),$(json_member error "$(status_value error)" "$OWP_UPDATE_ERROR_RE")"
 }
 
+# Downloads archive, checksum and signature of release $1 into folder $2
+# and checks them.
+download_release() {
+  local version="$1" dir="$2" name archive base
+  name="owpanel-${version}"
+  archive="${dir}/${name}.tar.gz"
+  base="https://github.com/${OWP_RELEASE_REPO}/releases/download/v${version}"
+  owp_log "downloading OWPanel ${version}"
+  if ! fetch --output "$archive" "${base}/${name}.tar.gz" \
+    || ! fetch --output "${archive}.sha256" "${base}/${name}.tar.gz.sha256" \
+    || ! fetch --output "${archive}.sig" "${base}/${name}.tar.gz.sig"; then
+    owp_die "download_failed" "could not download release ${version}"
+  fi
+  owp_release_check_sum "$archive" || owp_die "checksum_mismatch" "the checksum of the archive does not match"
+  owp_release_verify "$archive" || owp_die "invalid_signature" "the signature of the archive is not valid"
+  owp_log "checksum and signature checked"
+}
+
+# The installed release keeps its archive for the servers of the panel
+# (server-scripts-update, E-187). An installation with get-owpanel has none
+# yet: this loads and checks it and puts it next to the release.
+fetch_archive() {
+  local installed release work file
+  [[ -f "$OWP_UPDATE_STATE_FILE" ]] || owp_die "not_panel_server" "the panel is not installed on this server"
+  installed="$(sed -n 's/^VERSION=//p' "$OWP_UPDATE_STATE_FILE" | tail -n 1)"
+  [[ "$installed" =~ $OWP_VERSION_RE ]] || owp_die "unknown_version" "cannot read the installed version"
+  owp_release_tagged "$installed" || owp_die "test_build" "a test build has no release archive"
+  release="${OWP_UPDATE_RELEASES}/${installed}"
+  [[ -d "$release" && ! -L "$release" ]] || owp_die "unknown_version" "the folder of release ${installed} is missing"
+  if [[ -f "${release}/owpanel-${installed}.tar.gz" && -f "${release}/owpanel-${installed}.tar.gz.sig" ]]; then
+    owp_result_ok "\"version\":\"${installed}\",\"fetched\":false"
+    return 0
+  fi
+
+  install -d -o root -g root -m 0700 "$OWP_UPDATE_DIR"
+  work="${OWP_UPDATE_DIR}/archive"
+  rm -rf -- "$work"
+  install -d -o root -g root -m 0700 "$work"
+  download_release "$installed" "$work"
+  for file in "owpanel-${installed}.tar.gz" "owpanel-${installed}.tar.gz.sha256" "owpanel-${installed}.tar.gz.sig"; do
+    install -o root -g "$OWP_UPDATE_PANEL_GROUP" -m 0640 "${work}/${file}" "${release}/${file}"
+  done
+  rm -rf -- "$work"
+  owp_result_ok "\"version\":\"${installed}\",\"fetched\":true"
+}
+
 fetch() {
   curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
     --tlsv1.2 --retry 3 --max-time 600 --max-filesize "$OWP_UPDATE_MAX_BYTES" "$@"
 }
 
 start_update() {
-  local target="$1" installed work base archive name now
+  local target="$1" installed work archive name now
   [[ -f "$OWP_UPDATE_STATE_FILE" ]] || owp_die "not_panel_server" "the panel is not installed on this server"
   installed="$(sed -n 's/^VERSION=//p' "$OWP_UPDATE_STATE_FILE" | tail -n 1)"
   [[ "$installed" =~ $OWP_VERSION_RE ]] || owp_die "unknown_version" "cannot read the installed version"
@@ -90,18 +139,7 @@ start_update() {
   install -d -o root -g root -m 0700 "$work"
   name="owpanel-${target}"
   archive="${work}/${name}.tar.gz"
-  base="https://github.com/${OWP_RELEASE_REPO}/releases/download/v${target}"
-
-  owp_log "downloading OWPanel ${target}"
-  if ! fetch --output "$archive" "${base}/${name}.tar.gz" \
-    || ! fetch --output "${archive}.sha256" "${base}/${name}.tar.gz.sha256" \
-    || ! fetch --output "${archive}.sig" "${base}/${name}.tar.gz.sig"; then
-    owp_die "download_failed" "could not download release ${target}"
-  fi
-
-  owp_release_check_sum "$archive" || owp_die "checksum_mismatch" "the checksum of the archive does not match"
-  owp_release_verify "$archive" || owp_die "invalid_signature" "the signature of the archive is not valid"
-  owp_log "checksum and signature checked"
+  download_release "$target" "$work"
 
   tar -xzf "$archive" -C "$work" --no-same-owner || owp_die "unpack_failed" "could not unpack the archive"
   [[ -x "${work}/${name}/install" && -f "${work}/${name}/VERSION" && "$(<"${work}/${name}/VERSION")" == "$target" ]] \
@@ -128,6 +166,12 @@ main() {
     --status)
       [[ $# -eq 1 ]] || usage
       show_status
+      ;;
+    --fetch-archive)
+      [[ $# -eq 1 ]] || usage
+      owp_require_root
+      owp_lock 300
+      fetch_archive
       ;;
     --version)
       [[ $# -eq 2 ]] || usage

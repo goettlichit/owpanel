@@ -9,8 +9,10 @@ use App\Models\ServerTask;
 use App\Notify\Events;
 use App\Servers\ScriptCall;
 use App\Servers\ScriptRunner;
+use App\Servers\ScriptsUpdater;
 use App\Servers\ServerConnectionException;
 use App\Servers\TaskOutput;
+use App\Support\PanelRelease;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -52,6 +54,18 @@ class RunServerTask implements ShouldQueue
 
         $task = ServerTask::with('server')->findOrFail($this->taskId);
         $output = new TaskOutput($task);
+
+        // Scripts of another version may not know what the panel asks for:
+        // only updating, reading, backups and maintenance run until the
+        // panel has brought them up to date (E-167).
+        if ($task->server->scriptsOutdated() && ! $task->script->runsWhenOutdated()) {
+            $output->append(__('tasks.outdated_log', ['scripts' => $task->server->scripts_version, 'panel' => PanelRelease::installed()])."\n");
+            $output->flush();
+            $this->finish($task, TaskStatus::Failed, error: 'scripts_outdated');
+            ScriptsUpdater::ensure($task->server);
+
+            return;
+        }
 
         try {
             $call = $task->call();
@@ -134,6 +148,12 @@ class RunServerTask implements ShouldQueue
         $task->database?->taskFinished($task);
         if ($task->script === ServerScript::BackupSetup) {
             $task->server->backupSetupFinished($task);
+        }
+        // New scripts count at once, not only after the next status check
+        // (E-187).
+        if ($task->script === ServerScript::ServerScriptsUpdate && $status === TaskStatus::Succeeded
+            && is_string($result['version'] ?? null) && preg_match('/^[0-9A-Za-z.-]{1,64}$/', $result['version'])) {
+            $task->server->forceFill(['scripts_version' => $result['version']])->save();
         }
         // After refreshing or installing, the update state is read again (E-154).
         if ($task->script === ServerScript::ServerUpgrade) {

@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'outdated_log' => 'Die Serverskripte (:scripts) haben eine andere Version als das Panel (:panel). Die Aufgabe startet erst nach ihrem Update; das Panel aktualisiert sie selbst.',
     'empty' => 'Noch keine Aufgaben.',
     'console' => 'Konsole',
     'seconds' => ':count s',
@@ -255,6 +256,8 @@ return [
         'invalid_database' => 'Ungültiger Datenbankname.',
         'panel_not_found' => 'Auf diesem Server ist das Panel nicht installiert.',
         // server-scripts-update (E-167)
+        'scripts_outdated' => 'Die Serverskripte haben eine andere Version als das Panel. Das Panel aktualisiert sie gerade; danach geht es wieder.',
+        'test_build' => 'Eine Testversion hat kein Release-Archiv.',
         'signature_required' => 'Ein Release muss signiert sein.',
         'unsigned_not_allowed' => 'Dieser Server nimmt keine Testversionen an.',
         'no_key' => 'Auf dem Server fehlt der Schlüssel des Panels.',

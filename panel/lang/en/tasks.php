@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'outdated_log' => 'The server scripts (:scripts) have another version than the panel (:panel). The task starts only after their update; the panel updates them by itself.',
     'empty' => 'No tasks yet.',
     'console' => 'Console',
     'seconds' => ':count s',
@@ -255,6 +256,8 @@ return [
         'invalid_database' => 'Invalid database name.',
         'panel_not_found' => 'The panel is not installed on this server.',
         // server-scripts-update (E-167)
+        'scripts_outdated' => 'The server scripts have another version than the panel. The panel is updating them; afterwards it works again.',
+        'test_build' => 'A test build has no release archive.',
         'signature_required' => 'A release must be signed.',
         'unsigned_not_allowed' => 'This server takes no test builds.',
         'no_key' => 'The key of the panel is missing on the server.',
