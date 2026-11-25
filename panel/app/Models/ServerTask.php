@@ -8,6 +8,7 @@ use App\Enums\ServerScript;
 use App\Enums\TaskStatus;
 use App\Jobs\RunServerTask;
 use App\Servers\ScriptCall;
+use App\Servers\ScriptsArchive;
 use App\Support\Audit;
 use Database\Factories\ServerTaskFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -181,6 +182,9 @@ class ServerTask extends Model
                 $this->site->nginx_headers ?? [],
                 $this->site->nginx_blocked_paths ?? [],
             ),
+            // The scripts of the release that runs now, with its archive
+            // and signature (E-187).
+            $this->script === ServerScript::ServerScriptsUpdate => ScriptsArchive::call(),
             // The SFTP state as it is when the task runs (E-089).
             $this->script === ServerScript::SiteSftp && $this->site !== null => $this->site->sftpCall(),
             // Backup target with its secrets as they are now (E-096).

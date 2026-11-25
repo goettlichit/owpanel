@@ -143,6 +143,14 @@ return [
             'raised' => 'Update auf OWPanel :version fehlgeschlagen',
             'raised_body' => ':error Es läuft weiter :from.',
         ],
+        'scripts_outdated' => [
+            'label' => 'Serverskripte veraltet',
+            'hint' => 'Länger als eine halbe Stunde nicht auf dem Stand des Panels',
+            'raised' => 'Serverskripte auf :server sind veraltet',
+            'raised_body' => 'Der Server hat :scripts, das Panel :panel. Bis zum Update starten dort nur Sicherungen, Wartung und lesende Aufgaben; das Panel versucht es alle 15 Minuten erneut.',
+            'resolved' => 'Serverskripte auf :server sind aktuell',
+            'resolved_body' => 'Alle Aufgaben laufen wieder.',
+        ],
         'service_down' => [
             'label' => 'Dienst gestoppt',
             'hint' => 'nginx, PHP-FPM, MariaDB, fail2ban oder nftables läuft nicht',

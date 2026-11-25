@@ -7,6 +7,7 @@ use App\Models\ServerMetric;
 use App\Notify\Events;
 use App\Support\ReleaseKeys;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Runs server-status on a server and stores the answer (E-075).
@@ -68,6 +69,12 @@ class StatusCheck
             'last_seen_at' => $now,
             'check_error' => null,
         ])->save();
+        // Scripts of another version are brought up to date (E-187).
+        try {
+            ScriptsUpdater::ensure($server);
+        } catch (Throwable $e) {
+            report($e);
+        }
         if ($restarted) {
             Events::serverRestarted($server, $bootedAt);
         }

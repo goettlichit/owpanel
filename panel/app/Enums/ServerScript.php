@@ -58,6 +58,23 @@ enum ServerScript: string
     }
 
     /**
+     * Whether the script may run while the server scripts differ from the
+     * panel's version (E-167): updating, reading, backups, updates of the
+     * system, restarts and confirming the firewall. Everything else waits
+     * until the panel has brought the scripts up to date.
+     */
+    public function runsWhenOutdated(): bool
+    {
+        return in_array($this, [
+            self::ServerScriptsUpdate, self::PanelUpdate, self::PanelTest,
+            self::ServerStatus, self::ServerUpdates, self::ServerLogs, self::SiteLogs,
+            self::ServerUpgrade, self::ServerReboot, self::FirewallConfirm,
+            self::SiteBackup, self::SiteBackups, self::SiteBackupFiles,
+            self::PanelBackup, self::PanelBackups, self::PanelBackupFiles,
+        ], true);
+    }
+
+    /**
      * Seconds a run may take before the panel gives up. Must stay below the
      * queue's retry_after (config/queue.php).
      */

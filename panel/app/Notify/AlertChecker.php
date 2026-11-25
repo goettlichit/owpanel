@@ -17,6 +17,7 @@ use App\Support\Heartbeat;
 use App\Support\PanelRelease;
 use App\Support\Units;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Compares the state of servers and websites with the open alerts, once a
@@ -42,6 +43,9 @@ final class AlertChecker
      * a single failure stays quiet, the last good entries still apply.
      */
     public const BLOCKLIST_FAILURES = 2;
+
+    /** Minutes server scripts may differ before it is reported (E-187). */
+    public const SCRIPTS_MINUTES = 30;
 
     /** Scheduled backups older than this are no longer looked at. */
     private const BACKUP_DAYS = 3;
@@ -90,6 +94,7 @@ final class AlertChecker
         $this->checkUpdates($server, $online);
         $this->checkPanelCertificate($server);
         $this->checkServices($server, $online);
+        $this->checkScriptsVersion($server, $online);
 
         $metric = $server->latestMetric;
         $disk = $online && $metric !== null && $metric->disk_total > 0 ? $metric->diskPercent() : null;
@@ -262,6 +267,35 @@ final class AlertChecker
             $state['ok'] ? false : ($since !== null && $since->lessThanOrEqualTo(now()->subMinutes(15)) ? true : null),
             ['error' => (string) ($state['error'] ?? '')],
             route('settings.services'),
+        );
+    }
+
+    /**
+     * Server scripts that differ from the panel's version for more than
+     * half an hour (E-187): the panel retries the update every 15 minutes,
+     * meanwhile changing tasks wait. The time it was first seen lives in
+     * the cache; an offline server says nothing.
+     */
+    private function checkScriptsVersion(Server $server, bool $online): void
+    {
+        $key = "scripts_outdated:{$server->getKey()}";
+        $cache = 'scripts-outdated-since:'.$server->getKey();
+        if (! $server->scriptsOutdated()) {
+            Cache::forget($cache);
+            $this->apply(NotificationEvent::ScriptsOutdated, $key, false, [], route('servers.show', $server));
+
+            return;
+        }
+        $since = Cache::get($cache);
+        if (! is_int($since)) {
+            $since = now()->getTimestamp();
+            Cache::forever($cache, $since);
+        }
+        $this->apply(
+            NotificationEvent::ScriptsOutdated, $key,
+            $online ? $since <= now()->subMinutes(self::SCRIPTS_MINUTES)->getTimestamp() : null,
+            ['server' => $server->name, 'scripts' => (string) $server->scripts_version, 'panel' => PanelRelease::installed()],
+            route('servers.show', $server),
         );
     }
 

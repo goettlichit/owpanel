@@ -34,7 +34,11 @@ final class Events
 
             if ($task->status === TaskStatus::Failed) {
                 // Scheduled backups have their own alert with all-clear.
-                if (($backup && ! $manual) || in_array($task->script, self::QUIET_SCRIPTS, true)) {
+                // Updates of the server scripts are retried and have their
+                // own alert (E-187).
+                $scriptsUpdate = $task->script === ServerScript::ServerScriptsUpdate
+                    || ($task->script === ServerScript::PanelUpdate && in_array('--fetch-archive', (array) $task->arguments, true));
+                if (($backup && ! $manual) || $scriptsUpdate || in_array($task->script, self::QUIET_SCRIPTS, true)) {
                     return;
                 }
                 Notifier::notify(NotificationEvent::TaskFailed, "task:{$task->getKey()}", [

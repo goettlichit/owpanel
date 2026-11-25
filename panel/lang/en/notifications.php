@@ -143,6 +143,14 @@ return [
             'raised' => 'Update to OWPanel :version failed',
             'raised_body' => ':error :from keeps running.',
         ],
+        'scripts_outdated' => [
+            'label' => 'Server scripts outdated',
+            'hint' => 'Not on the panel\'s version for more than half an hour',
+            'raised' => 'Server scripts on :server are outdated',
+            'raised_body' => 'The server has :scripts, the panel :panel. Until the update only backups, maintenance and reading tasks start there; the panel tries again every 15 minutes.',
+            'resolved' => 'Server scripts on :server are up to date',
+            'resolved_body' => 'All tasks run again.',
+        ],
         'service_down' => [
             'label' => 'Service stopped',
             'hint' => 'nginx, PHP-FPM, MariaDB, fail2ban or nftables is not running',

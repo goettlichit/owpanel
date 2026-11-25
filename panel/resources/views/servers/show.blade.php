@@ -30,6 +30,7 @@
                         {{ $server->scripts_version ?? '–' }}
                         @if ($server->scripts_version !== null && $server->scripts_version !== \App\Support\PanelRelease::installed())
                             <div class="small text-warning">{{ __('servers.system.scripts_differ', ['version' => \App\Support\PanelRelease::installed()]) }}</div>
+                            <div class="small text-secondary">{{ __('servers.system.scripts_differ_hint') }}</div>
                         @endif
                     </dd>
 
@@ -74,12 +75,22 @@
 
                     @if ($server->services)
                         <dt class="col-sm-5">{{ __('servers.system.services') }}</dt>
+                        {{-- System services on the left, PHP-FPM versions on the right, each one below the other. --}}
+                        @php($columns = collect($server->services)->partition(fn ($active, $name) => ! str_starts_with((string) $name, 'php')))
                         <dd class="col-sm-7">
-                            @foreach ($server->services as $name => $active)
-                                <span class="badge {{ $active ? 'bg-green-lt' : 'bg-red-lt' }} me-1 mb-1" title="{{ $active ? __('servers.system.service_running') : __('servers.system.service_stopped') }}">
-                                    <x-icon :name="$active ? 'circle-check' : 'circle-x'" class="me-1" />{{ $name }}
-                                </span>
-                            @endforeach
+                            <div class="d-flex flex-wrap gap-3">
+                                @foreach ($columns as $column)
+                                    @if ($column->isNotEmpty())
+                                        <div class="d-flex flex-column align-items-start gap-1">
+                                            @foreach ($column as $name => $active)
+                                                <span class="badge {{ $active ? 'bg-green-lt' : 'bg-red-lt' }}" title="{{ $active ? __('servers.system.service_running') : __('servers.system.service_stopped') }}">
+                                                    <x-icon :name="$active ? 'circle-check' : 'circle-x'" class="me-1" />{{ $name }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                @endforeach
+                            </div>
                         </dd>
                     @endif
 

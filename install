@@ -653,6 +653,23 @@ write_env() {
 # Copies the panel into releases/<version>. Code belongs to root, so a hole
 # in the panel cannot change its own code. bootstrap/cache comes prebuilt
 # with the archive and stays read-only too.
+# The archive the panel sends to its servers (server-scripts-update, E-187).
+# A release keeps the signed archive that panel-update left in its folder
+# when the installer runs again; a test build gets an unsigned archive with
+# just server/ and VERSION. Otherwise panel-update --fetch-archive loads it.
+keep_scripts_archive() {
+  local release="$1" stage="$2" name="owpanel-${VERSION}.tar.gz" file
+  if [[ "$VERSION" == dev-* ]]; then
+    tar -czf "${stage}/${name}" -C "$SOURCE_ROOT" --owner=0 --group=0 --numeric-owner \
+      --transform "s,^,owpanel-${VERSION}/," server VERSION
+    return 0
+  fi
+  for file in "$name" "${name}.sha256" "${name}.sig"; do
+    [[ -f "${release}/${file}" ]] && cp -p "${release}/${file}" "${stage}/${file}"
+  done
+  return 0
+}
+
 install_release() {
   local release="${PANEL_ROOT}/releases/${VERSION}" stage
   step "Panel ${VERSION}"
@@ -663,6 +680,7 @@ install_release() {
     cp "${SOURCE_ROOT}/release-signers" "${stage}/release-signers"
   fi
   rm -rf "${stage}/panel/storage" "${stage}/panel/.env"
+  keep_scripts_archive "$release" "$stage"
   ln -s ../../../shared/storage "${stage}/panel/storage"
   ln -s ../../../shared/.env "${stage}/panel/.env"
   chown -R -h "root:${PANEL_USER}" "$stage"

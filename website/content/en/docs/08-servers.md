@@ -10,6 +10,8 @@ slug: servers
 
 The panel checks every server once a minute. Under **Server → State** you see operating system, kernel, uptime, the version of the server scripts, the fingerprint of the release key (with a green check when it matches the panel), processor, memory and disk, under **Load** their history. **Services** shows whether nginx, PHP-FPM, MariaDB, fail2ban and nftables run, as far as they are enabled on the server; if one stops, a [notification](docs:notifications) follows.
 
+The server scripts always have the panel's version. If a server differs, for example because it was offline during the panel's update, the panel installs the matching scripts by itself, at most every 15 minutes, and checks their signature. Until then only backups, maintenance and reading tasks run on this server; other tasks fail with a hint. If it takes longer than half an hour, a notification follows.
+
 If the server has more than one network card, for example a Hetzner Cloud private network as well, the load page shows the traffic of each card separately: "Public network" is the card with the default route to the internet, "Private network" every other one. There is nothing to set up.
 
 ## Updates

@@ -6,6 +6,7 @@ use App\Enums\TaskStatus;
 use App\Servers\HostKey;
 use App\Servers\ScriptCall;
 use App\Support\IpNetwork;
+use App\Support\PanelRelease;
 use Carbon\CarbonInterface;
 use Database\Factories\ServerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -193,6 +194,16 @@ class Server extends Model
     public function hostsPanel(): bool
     {
         return in_array($this->host, ['127.0.0.1', '::1', 'localhost'], true);
+    }
+
+    /**
+     * Whether the server scripts differ from the panel's version (E-167).
+     * Unknown (null) counts as current: older scripts and checkouts do not
+     * report a version.
+     */
+    public function scriptsOutdated(): bool
+    {
+        return $this->scripts_version !== null && $this->scripts_version !== PanelRelease::installed();
     }
 
     /**

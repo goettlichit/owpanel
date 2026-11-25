@@ -26,6 +26,7 @@ enum NotificationEvent: string
     case PanelUpdateAvailable = 'panel_update_available';
     case PanelUpdated = 'panel_updated';
     case PanelUpdateFailed = 'panel_update_failed';
+    case ScriptsOutdated = 'scripts_outdated';
     case ServiceDown = 'service_down';
     case StorageBoxFull = 'storage_box_full';
     case HeartbeatFailed = 'heartbeat_failed';
@@ -44,7 +45,7 @@ enum NotificationEvent: string
         return [
             'backup' => [self::BackupFailed, self::SnapshotFailed, self::StorageBoxFull, self::BackupSucceeded, self::SnapshotSucceeded, self::RestoreFinished],
             'availability' => [self::ServerOffline, self::ServiceDown, self::HeartbeatFailed, self::ServerRestarted],
-            'maintenance' => [self::RebootRequired, self::DiskFull, self::StorageFull, self::CertificateExpiring, self::UpdatesAvailable, self::AutoUpdatesOff, self::UpdatesInstalled, self::PanelUpdateAvailable, self::PanelUpdated, self::PanelUpdateFailed],
+            'maintenance' => [self::RebootRequired, self::DiskFull, self::StorageFull, self::CertificateExpiring, self::UpdatesAvailable, self::AutoUpdatesOff, self::UpdatesInstalled, self::PanelUpdateAvailable, self::PanelUpdated, self::PanelUpdateFailed, self::ScriptsOutdated],
             'security' => [self::NewDeviceLogin, self::LoginLockout, self::BlocklistFailed],
             'tasks' => [self::TaskFailed],
         ];

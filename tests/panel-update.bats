@@ -37,7 +37,7 @@ make_signed_archive() {
 
 @test "panel-update wants --version with a release or --status" {
   local args
-  for args in "" "--update" "--version" "--status now" "--version 1.2.3 --status" "--version 1.2.3 extra"; do
+  for args in "" "--update" "--version" "--status now" "--version 1.2.3 --status" "--version 1.2.3 extra" "--fetch-archive now"; do
     # shellcheck disable=SC2086
     run bash "$SCRIPT" $args
     [ "$status" -ne 0 ]
@@ -128,7 +128,7 @@ make_signed_archive() {
 
 # shellcheck disable=SC2016  # the patterns are literal
 @test "panel-update only downloads from the project's releases over https" {
-  grep -q 'https://github.com/${OWP_RELEASE_REPO}/releases/download/v${target}' "${ROOT}/server/bin/panel-update"
+  grep -q 'https://github.com/${OWP_RELEASE_REPO}/releases/download/v${version}' "${ROOT}/server/bin/panel-update"
   grep -q -- "--proto '=https' --proto-redir '=https'" "${ROOT}/server/bin/panel-update"
   grep -q 'readonly OWP_RELEASE_REPO="goettlichit/owpanel"' "${ROOT}/server/lib/release.sh"
 }
