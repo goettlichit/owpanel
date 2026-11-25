@@ -52,6 +52,12 @@ Schedule::command('owpanel:notifications')
 
 // Newest release of the panel (E-154), once a day.
 Schedule::command('owpanel:release-check')->dailyAt('04:17');
+// Update of the panel (E-185): follow a running one every minute; the
+// automatic one, if switched on, at night after the release check.
+Schedule::command('owpanel:panel-update')
+    ->everyMinute()
+    ->withoutOverlapping(5);
+Schedule::command('owpanel:panel-update', ['--auto'])->dailyAt('04:47');
 
 // Fill level of the Storage Boxes (E-160), once an hour.
 Schedule::command('owpanel:storage-boxes')

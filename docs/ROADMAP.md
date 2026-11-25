@@ -181,7 +181,7 @@ Grundlage sind E-021, E-084, E-085 und E-123 bis E-130. Die API folgt in Meilens
 
 ## Meilenstein 8: Öffentliche Version
 
-- [ ] Update-Mechanismus für Panel und Serverskripte, erst nach dem ersten öffentlichen Release und gegen echte Releases; Testversionen werden bis dahin von Hand mit `get-owpanel --dev` eingespielt (E-155)
+- [ ] Update-Mechanismus für Panel und Serverskripte, erst nach dem ersten öffentlichen Release und gegen echte Releases; Testversionen werden bis dahin von Hand mit `get-owpanel --dev` eingespielt (E-155). Per Knopf und automatisch für Patch-Versionen (E-185). Schritte: Skript `panel-update` (U1a, erledigt), „Panel aktualisieren“ und automatische Updates im Panel (U1b), `server-scripts-update` (U2a), Versionssperre und Nachziehen der Server (U2b)
 - [ ] Dokumentation auf Deutsch und Englisch (Grundstock seit Meilenstein 4.1 auf der Website, E-109); am 2026-11-19 und 2026-11-20 auf den Stand nach Sicherheitsprüfung und neuen Benachrichtigungen gebracht, mit Lizenz und Weg für Rückmeldungen (E-158, PR #95); am 2026-11-22 durchgesehen: Optionen des Installers, Größe des Servers, signierte Releases, Hinweise für weitere Server; am 2026-11-23 in „Für Administratoren“ und „Für Kunden“ geteilt, mit sieben Seiten für Kunden und „Hilfe“ im Kundenbereich (E-178), mit einer Auswahl zwischen beiden vor der Dokumentation (E-183)
 - [x] Vollständiger Test von der Grundinstallation an auf einem frischen Server (am 2026-11-23 abgehakt, nach den Korrekturen aus PR #100 bis #107)
 - [x] Lizenz bestätigt: AGPL-3.0-or-later, keine Bezahlfunktionen (E-158)
@@ -202,15 +202,16 @@ Grundlage sind E-021, E-084, E-085 und E-123 bis E-130. Die API folgt in Meilens
 - [x] Schnellere Seiten: Laravel-Caches im Installer, Teile vom Server werden nachgeladen, Sperrlisten-Index im Cache (E-175)
 - [x] gzip, Browser-Cache für statische Dateien und sichere Session-Cookies für Websites (E-176, PR #108, abgenommen am 2026-11-23)
 - [x] Repository in die Organisation `goettlichit` verschoben, alle Verweise umgestellt (E-179)
-- [ ] Eigene NGINX-Regeln je Website: zusätzliche Header und gesperrte Pfade, nur für Administratoren (E-184), für den Umzug von CloudPanel
+- [x] Eigene NGINX-Regeln je Website: zusätzliche Header und gesperrte Pfade, nur für Administratoren, mit Zustand in Farbe (E-184, PR #2, abgenommen am 2026-11-24), für den Umzug von CloudPanel
+- [x] DNS-Seite ohne „504 Gateway Time-out“: gemeinsame Wartezeit von 40 Sekunden für alle Einträge (PR #3, 2026-11-24)
 - [ ] Externe Testnutzer
 - [x] Versionierte Releases auf GitHub: Tag `vX.Y.Z` baut, signiert und veröffentlicht Archiv, `.sha256` und `.sig` (E-068, E-167); erste Version `v0.1.0` (E-180)
 - [x] Frisches öffentliches Repository mit neuem Release-Schlüssel, altes als privates Archiv (E-181); Name bleibt OWPanel (E-182)
-- [ ] Erstes öffentliches Release `v0.1.0`, mit der Prüfsumme von `get-owpanel` in der Anleitung (E-071, E-180)
+- [x] Erstes öffentliches Release `v0.1.0` am 2026-11-23, mit der Prüfsumme von `get-owpanel` in der Anleitung (E-071, E-180)
 
 ## Meilenstein 5: Multi-Server mit dem Panel als Eingangstor
 
-Am 2026-11-14 pausiert, am 2026-11-20 geklärt (E-161 bis E-168). Umgesetzt wird nach dem ersten öffentlichen Release und dem Update-Mechanismus (E-169). Der Panel-Server nimmt als Eingangstor (Gateway) alle Anfragen an und reicht sie über das private Hetzner-Netz an den Server der Website weiter. Lastverteilung heißt Platzierung; Ausfallsicherheit einzelner Websites gehört nicht dazu.
+Am 2026-11-14 pausiert, am 2026-11-20 geklärt (E-161 bis E-168). Umgesetzt wird nach dem ersten öffentlichen Release (erledigt mit `v0.1.0` am 2026-11-23) und dem Update-Mechanismus (E-169). PR-Nummern vor dem 2026-11-23 (#1 bis #112) beziehen sich auf das private Archiv `goettlichit/owpanel-archive` (E-181). Der Panel-Server nimmt als Eingangstor (Gateway) alle Anfragen an und reicht sie über das private Hetzner-Netz an den Server der Website weiter. Lastverteilung heißt Platzierung; Ausfallsicherheit einzelner Websites gehört nicht dazu.
 
 - [ ] Serveraufgaben laufen je Server nacheinander und für verschiedene Server parallel (mehrere Worker, Sperre je Server); die Statusabfrage läuft als Job je Server, damit ein ausgefallener Server die anderen nicht aufhält
 - [ ] „Server hinzufügen“ mit Einmal-Token und `bash get-owpanel --join <Panel-Adresse>` (E-166)

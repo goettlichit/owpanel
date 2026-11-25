@@ -356,6 +356,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/servers/{server}/updates/install', [ServerController::class, 'installUpdates'])
             ->middleware('throttle:5,1')
             ->name('servers.updates.install');
+        Route::post('/servers/{server}/updates/panel', [ServerController::class, 'updatePanel'])
+            ->middleware('throttle:5,1')
+            ->name('servers.updates.panel');
+        Route::post('/servers/{server}/updates/panel-auto', [ServerController::class, 'panelAutoUpdate'])
+            ->middleware('throttle:10,1')
+            ->name('servers.updates.panel_auto');
         Route::post('/servers/{server}/reboot', [ServerController::class, 'reboot'])
             ->middleware('throttle:5,1')
             ->name('servers.reboot');

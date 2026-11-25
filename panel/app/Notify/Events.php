@@ -8,6 +8,7 @@ use App\Models\Server;
 use App\Models\ServerSnapshot;
 use App\Models\ServerTask;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Lang;
 
 /**
  * One-off messages about things that happened (E-104): finished backups,
@@ -133,6 +134,27 @@ final class Events
                 'kind' => __('notifications.update_kinds.'.(($run['kind'] ?? '') === 'manual' ? 'manual' : 'automatic')),
                 'packages' => implode(', ', $packages).($more > 0 ? ' …' : ''),
             ], route('servers.show', $server));
+        });
+    }
+
+    /**
+     * The panel was updated, or its update failed (E-185).
+     */
+    public static function panelUpdateFinished(bool $succeeded, string $version, string $from, ?string $error): void
+    {
+        self::safely(function () use ($succeeded, $version, $from, $error) {
+            $panel = Server::panelHost();
+            $url = $panel !== null ? route('servers.updates', $panel) : route('dashboard');
+            if ($succeeded) {
+                Notifier::notify(NotificationEvent::PanelUpdated, "panel_updated:{$version}", ['version' => $version, 'from' => $from], $url);
+
+                return;
+            }
+            Notifier::notify(NotificationEvent::PanelUpdateFailed, "panel_update_failed:{$version}", [
+                'version' => $version,
+                'from' => $from,
+                'error' => $error !== null && Lang::has('tasks.errors.'.$error) ? __('tasks.errors.'.$error) : (string) $error,
+            ], $url);
         });
     }
 

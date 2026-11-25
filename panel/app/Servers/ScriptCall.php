@@ -165,6 +165,24 @@ final readonly class ScriptCall
      * Refreshes the package lists or installs all pending updates
      * (server/bin/server-upgrade, E-154).
      */
+    /**
+     * Downloads, checks and installs a release of the panel on its own
+     * server (server/bin/panel-update, E-185). Returns once the installer
+     * runs in the background.
+     */
+    public static function panelUpdate(string $version): self
+    {
+        return new self(ServerScript::PanelUpdate, ['--version', $version]);
+    }
+
+    /**
+     * State of the last update of the panel (panel-update --status).
+     */
+    public static function panelUpdateStatus(): self
+    {
+        return new self(ServerScript::PanelUpdate, ['--status']);
+    }
+
     public static function serverUpgrade(bool $install): self
     {
         return new self(ServerScript::ServerUpgrade, [$install ? '--install' : '--refresh']);

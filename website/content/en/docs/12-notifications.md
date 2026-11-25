@@ -30,6 +30,7 @@ The panel reaches you by e-mail and as a push message on phone or desktop when s
 - Server restarted
 - Updates installed, automatically or by hand
 - A new version of OWPanel is out, once per version
+- OWPanel was updated, or its update failed
 - every failed task, such as a certificate or a firewall change
 
 **Security:**
