@@ -170,13 +170,10 @@ final class PanelUpdate
             return;
         }
 
-        // The new release runs: done. The scheduler starts each run with
-        // the code and version of the current release.
-        if ($update['version'] !== null && PanelRelease::installed() === $update['version']) {
-            self::finish($update, 'succeeded', null);
-
-            return;
-        }
+        // The new release runs, but the installer may still be at work
+        // (websites, release check). Done once panel-update says the run
+        // ended; the scheduler runs each minute with the current release.
+        $switched = $update['version'] !== null && PanelRelease::installed() === $update['version'];
 
         if ($update['state'] === 'starting') {
             $task = $update['task'] !== null ? ServerTask::find($update['task']) : null;
@@ -191,7 +188,7 @@ final class PanelUpdate
 
                 return;
             }
-            if ($task->status === TaskStatus::Succeeded) {
+            if ($task->status === TaskStatus::Succeeded || $switched) {
                 self::write(['state' => 'running'] + self::raw());
                 $update['state'] = 'running';
             }
@@ -200,6 +197,11 @@ final class PanelUpdate
         if ($update['state'] === 'running') {
             $status = self::readStatus($runner);
             $mine = ($status['version'] ?? null) === $update['version'];
+            if ($mine && ($status['state'] ?? null) === 'succeeded' && $switched) {
+                self::finish($update, 'succeeded', null);
+
+                return;
+            }
             if ($mine && ($status['state'] ?? null) === 'failed') {
                 self::finish($update, 'failed', is_string($status['error'] ?? null) ? $status['error'] : 'install_failed');
 
@@ -217,7 +219,8 @@ final class PanelUpdate
         }
 
         if ($update['started_at'] !== null && $update['started_at']->lt(now()->subMinutes(self::TIMEOUT_MINUTES))) {
-            self::finish($update, 'failed', 'update_timeout');
+            // The state could not be read, but the new release runs.
+            $switched ? self::finish($update, 'succeeded', null) : self::finish($update, 'failed', 'update_timeout');
         }
     }
 
@@ -267,6 +270,10 @@ final class PanelUpdate
                 'auto' => $update['auto'],
                 'error' => $error,
             ], fn ($value) => $value !== null));
+        }
+        // The newest release as of now, so the page shows no older one.
+        if ($state === 'succeeded') {
+            PanelRelease::check();
         }
         if ($notify) {
             Events::panelUpdateFinished($state === 'succeeded', (string) $update['version'], (string) $update['from'], $error);

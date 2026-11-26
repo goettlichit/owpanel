@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\ServerScript;
 use App\Enums\TaskStatus;
 use App\Jobs\DeliverNotification;
+use App\Livewire\PanelUpdateState;
 use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\PushSubscription;
@@ -18,7 +19,9 @@ use App\Support\PanelRelease;
 use App\Support\PanelUpdate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Livewire\Livewire;
 use Tests\Fakes\ScriptedRunner;
 use Tests\Support\PushReceiver;
 use Tests\TestCase;
@@ -36,6 +39,7 @@ class PanelUpdateTest extends TestCase
     {
         parent::setUp();
         Queue::fake();
+        Http::fake(['api.github.com/*' => Http::response(['tag_name' => 'v1.3.0', 'published_at' => '2026-11-20T10:00:00Z'])]);
         config(['owpanel.version' => '1.2.0', 'owpanel.source_url' => 'https://github.com/example/owpanel']);
         $this->panel = Server::factory()->create(['host' => '127.0.0.1']);
         $this->release('1.3.0');
@@ -102,7 +106,7 @@ class PanelUpdateTest extends TestCase
         $this->assertSame(0, ServerTask::count());
 
         $this->actingAs($admin)->from($url)->post("{$url}/panel", ['version' => '1.3.0', 'confirm' => '1'])
-            ->assertRedirect($url)->assertSessionHas('success');
+            ->assertRedirect($url)->assertSessionMissing('status');
 
         $task = ServerTask::sole();
         $this->assertSame(ServerScript::PanelUpdate, $task->script);
@@ -158,7 +162,7 @@ class PanelUpdateTest extends TestCase
         $admin = $this->admin();
         $url = "/servers/{$this->panel->id}/updates";
 
-        $this->actingAs($admin)->post("{$url}/panel-auto", ['enabled' => '1'])->assertRedirect($url);
+        $this->actingAs($admin)->post("{$url}/panel-auto", ['enabled' => '1'])->assertRedirect($url)->assertSessionHas('status');
         $this->assertTrue(PanelUpdate::autoEnabled());
         $this->actingAs($admin)->post("{$url}/panel-auto", ['enabled' => '1']);
         $this->actingAs($admin)->post("{$url}/panel-auto", ['enabled' => '0']);
@@ -166,15 +170,21 @@ class PanelUpdateTest extends TestCase
         $this->assertSame(2, AuditLog::where('action', 'server.panel_auto_update_changed')->count());
     }
 
-    public function test_the_update_is_done_once_the_new_version_runs(): void
+    public function test_the_update_is_done_once_the_new_version_runs_and_the_installer_ended(): void
     {
         $this->admin();
+        $this->release('1.2.5');
         $this->state(['state' => 'running']);
-        $this->follow();
+        $running = ['state' => 'running', 'version' => '1.3.0', 'from' => '1.2.0'];
+        $this->follow(new ScriptedRunner(['panel-update' => $running]));
         $this->assertSame('running', PanelUpdate::current()['state']);
 
+        // The new release runs, the installer is still at work.
         config(['owpanel.version' => '1.3.0']);
-        $this->follow();
+        $this->follow(new ScriptedRunner(['panel-update' => $running]));
+        $this->assertSame('running', PanelUpdate::current()['state']);
+
+        $this->follow(new ScriptedRunner(['panel-update' => ['state' => 'succeeded'] + $running]));
 
         $update = PanelUpdate::current();
         $this->assertSame('succeeded', $update['state']);
@@ -182,6 +192,8 @@ class PanelUpdateTest extends TestCase
         $this->assertTrue(AuditLog::where('action', 'server.panel_updated')->exists());
         $this->assertCount(1, $this->pushed('panel_updated'));
         $this->assertSame('OWPanel 1.3.0 ist installiert', MessageText::title($this->pushed('panel_updated')[0]->messages[0]));
+        // The newest release is read again, so no older one is shown.
+        $this->assertSame('1.3.0', PanelRelease::latest()['version']);
 
         // Nothing more once it has ended.
         $this->follow();
@@ -247,6 +259,29 @@ class PanelUpdateTest extends TestCase
 
         $this->assertSame('failed', PanelUpdate::current()['state']);
         $this->assertSame('update_timeout', PanelUpdate::current()['error']);
+
+        // Unless the new release runs: then only the state was unreadable.
+        config(['owpanel.version' => '1.3.0']);
+        $this->state(['state' => 'running', 'started_at' => now()->subMinutes(61)->toIso8601String()]);
+        $this->follow(new ScriptedRunner);
+        $this->assertSame('succeeded', PanelUpdate::current()['state']);
+    }
+
+    public function test_the_card_reports_the_end_together_with_the_reload(): void
+    {
+        $this->actingAs($this->admin());
+        $this->state(['state' => 'running']);
+        $card = Livewire::test(PanelUpdateState::class, ['server' => $this->panel])->assertSet('waited', true);
+
+        $this->state(['state' => 'succeeded', 'finished_at' => now()->toIso8601String()]);
+        $card->call('$refresh')->assertRedirect(route('servers.updates', $this->panel));
+        $this->assertSame('OWPanel 1.3.0 ist installiert.', session('status'));
+
+        $this->state(['state' => 'running']);
+        $card = Livewire::test(PanelUpdateState::class, ['server' => $this->panel]);
+        $this->state(['state' => 'failed', 'error' => 'install_failed', 'finished_at' => now()->toIso8601String()]);
+        $card->call('$refresh')->assertRedirect(route('servers.updates', $this->panel));
+        $this->assertStringContainsString('Update auf 1.3.0 fehlgeschlagen', (string) session('error'));
     }
 
     public function test_the_automatic_update_takes_only_patch_versions_a_day_old(): void

@@ -147,8 +147,8 @@ class ServerController extends Controller
             return back()->with('error', __('servers.updates.panel.refused.'.$error));
         }
 
-        return redirect()->route('servers.updates', $server)
-            ->with('success', __('servers.updates.panel.started', ['version' => $request->input('version')]));
+        // No message yet: the card shows the running update and reports its end.
+        return redirect()->route('servers.updates', $server);
     }
 
     /**
@@ -165,7 +165,7 @@ class ServerController extends Controller
         }
 
         return redirect()->route('servers.updates', $server)
-            ->with('success', __($enabled ? 'servers.updates.panel.auto.enabled_saved' : 'servers.updates.panel.auto.disabled_saved'));
+            ->with('status', __($enabled ? 'servers.updates.panel.auto.enabled_saved' : 'servers.updates.panel.auto.disabled_saved'));
     }
 
     private function upgradeRunning(Server $server): bool

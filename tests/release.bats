@@ -129,3 +129,20 @@ embedded_signers() {
     [ "$output" = "1" ] || { echo "${file} shows an old checksum of get-owpanel"; return 1; }
   done
 }
+
+@test "release notes are the version's section of the changelog" {
+  local changelog="${BATS_TEST_TMPDIR}/CHANGELOG.md"
+  printf '# Changelog\n\n## [Unreleased]\n\n## [1.2.3] - 2026-11-26\n\nIntro.\n\n### Fixed\n- One.\n\n## [1.2.2] - 2026-11-20\n\n### Added\n- Old.\n' >"$changelog"
+  run bash "${ROOT}/scripts/release-notes" 1.2.3 "$changelog"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$(printf 'Intro.\n\n### Fixed\n- One.')" ]
+  run bash "${ROOT}/scripts/release-notes" 1.2.4 "$changelog"
+  [ "$status" -ne 0 ]
+  run bash "${ROOT}/scripts/release-notes" "1.2.3; id" "$changelog"
+  [ "$status" -eq 2 ]
+}
+
+@test "every released version has a changelog section" {
+  run bash "${ROOT}/scripts/release-notes" 0.2.1 "${ROOT}/CHANGELOG.md"
+  [ "$status" -eq 0 ]
+}

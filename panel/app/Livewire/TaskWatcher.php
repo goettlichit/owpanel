@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Enums\ServerScript;
 use App\Enums\TaskStatus;
 use App\Models\Server;
 use App\Models\ServerTask;
@@ -60,6 +61,11 @@ class TaskWatcher extends Component
             ->each(function (ServerTask $task) use ($user): void {
                 $name = __('tasks.scripts.'.$task->script->value);
                 if ($task->status === TaskStatus::Succeeded) {
+                    // panel-update --version only starts the installer; the
+                    // card of the update reports the end (E-185).
+                    if ($task->script === ServerScript::PanelUpdate && in_array('--version', (array) $task->arguments, true)) {
+                        return;
+                    }
                     session()->flash('status', __('tasks.feedback.done', ['task' => $name]));
 
                     return;
