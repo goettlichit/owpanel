@@ -148,7 +148,8 @@ Route::middleware('auth')->group(function () {
         // reset links go (E-094).
         Route::get('/settings', [SettingController::class, 'edit'])->name('settings.edit');
         Route::put('/settings', [SettingController::class, 'update'])->middleware('throttle:30,1')->name('settings.update');
-        Route::put('/settings/ingress', [SettingController::class, 'updateIngress'])->middleware('throttle:10,1')->name('settings.ingress.update');
+        Route::get('/settings/gateway', [SettingController::class, 'gateway'])->name('settings.gateway');
+        Route::put('/settings/gateway', [SettingController::class, 'updateIngress'])->middleware('throttle:10,1')->name('settings.gateway.update');
         // Own pages for mail, Pocket ID and external services (E-118, E-123).
         Route::get('/settings/mail', [SettingController::class, 'mail'])->name('settings.mail');
         Route::get('/settings/oidc', [SettingController::class, 'oidc'])->name('settings.oidc');

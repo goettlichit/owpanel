@@ -47,6 +47,18 @@ class SettingController extends Controller
             'imprintUrl' => Setting::get(Setting::IMPRINT_URL),
             'privacyUrl' => Setting::get(Setting::PRIVACY_URL),
             'helpUrl' => Setting::get(Setting::HELP_URL),
+        ]);
+    }
+
+    /**
+     * System -> Gateway: the addresses visitors reach the websites at
+     * (E-162, E-193).
+     */
+    public function gateway(): View
+    {
+        Gate::authorize('manage', Setting::class);
+
+        return view('system.gateway', [
             'ingressIpv4' => Setting::get(Setting::INGRESS_IPV4),
             'ingressIpv6' => Setting::get(Setting::INGRESS_IPV6),
             'panelServer' => Server::panelHost(),
@@ -222,7 +234,7 @@ class SettingController extends Controller
         $after = Ingress::addresses();
         Audit::record('system.ingress_changed', null, ['before' => $before, 'after' => $after], $request->user());
 
-        return redirect()->route('settings.edit')->with('status', __($before === $after ? 'settings.ingress.saved' : 'settings.ingress.changed'));
+        return redirect()->route('settings.gateway')->with('status', __($before === $after ? 'settings.ingress.saved' : 'settings.ingress.changed'));
     }
 
     /**

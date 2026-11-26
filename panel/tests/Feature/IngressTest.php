@@ -81,7 +81,7 @@ class IngressTest extends TestCase
         $this->assertSame(['203.0.113.20', '2001:db8::20'], array_column($own, 'expected'));
 
         $this->actingAs($this->admin())->get(route('sites.dns', $site))->assertOk()
-            ->assertSee('Eingangsadressen')->assertSee('203.0.113.1')->assertDontSee('203.0.113.20');
+            ->assertSee('Gateway-Adressen')->assertSee('203.0.113.1')->assertDontSee('203.0.113.20');
     }
 
     public function test_an_admin_sets_and_clears_the_ingress_addresses(): void
@@ -90,17 +90,17 @@ class IngressTest extends TestCase
         Server::factory()->panel()->create(['public_ipv4' => '203.0.113.1', 'public_ipv6' => null]);
         $admin = $this->admin();
 
-        $this->actingAs($admin)->get(route('settings.edit'))->assertOk()
-            ->assertSee('Eingangsadressen')->assertSee('Leer: 203.0.113.1 (Panel-Server)')->assertSee('Leer: keine');
+        $this->actingAs($admin)->get(route('settings.gateway'))->assertOk()
+            ->assertSee('Gateway-Adressen')->assertSee('Leer: 203.0.113.1 (Panel-Server)')->assertSee('Leer: keine');
 
-        $this->actingAs($admin)->put(route('settings.ingress.update'), ['ingress_ipv4' => '198.51.100.5', 'ingress_ipv6' => '2A01:4F8:C0C:1::5'])
-            ->assertRedirect(route('settings.edit'))->assertSessionHas('status');
+        $this->actingAs($admin)->put(route('settings.gateway.update'), ['ingress_ipv4' => '198.51.100.5', 'ingress_ipv6' => '2A01:4F8:C0C:1::5'])
+            ->assertRedirect(route('settings.gateway'))->assertSessionHas('status');
         $this->assertSame('198.51.100.5', Setting::get(Setting::INGRESS_IPV4));
         $this->assertSame('2a01:4f8:c0c:1::5', Ingress::ipv6());
         $audit = AuditLog::where('action', 'system.ingress_changed')->sole();
         $this->assertSame(['198.51.100.5', '2a01:4f8:c0c:1::5'], $audit->context['after']);
 
-        $this->actingAs($admin)->put(route('settings.ingress.update'), ['ingress_ipv4' => '', 'ingress_ipv6' => ''])->assertRedirect();
+        $this->actingAs($admin)->put(route('settings.gateway.update'), ['ingress_ipv4' => '', 'ingress_ipv6' => ''])->assertRedirect();
         $this->assertNull(Setting::get(Setting::INGRESS_IPV4));
         $this->assertSame(['203.0.113.1'], Ingress::addresses());
     }
@@ -119,7 +119,7 @@ class IngressTest extends TestCase
             ['ingress_ipv6' => '::1'],
             ['ingress_ipv6' => '198.51.100.5'],
         ] as $input) {
-            $this->actingAs($admin)->from(route('settings.edit'))->put(route('settings.ingress.update'), $input)
+            $this->actingAs($admin)->from(route('settings.gateway'))->put(route('settings.gateway.update'), $input)
                 ->assertSessionHasErrors(array_key_first($input));
         }
         $this->assertNull(Setting::get(Setting::INGRESS_IPV4));
@@ -131,8 +131,8 @@ class IngressTest extends TestCase
         $this->withSession(['auth.password_confirmed_at' => time()]);
         $customer = User::factory()->create(['customer_id' => Customer::factory()->create()->id, 'password_change_required' => false]);
 
-        $this->actingAs($customer)->get(route('settings.edit'))->assertForbidden();
-        $this->actingAs($customer)->put(route('settings.ingress.update'), ['ingress_ipv4' => '198.51.100.5'])->assertForbidden();
+        $this->actingAs($customer)->get(route('settings.gateway'))->assertForbidden();
+        $this->actingAs($customer)->put(route('settings.gateway.update'), ['ingress_ipv4' => '198.51.100.5'])->assertForbidden();
         $this->assertNull(Setting::get(Setting::INGRESS_IPV4));
     }
 }

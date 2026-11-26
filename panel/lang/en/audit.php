@@ -172,7 +172,7 @@ return [
             'oidc_disabled' => 'Login with Pocket ID turned off',
             'test_mail_sent' => 'Test mail sent',
             'restored_dismissed' => 'Note about the panel restore hidden',
-            'ingress_changed' => 'Ingress addresses changed',
+            'ingress_changed' => 'Gateway addresses changed',
             'settings_changed' => 'Settings changed',
         ],
     ],
