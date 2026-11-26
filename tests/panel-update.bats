@@ -137,7 +137,7 @@ make_signed_archive() {
 @test "the update runs detached and keeps worker and scheduler running on failure" {
   grep -q 'systemd-run --unit="$OWP_UPDATE_UNIT"' "${ROOT}/server/bin/panel-update"
   grep -q -- '--no-reboot --skip-dns-check' "${ROOT}/server/lib/panel-update-run.sh"
-  grep -q 'systemctl start owpanel-queue.service owpanel-scheduler.timer' "${ROOT}/server/lib/panel-update-run.sh"
+  grep -q 'systemctl start owpanel-queue.target owpanel-scheduler.timer' "${ROOT}/server/lib/panel-update-run.sh"
   grep -q 'readonly WAIT_SECONDS=600' "${ROOT}/server/lib/panel-update-run.sh"
 }
 

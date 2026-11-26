@@ -11,6 +11,7 @@ use App\Servers\ScriptCall;
 use App\Servers\ScriptRunner;
 use App\Servers\ScriptsUpdater;
 use App\Servers\ServerConnectionException;
+use App\Servers\ServerLane;
 use App\Servers\TaskOutput;
 use App\Support\PanelRelease;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -42,13 +43,17 @@ class RunServerTask implements ShouldQueue
 
     public function handle(ScriptRunner $runner): void
     {
-        // Moves the task from pending to running in one statement, so two
-        // workers can never both start it.
-        $claimed = ServerTask::whereKey($this->taskId)
-            ->where('status', TaskStatus::Pending->value)
-            ->update(['status' => TaskStatus::Running->value, 'started_at' => now(), 'updated_at' => now()]);
+        // Moves the task from pending to running, so two workers never both
+        // start it. One task at a time per server; tasks of other servers
+        // run in the other workers. A task whose server is busy comes back
+        // a little later as a new job, so the single try stays (M5-1).
+        $start = ServerLane::start($this->taskId);
+        if ($start === ServerLane::BUSY) {
+            self::dispatch($this->taskId)->delay(now()->addSeconds(ServerLane::RETRY_SECONDS));
 
-        if ($claimed !== 1) {
+            return;
+        }
+        if ($start !== ServerLane::STARTED) {
             return;
         }
 
@@ -134,6 +139,7 @@ class RunServerTask implements ShouldQueue
      */
     private function finish(ServerTask $task, TaskStatus $status, ?string $error = null, ?int $exitCode = null, ?array $result = null): void
     {
+        ServerLane::release($task->getKey());
         $task->forceFill([
             'status' => $status,
             'error' => $error,

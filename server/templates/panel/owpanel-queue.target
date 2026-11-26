@@ -1,0 +1,9 @@
+# Managed by OWPanel. Do not edit, changes are overwritten.
+# The task workers of the panel (M5-1): starts and stops all enabled
+# owpanel-queue@N together.
+[Unit]
+Description=OWPanel queue workers
+After=network-online.target mariadb.service
+
+[Install]
+WantedBy=multi-user.target

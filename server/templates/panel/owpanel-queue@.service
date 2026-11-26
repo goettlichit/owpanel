@@ -1,11 +1,15 @@
 # Managed by OWPanel. Do not edit, changes are overwritten.
-# Queue worker of the panel (E-052, E-070). Runs as owpanel-worker, the only
-# user that can read the panel's SSH key. Each job decides its own time
-# limit; --max-time lets the worker start fresh once an hour.
+# Queue worker of the panel (E-052, E-070), one of several (M5-1): the
+# installer enables owpanel-queue@1 to @N, grouped by owpanel-queue.target.
+# Each server runs one task at a time (ServerLane), so the workers serve
+# different servers side by side. Runs as owpanel-worker, the only user
+# that can read the panel's SSH key. Each job decides its own time limit;
+# --max-time lets the worker start fresh once an hour.
 [Unit]
-Description=OWPanel queue worker
+Description=OWPanel queue worker %i
 After=network-online.target mariadb.service
 Wants=network-online.target
+PartOf=owpanel-queue.target
 
 [Service]
 User=owpanel-worker
@@ -32,4 +36,4 @@ RestrictSUIDSGID=yes
 LockPersonality=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=owpanel-queue.target

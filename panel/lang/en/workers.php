@@ -9,7 +9,7 @@ return [
         'scheduler' => 'Scheduler',
     ],
     'descriptions' => [
-        'default' => 'Runs all server actions: creating websites, backups, certificates, updates and everything else that shows up as a task.',
+        'default' => 'Runs all server actions: creating websites, backups, certificates, updates and everything else that shows up as a task. Several processes work for different servers at the same time; each server runs one task at a time.',
         'queries' => 'Reads from the server for the database tool, logs, backups and fail2ban, so that page requests never connect to servers themselves.',
         'scheduler' => 'Starts the planned work every minute: server state, backups, snapshots, notifications and the check jobs for this page.',
     ],
@@ -21,6 +21,7 @@ return [
         'unknown' => 'no answer yet',
     ],
     'fields' => [
+        'processes' => 'Processes',
         'unit' => 'systemd service',
         'last_beat' => 'Last answered',
         'last_run' => 'Last run',
@@ -28,6 +29,7 @@ return [
         'waiting' => 'Waiting jobs',
         'failed' => 'Failed jobs',
     ],
+    'more_running' => 'and :count more',
     'never' => 'never',
     'idle' => 'nothing',
     'since' => 'since :time',

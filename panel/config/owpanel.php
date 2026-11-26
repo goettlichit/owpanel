@@ -8,6 +8,10 @@ return [
     */
     'version' => env('OWPANEL_VERSION', 'dev'),
 
+    // Number of task workers (owpanel-queue@1 to @N, M5-1), 1 to 8. The
+    // installer reads the same value from .env when it sets up the units.
+    'queue_workers' => max(1, min(8, (int) env('OWPANEL_QUEUE_WORKERS', 3))),
+
     // Folder of the installed release, releases/<version>/, which holds the
     // archive the panel sends to its servers (server-scripts-update, E-187).
     // Null: the folder above the panel.

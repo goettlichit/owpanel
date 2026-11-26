@@ -86,7 +86,7 @@ class PanelWorkersTest extends TestCase
 
         $this->actingAs($admin)->get('/system/workers')->assertOk()
             ->assertSee('Auftrags-Worker')->assertSee('Abfrage-Worker')->assertSee('Zeitplaner')
-            ->assertSee('owpanel-queue.service')->assertSee('läuft')->assertDontSee('Angehalten:');
+            ->assertSee('owpanel-queue.target')->assertSee('Prozesse')->assertSee('läuft')->assertDontSee('Angehalten:');
 
         $this->actingAs($admin)->from('/system/workers')->post('/system/workers/pause', ['queue' => 'default'])
             ->assertRedirect('/system/workers')->assertSessionHas('status', 'Auftrags-Worker ist angehalten.');

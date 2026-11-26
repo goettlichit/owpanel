@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Queue;
 
 /**
  * The background services of the panel under System -> Services (E-133):
- * the task worker (owpanel-queue), the query worker (owpanel-query) and the
+ * the task workers (owpanel-queue@1 to @N, M5-1), the query worker
+ * (owpanel-query) and the
  * scheduler (owpanel-scheduler.timer).
  *
  * Their state comes from the panel itself, without root: the scheduler
@@ -28,7 +29,7 @@ class PanelWorkers
      * Queue name => systemd unit.
      */
     public const QUEUES = [
-        'default' => 'owpanel-queue.service',
+        'default' => 'owpanel-queue.target',
         'queries' => 'owpanel-query.service',
     ];
 
@@ -110,7 +111,7 @@ class PanelWorkers
      * queue's retry time), unresponsive, or unknown before the first
      * heartbeat.
      *
-     * @return array{name: string, unit: string, state: string, last_beat: ?CarbonImmutable, current: ?string, current_since: ?CarbonImmutable, waiting: int, oldest_waiting: ?CarbonImmutable, failed: int, last_failed: ?CarbonImmutable}
+     * @return array{name: string, unit: string, processes: int, running: int, state: string, last_beat: ?CarbonImmutable, current: ?string, current_since: ?CarbonImmutable, waiting: int, oldest_waiting: ?CarbonImmutable, failed: int, last_failed: ?CarbonImmutable}
      */
     public static function worker(string $queue): array
     {
@@ -136,6 +137,8 @@ class PanelWorkers
         return [
             'name' => $queue,
             'unit' => self::QUEUES[$queue],
+            'processes' => $queue === 'default' ? (int) config('owpanel.queue_workers') : 1,
+            'running' => (clone $jobs)->whereNotNull('reserved_at')->count(),
             'state' => $state,
             'last_beat' => $lastBeat,
             'current' => $reserved ? self::jobName((string) $reserved->payload) : null,
