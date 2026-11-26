@@ -4,6 +4,12 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 
 ## [Unreleased]
 
+### Fixed
+- Updating the panel from within: the update counts as done only when the installer has ended, not as soon as the new version runs; then the newest release is read again, and the green message "OWPanel x.y.z is installed" comes together with the reload of the page. The message "Update panel is done" right after the start is gone, as is a hidden message for the automatic-update switch.
+
+### Changed
+- The text of a GitHub release is the version's section of `CHANGELOG.md` (`scripts/release-notes`), so the link "Changes" in the panel shows what changed.
+
 ## [0.2.1] - 2026-11-25
 
 First release that can be installed from within the panel (from 0.2.0).

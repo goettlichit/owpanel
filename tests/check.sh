@@ -9,6 +9,7 @@ scripts=(
   install
   get-owpanel
   scripts/build-release
+  scripts/release-notes
   server/provision/setup-agent
   server/bin/*
   server/lib/*.sh

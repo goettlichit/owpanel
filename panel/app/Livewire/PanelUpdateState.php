@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Server;
 use App\Support\PanelUpdate;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Lang;
 use Illuminate\View\View;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -34,7 +35,14 @@ class PanelUpdateState extends Component
 
         $update = PanelUpdate::current();
         $running = PanelUpdate::inProgress();
+        // The message comes with the reload, when the update has really
+        // ended, not when the task that started it was done (E-185).
         if (! $running && $this->waited) {
+            if ($update['state'] === 'succeeded') {
+                session()->flash('status', __('servers.updates.panel.finished', ['version' => $update['version']]));
+            } elseif ($update['state'] === 'failed') {
+                session()->flash('error', __('servers.updates.panel.state.failed', ['version' => $update['version'], 'error' => $update['error'] !== null && Lang::has('tasks.errors.'.$update['error']) ? __('tasks.errors.'.$update['error']) : $update['error']]));
+            }
             $this->js('window.location.reload()');
         }
         $this->waited = $running;

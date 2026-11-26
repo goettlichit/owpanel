@@ -144,7 +144,7 @@ return [
             'last_update' => 'Last update',
             'starting' => 'Starting the update …',
             'confirm' => 'I have read the changes of :version, update now',
-            'started' => 'The update to :version is running. The panel is briefly unavailable meanwhile; the page reloads afterwards.',
+            'finished' => 'OWPanel :version is installed.',
             'refused' => [
                 'no_panel_server' => 'The server of the panel is not known.',
                 'running' => 'An update of the panel is already running.',

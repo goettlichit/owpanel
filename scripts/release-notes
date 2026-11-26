@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Prints the section of CHANGELOG.md for one version, as the text of the
+# GitHub release (the "Changes" link of the panel leads there).
+#
+#   scripts/release-notes 1.2.3 [CHANGELOG.md]
+#
+# Fails when the changelog has no section "## [1.2.3]".
+set -euo pipefail
+
+version="${1:-}"
+changelog="${2:-CHANGELOG.md}"
+[[ "$version" =~ ^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}(-[0-9A-Za-z.]{1,32})?$ ]] || {
+  echo "usage: release-notes <x.y.z> [CHANGELOG.md]" >&2
+  exit 2
+}
+
+notes="$(awk -v head="## [${version}]" '
+  index($0, head) == 1 { found = 1; next }
+  found && /^## \[/ { exit }
+  found { print }
+' "$changelog")"
+# Without blank lines at the start and the end.
+notes="$(printf '%s\n' "$notes" | sed -e '/./,$!d' | tac | sed -e '/./,$!d' | tac)"
+if [[ -z "$notes" ]]; then
+  echo "CHANGELOG.md has no section for ${version}" >&2
+  exit 1
+fi
+printf '%s\n' "$notes"
