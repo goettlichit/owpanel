@@ -719,7 +719,7 @@ final_updates() {
   owp_log "installing the updates published during the installation"
   owp_apt_upgrade >/dev/null
   ok "system up to date"
-  mariadb --protocol=socket owpanel -e "UPDATE servers SET updates = NULL, updates_checked_at = NULL, reboot_required = 0 WHERE host IN ('127.0.0.1', '::1', 'localhost')" \
+  mariadb --protocol=socket owpanel -e "UPDATE servers SET updates = NULL, updates_checked_at = NULL, reboot_required = 0 WHERE hosts_panel = 1" \
     || owp_warn "could not reset the update state of this server in the panel"
 }
 
@@ -951,7 +951,7 @@ add_own_server() {
   ipv6="$(owp_public_address 6)"
   [[ -z "$ipv4" ]] || addresses+=("--public-ipv4=${ipv4}")
   [[ -z "$ipv6" ]] || addresses+=("--public-ipv6=${ipv6}")
-  artisan owpanel:add-server --skip-existing --name="$name" --host=127.0.0.1 --port="$SSH_PORT" \
+  artisan owpanel:add-server --skip-existing --panel --name="$name" --host=127.0.0.1 --port="$SSH_PORT" \
     --host-key-file=/etc/ssh/ssh_host_ed25519_key.pub "${addresses[@]}" \
     || owp_die "add_server_failed" "the own server could not be added"
 }

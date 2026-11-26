@@ -24,6 +24,14 @@ class ServerFactory extends Factory
     }
 
     /**
+     * The panel's own server (E-192).
+     */
+    public function panel(): static
+    {
+        return $this->state(['host' => '127.0.0.1', 'hosts_panel' => true]);
+    }
+
+    /**
      * A syntactically valid Ed25519 host key built from 32 random bytes.
      */
     public static function hostKey(?string $bytes = null): string

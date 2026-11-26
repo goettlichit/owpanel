@@ -93,7 +93,7 @@ class BlocklistTest extends TestCase
     public function test_a_list_is_fetched_checked_and_sent_with_the_exceptions(): void
     {
         Http::fake(['lists.example.net/*' => Http::response(self::LIST)]);
-        $panel = Server::factory()->create(['host' => '127.0.0.1', 'public_ipv4' => '78.46.10.20', 'public_ipv6' => '2a01:4f8:c0c:1::1']);
+        $panel = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true, 'public_ipv4' => '78.46.10.20', 'public_ipv6' => '2a01:4f8:c0c:1::1']);
         $panel->fail2banIgnores()->create(['address' => '93.184.216.0/24']);
 
         $this->actingAs($this->admin())->post("/servers/{$panel->id}/firewall/blocklists", ['name' => "  Angreifer\n DE ", 'url' => self::URL, 'interval_hours' => 6])
@@ -378,7 +378,7 @@ class BlocklistTest extends TestCase
     public function test_own_addresses_on_a_list_are_shown_and_an_address_can_be_checked(): void
     {
         Http::fake(['lists.example.net/*' => Http::response(self::LIST)]);
-        $panel = Server::factory()->create(['name' => 'gw01', 'host' => '127.0.0.1', 'public_ipv4' => '185.220.101.20']);
+        $panel = Server::factory()->create(['name' => 'gw01', 'host' => '127.0.0.1', 'hosts_panel' => true, 'public_ipv4' => '185.220.101.20']);
         $web = Server::factory()->create(['name' => 'web01', 'public_ipv4' => '78.46.10.21', 'public_ipv6' => '2a0e:1d80:1::5']);
         $web->fail2banIgnores()->create(['address' => '45.155.205.17', 'comment' => 'Büro']);
         $this->actingAs($this->admin());

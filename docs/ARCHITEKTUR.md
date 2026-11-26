@@ -27,7 +27,7 @@ Das Panel ändert Server nie direkt aus einer Web-Anfrage heraus. Jede Serverakt
 
 ## Standalone und Multi-Server
 
-Es gibt nur einen Codepfad. Die Ersteinrichtung ergibt immer eine Standalone-Installation: Das Panel verwaltet genau einen Server, nämlich den eigenen. Auch dann läuft die Steuerung per SSH über `127.0.0.1` und denselben Benutzer `owpanel-agent`.
+Es gibt nur einen Codepfad. Die Ersteinrichtung ergibt immer eine Standalone-Installation: Das Panel verwaltet genau einen Server, nämlich den eigenen. Auch dann läuft die Steuerung per SSH über `127.0.0.1` und denselben Benutzer `owpanel-agent`. Welcher Server das Panel trägt, steht in der Spalte `servers.hosts_panel`, nicht in seiner Adresse; der Installer setzt sie mit `owpanel:add-server --panel`, und es gibt höchstens einen solchen Server (E-192).
 
 Für Multi-Server gibt es keinen Modus und keine Migration. Sobald ein zweiter Server eingebunden wird, erscheint er als weiterer Eintrag in `servers`, und die Oberfläche zeigt die Serverauswahl an.
 

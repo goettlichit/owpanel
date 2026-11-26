@@ -89,7 +89,7 @@ class ServerUpgradeTest extends TestCase
     {
         config(['owpanel.version' => '1.2.0', 'owpanel.source_url' => 'https://github.com/example/owpanel']);
         Http::fake(['api.github.com/repos/example/owpanel/releases/latest' => Http::response(['tag_name' => 'v1.3.0'])]);
-        $panel = Server::factory()->create(['host' => '127.0.0.1']);
+        $panel = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true]);
         $other = Server::factory()->create(['host' => '198.51.100.20']);
 
         $this->actingAs($this->admin())->post("/servers/{$panel->id}/updates/release")->assertRedirect("/servers/{$panel->id}/updates");
@@ -108,7 +108,7 @@ class ServerUpgradeTest extends TestCase
     {
         config(['owpanel.version' => '1.2.0', 'owpanel.source_url' => 'https://github.com/example/owpanel']);
         Setting::put(Setting::PANEL_RELEASE, (string) json_encode(['version' => '1.1.0', 'checked_at' => now()->subHour()->toIso8601String(), 'error' => null]));
-        $panel = Server::factory()->create(['host' => '127.0.0.1']);
+        $panel = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true]);
 
         $this->actingAs($this->admin())->get("/servers/{$panel->id}/updates")->assertOk()
             ->assertSee('Die letzte Prüfung war vor dem Update')
@@ -127,7 +127,7 @@ class ServerUpgradeTest extends TestCase
         $this->assertSame('not_found', PanelRelease::latest()['error']);
         $this->assertTrue(PanelRelease::isTestBuild());
         $this->assertFalse(PanelRelease::updateAvailable());
-        $panel = Server::factory()->create(['host' => '127.0.0.1']);
+        $panel = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true]);
         $this->actingAs($this->admin())->get("/servers/{$panel->id}/updates")->assertOk()
             ->assertSee('Testversion, kein Vergleich')
             ->assertSee('Solange das Repository privat ist');

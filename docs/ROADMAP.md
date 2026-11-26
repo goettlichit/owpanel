@@ -214,6 +214,7 @@ Grundlage sind E-021, E-084, E-085 und E-123 bis E-130. Die API folgt in Meilens
 Am 2026-11-14 pausiert, am 2026-11-20 geklärt (E-161 bis E-168). Umgesetzt wird nach dem ersten öffentlichen Release (erledigt mit `v0.1.0` am 2026-11-23) und dem Update-Mechanismus (E-169). PR-Nummern vor dem 2026-11-23 (#1 bis #112) beziehen sich auf das private Archiv `goettlichit/owpanel-archive` (E-181). Der Panel-Server nimmt als Eingangstor (Gateway) alle Anfragen an und reicht sie über das private Hetzner-Netz an den Server der Website weiter. Lastverteilung heißt Platzierung; Ausfallsicherheit einzelner Websites gehört nicht dazu.
 
 - [x] Serveraufgaben laufen je Server nacheinander und für verschiedene Server parallel (mehrere Worker, Sperre je Server); die Statusabfrage fragt jeden Server in einem eigenen Prozess ab, damit ein ausgefallener Server die anderen nicht aufhält (E-191)
+- [x] Der Panel-Server ist über eine eigene Markierung erkannt, nicht über die Adresse `127.0.0.1` (E-192)
 - [ ] „Server hinzufügen“ mit Einmal-Token und `bash get-owpanel --join <Panel-Adresse>` (E-166)
 - [ ] Steuerung über die private Adresse; Firewall der Website-Server: öffentlich nur Port 22, sonst nur das private Subnetz (E-166, E-168)
 - [ ] Gateway: Zertifikate, ACME und HTTP/3 am Panel-Server, Weiterleitung an den Server der Website, echte Besucheradresse über `set_real_ip_from`, Grenzen wie Uploadgröße je Website (E-161, E-168)

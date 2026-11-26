@@ -21,7 +21,7 @@ class RefreshSitesTest extends TestCase
     public function test_active_idle_websites_of_the_panel_server_get_site_create_without_a_certificate_request(): void
     {
         Queue::fake();
-        $own = Server::factory()->create(['host' => '127.0.0.1']);
+        $own = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true]);
         $other = Server::factory()->create(['host' => '203.0.113.20']);
         $plain = Site::factory()->create(['server_id' => $own->id, 'domain' => 'shop.example.de', 'system_user' => 'ow38217', 'www' => false]);
         $www = Site::factory()->create(['server_id' => $own->id, 'domain' => 'example.de', 'system_user' => 'ow26069', 'www' => true]);

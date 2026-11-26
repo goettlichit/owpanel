@@ -49,7 +49,7 @@ class ScriptsUpdateTest extends TestCase
         $this->dir = sys_get_temp_dir().'/owpanel-release-'.bin2hex(random_bytes(4));
         File::ensureDirectoryExists($this->dir);
         config(['owpanel.release_dir' => $this->dir]);
-        $this->panel = Server::factory()->create(['host' => '127.0.0.1', 'scripts_version' => '1.3.0']);
+        $this->panel = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true, 'scripts_version' => '1.3.0']);
         $this->web = Server::factory()->create(['name' => 'web2', 'scripts_version' => '1.2.0']);
     }
 

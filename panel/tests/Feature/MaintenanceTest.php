@@ -255,7 +255,7 @@ class MaintenanceTest extends TestCase
         $server = Server::factory()->create([
             'name' => 'web1',
             'hostname' => 'web1.example.de',
-            'host' => '127.0.0.1',
+            'host' => '127.0.0.1', 'hosts_panel' => true,
             'reboot_required' => true,
             'updates' => self::updatesAnswer(['reboot' => ['required' => true, 'kernel_running' => '6.12.48+deb13-amd64', 'kernel_installed' => '6.12.57+deb13-amd64', 'packages' => ['linux-image-amd64']]]),
             'updates_checked_at' => now(),
