@@ -133,7 +133,7 @@ return [
         'panel' => [
             'title' => 'OWPanel',
             'installed' => 'Installed',
-            'latest' => 'Newest version',
+            'latest' => 'Newest stable version',
             'checked' => 'Last checked',
             'available' => 'New version available',
             'test_build' => 'test build, not compared',
