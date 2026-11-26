@@ -277,7 +277,7 @@ class RebuildTest extends TestCase
     {
         Queue::fake();
         $own = Server::factory()->create([
-            'host' => '127.0.0.1', 'backup_box_id' => 7, 'backup_host' => 'u123456.your-storagebox.de', 'backup_ready' => false,
+            'host' => '127.0.0.1', 'hosts_panel' => true, 'backup_box_id' => 7, 'backup_host' => 'u123456.your-storagebox.de', 'backup_ready' => false,
         ]);
         $site = Site::factory()->withoutTls()->create(['server_id' => $own->id, 'system_user' => 'ow49545']);
 
@@ -367,7 +367,7 @@ class RebuildTest extends TestCase
     {
         $this->withoutMiddleware(ThrottleRequests::class);
         $runner = $this->runner();
-        $own = $this->server(['ow38217'], ['host' => '127.0.0.1']);
+        $own = $this->server(['ow38217'], ['host' => '127.0.0.1', 'hosts_panel' => true]);
         Site::factory()->create(['server_id' => $own->id, 'system_user' => 'ow38217']);
         $admin = $this->admin();
 

@@ -463,7 +463,7 @@ class BackupTest extends TestCase
         Queue::fake();
         $this->target();
         $other = Server::factory()->create(['backup_ready' => false]);
-        $own = Server::factory()->create(['host' => '127.0.0.1', 'backup_ready' => false]);
+        $own = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true, 'backup_ready' => false]);
 
         $this->artisan('owpanel:reconnect-backups')->assertSuccessful();
 
@@ -606,7 +606,7 @@ class BackupTest extends TestCase
         $runner = $this->runner(['panel-backups' => '{"ok":true,"script":"panel-backups","snapshots":[{"id":"85f2cfc3","time":"2026-11-12T02:30:00+01:00","kind":"schedule"},{"id":"a91b9397","time":"2026-11-11T10:43:27+01:00","kind":"manual"}]}']);
         $this->target();
         config(['owpanel.timezone' => 'Europe/Berlin']);
-        $own = Server::factory()->create(['host' => '127.0.0.1', 'backup_ready' => true]);
+        $own = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true, 'backup_ready' => true]);
         Server::factory()->create(['host' => '203.0.113.5', 'backup_ready' => true]);
         $admin = $this->admin();
 
@@ -659,7 +659,7 @@ class BackupTest extends TestCase
     {
         $runner = $this->runner();
         $this->target();
-        $own = Server::factory()->create(['host' => '127.0.0.1', 'backup_ready' => false]);
+        $own = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true, 'backup_ready' => false]);
 
         $this->actingAs($this->admin())->post("/servers/{$own->id}/backups/panel")->assertSessionHas('error');
         $this->travelTo(now('Europe/Berlin')->setTime(23, 0));
@@ -677,7 +677,7 @@ class BackupTest extends TestCase
     {
         $this->hetzner();
         $runner = $this->runner(['backup-setup' => '{"ok":true,"script":"backup-setup","key_installed":true,"initialized":true,"public_key":"'.self::KEY.'"}']);
-        $own = Server::factory()->create(['host' => '127.0.0.1', 'name' => 'a']);
+        $own = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true, 'name' => 'a']);
         $other = Server::factory()->create(['host' => '203.0.113.5', 'name' => 'b']);
 
         $this->actingAs($this->admin())->put("/servers/{$own->id}/backups", $this->form());
@@ -696,7 +696,7 @@ class BackupTest extends TestCase
     public function test_the_emergency_data_holds_every_repository_password_and_needs_the_password(): void
     {
         $this->target();
-        $own = Server::factory()->create(['host' => '127.0.0.1', 'name' => 'panel-host']);
+        $own = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true, 'name' => 'panel-host']);
         $own->forceFill(['backup_repo_password' => str_repeat('a', 48), 'backup_account' => 'u123456-sub1', 'backup_ready' => true])->save();
         $other = Server::factory()->create(['name' => 'web & shop']);
         $other->forceFill(['backup_repo_password' => str_repeat('b', 48), 'backup_account' => 'u123456-sub2'])->save();
@@ -744,7 +744,7 @@ class BackupTest extends TestCase
     {
         $this->runner();
         $this->target();
-        $server = Server::factory()->create(['host' => '127.0.0.1', 'backup_ready' => true]);
+        $server = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true, 'backup_ready' => true]);
         $on = Site::factory()->create(['server_id' => $server->id, 'domain' => 'shop.example.de', 'system_user' => 'ow20001']);
         Site::factory()->create(['server_id' => $server->id, 'domain' => 'blog.example.de', 'system_user' => 'ow20002', 'backup_enabled' => false]);
         ServerTask::start($server, ScriptCall::siteBackup('ow20001', false, $server->backupRetention()), null, $on);
@@ -769,7 +769,7 @@ class BackupTest extends TestCase
             'panel-backup-files' => '{"ok":true,"script":"panel-backup-files","snapshot":"85f2cfc3","files":{"entries":[{"name":"/var/backups/owpanel/panel/owpanel.sql","type":"file","size":8000,"mtime":"2026-11-12T02:30:01"},{"name":"/var/www/ow10000/shared/.env","type":"file","size":900,"mtime":null},{"name":"relative/evil","type":"file"}],"more":false}}',
         ]);
         $this->target();
-        $own = Server::factory()->create(['host' => '127.0.0.1', 'backup_ready' => true]);
+        $own = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true, 'backup_ready' => true]);
         $other = Server::factory()->create(['host' => '203.0.113.5', 'backup_ready' => true]);
         $admin = $this->admin();
 
@@ -796,7 +796,7 @@ class BackupTest extends TestCase
         }
         $runner = $this->runner(['panel-backups' => json_encode(['ok' => true, 'script' => 'panel-backups', 'snapshots' => $snapshots])]);
         $this->target();
-        $own = Server::factory()->create(['host' => '127.0.0.1', 'backup_ready' => true]);
+        $own = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true, 'backup_ready' => true]);
 
         $list = Livewire::withoutLazyLoading()->actingAs($this->admin())->test(PanelBackupList::class, ['server' => $own])
             ->assertSeeInOrder(['ID', 'Automatische Sicherung', 'Art', 'Zeitpunkt'])

@@ -16,7 +16,11 @@ use Illuminate\Validation\Rule;
  * /etc/ssh/ssh_host_ed25519_key.pub. In milestone 3 the installer adds the
  * own server, later the bootstrap of further servers.
  *
- *   php artisan owpanel:add-server --name=web1 --host=127.0.0.1 --host-key-file=/etc/ssh/ssh_host_ed25519_key.pub
+ *   php artisan owpanel:add-server --name=web1 --host=127.0.0.1 --host-key-file=/etc/ssh/ssh_host_ed25519_key.pub --panel
+ *
+ * --panel marks the server the panel runs on (E-192); there is at most one.
+ * With --skip-existing it also marks an existing server, if no other has
+ * the mark.
  *
  * The public addresses are only shown (E-072). With --skip-existing they are
  * updated on an existing server, so a second installer run fills them in.
@@ -30,6 +34,7 @@ class AddServer extends Command
         {--host-key-file= : Public Ed25519 host key of the server}
         {--public-ipv4= : Public IPv4 address, shown in the panel}
         {--public-ipv6= : Public IPv6 address, shown in the panel}
+        {--panel : The panel runs on this server}
         {--skip-existing : Succeed without changes if the server exists with the same host key}';
 
     protected $description = 'Add a server to the panel';
@@ -68,6 +73,8 @@ class AddServer extends Command
             'host_key.required' => 'The host key file is missing or not readable.',
         ]);
 
+        $otherPanel = Server::where('hosts_panel', true)->first();
+
         if ($this->option('skip-existing') && HostKey::isValid($hostKey)) {
             $existing = Server::where('host', strtolower(trim((string) $this->option('host'))))
                 ->where('port', (int) $this->option('port'))
@@ -91,7 +98,12 @@ class AddServer extends Command
 
                     return self::FAILURE;
                 }
-                $existing->fill(array_filter($addresses->validated(), fn ($value) => $value !== null))->save();
+                $existing->fill(array_filter($addresses->validated(), fn ($value) => $value !== null));
+                if ($this->option('panel') && $otherPanel === null) {
+                    $existing->forceFill(['hosts_panel' => true]);
+                    $this->info("Server {$existing->name} is marked as the panel's server.");
+                }
+                $existing->save();
                 $this->info("Server {$existing->name} exists already, public addresses updated.");
 
                 return self::SUCCESS;
@@ -106,8 +118,15 @@ class AddServer extends Command
             return self::FAILURE;
         }
 
+        if ($this->option('panel') && $otherPanel !== null) {
+            $this->error("The panel runs on {$otherPanel->name} already.");
+
+            return self::FAILURE;
+        }
+
         $data = $validator->validated();
-        $server = Server::create([...$data, 'port' => (int) $data['port']]);
+        $server = new Server([...$data, 'port' => (int) $data['port']]);
+        $server->forceFill(['hosts_panel' => (bool) $this->option('panel')])->save();
 
         Audit::record('server.added', $server, ['host' => $server->host, 'source' => 'console']);
 

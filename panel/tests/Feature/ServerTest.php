@@ -125,6 +125,40 @@ class ServerTest extends TestCase
         unlink($other);
     }
 
+    public function test_the_panel_server_is_marked_by_a_column_not_by_its_address(): void
+    {
+        $file = tempnam(sys_get_temp_dir(), 'hostkey');
+        file_put_contents($file, ServerFactory::hostKey(str_repeat('m', 32)));
+        $options = ['--name' => 'gw01', '--host' => '127.0.0.1', '--host-key-file' => $file, '--skip-existing' => true];
+
+        // An older installation: the own server exists without the mark.
+        $this->artisan('owpanel:add-server', $options)->assertSuccessful();
+        $own = Server::sole();
+        $this->assertFalse($own->hostsPanel());
+        $this->assertNull(Server::panelHost());
+
+        // The installer runs again with --panel and marks it.
+        $this->artisan('owpanel:add-server', [...$options, '--panel' => true])->assertSuccessful();
+        $this->assertTrue($own->fresh()->hostsPanel());
+        $this->assertSame($own->id, Server::panelHost()?->id);
+
+        // A second server cannot take the mark, whatever its address.
+        $other = tempnam(sys_get_temp_dir(), 'hostkey');
+        file_put_contents($other, ServerFactory::hostKey(str_repeat('n', 32)));
+        $this->artisan('owpanel:add-server', ['--name' => 'web2', '--host' => '192.0.2.3', '--host-key-file' => $other, '--panel' => true])
+            ->assertFailed();
+        $this->artisan('owpanel:add-server', ['--name' => 'web2', '--host' => '192.0.2.3', '--host-key-file' => $other])
+            ->assertSuccessful();
+        $this->assertFalse(Server::where('name', 'web2')->sole()->hostsPanel());
+        $this->assertSame($own->id, Server::panelHost()?->id);
+
+        // The address alone means nothing any more.
+        $this->assertFalse(Server::factory()->create(['host' => '::1'])->hostsPanel());
+
+        unlink($file);
+        unlink($other);
+    }
+
     public function test_public_addresses_are_stored_shown_and_filled_in_later(): void
     {
         $key = ServerFactory::hostKey(str_repeat('p', 32));

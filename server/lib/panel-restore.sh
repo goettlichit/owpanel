@@ -135,6 +135,8 @@ owp_restore_database() {
   mariadb --protocol=socket -e "DROP DATABASE IF EXISTS \`owpanel\`"
   mariadb --protocol=socket --default-character-set=utf8mb4 <"${dir}${OWP_RESTORE_DUMP}" \
     || owp_die "import_failed" "the panel database could not be imported"
+  # By address, not by the column hosts_panel (E-192): a dump from an older
+  # version has no such column; the migration sets it afterwards.
   mariadb --protocol=socket owpanel \
     -e "UPDATE servers SET host_key = '${host_key}', port = ${port}, backup_ready = 0 WHERE host IN ('127.0.0.1', '::1', 'localhost')"
   # The cache lives in the database (CACHE_STORE=database) and came with the

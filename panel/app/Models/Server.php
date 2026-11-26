@@ -64,6 +64,8 @@ class Server extends Model
             'cpu_cores' => 'integer',
             'booted_at' => 'datetime',
             'reboot_required' => 'boolean',
+            // The panel runs on this server (M5-2, E-192); set by the installer.
+            'hosts_panel' => 'boolean',
             // User quotas for /var/www (E-126); null before the first measurement.
             'quota_active' => 'boolean',
             // Website users the status check found on the server (E-106).
@@ -188,12 +190,12 @@ class Server extends Model
     }
 
     /**
-     * Whether the panel itself runs on this server; the installer adds it
-     * with the address 127.0.0.1.
+     * Whether the panel itself runs on this server (E-192). The installer
+     * marks it with owpanel:add-server --panel; there is at most one.
      */
     public function hostsPanel(): bool
     {
-        return in_array($this->host, ['127.0.0.1', '::1', 'localhost'], true);
+        return (bool) $this->hosts_panel;
     }
 
     /**
@@ -211,7 +213,7 @@ class Server extends Model
      */
     public static function panelHost(): ?self
     {
-        return self::query()->whereIn('host', ['127.0.0.1', '::1', 'localhost'])->orderBy('created_at')->first();
+        return self::query()->where('hosts_panel', true)->orderBy('created_at')->first();
     }
 
     /**

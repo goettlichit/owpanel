@@ -41,7 +41,7 @@ class PanelUpdateTest extends TestCase
         Queue::fake();
         Http::fake(['api.github.com/*' => Http::response(['tag_name' => 'v1.3.0', 'published_at' => '2026-11-20T10:00:00Z'])]);
         config(['owpanel.version' => '1.2.0', 'owpanel.source_url' => 'https://github.com/example/owpanel']);
-        $this->panel = Server::factory()->create(['host' => '127.0.0.1']);
+        $this->panel = Server::factory()->create(['host' => '127.0.0.1', 'hosts_panel' => true]);
         $this->release('1.3.0');
     }
 
