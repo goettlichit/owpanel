@@ -2,14 +2,23 @@
 
 Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+Hier steht nur, was sich in einer Version tatsächlich geändert hat; Pläne gehören in `docs/ROADMAP.md`. Der Abschnitt einer Version ist zugleich der Text ihres GitHub-Releases, den das Panel unter „Änderungen“ verlinkt.
+
 ## [Unreleased]
+
+## [0.2.2] - 2026-11-26
+
+Update from 0.2.1 from within the panel.
+
+### Added
+- Workflow "Tag release" (E-190): GitHub → Actions → "Tag release" → "Run workflow" with the version checks it, tags `main` and builds, signs and publishes the release; no local copy needed.
+
+### Changed
+- The text of a GitHub release is the version's section of `CHANGELOG.md` (`scripts/release-notes`), so the link "Changes" in the panel shows what changed.
 
 ### Fixed
 - Security: Symfony components `http-foundation`, `http-kernel`, `mailer`, `routing` and `serializer` updated to 8.1.12; `composer audit` reported advisories for the versions before (published 2026-11-24/25).
 - Updating the panel from within: the update counts as done only when the installer has ended, not as soon as the new version runs; then the newest release is read again, and the green message "OWPanel x.y.z is installed" comes together with the reload of the page. The message "Update panel is done" right after the start is gone, as is a hidden message for the automatic-update switch.
-
-### Changed
-- The text of a GitHub release is the version's section of `CHANGELOG.md` (`scripts/release-notes`), so the link "Changes" in the panel shows what changed.
 
 ## [0.2.1] - 2026-11-25
 
@@ -25,7 +34,7 @@ Updates from within the panel (E-185, E-187, E-188). From this version on, the p
 
 ### Added
 - The panel keeps the scripts of its servers on its own version (E-188): after every status check a server with other scripts gets `server-scripts-update`, at most every 15 minutes, also after being offline. Until then only backups, maintenance and reading tasks start there; other tasks fail with a clear message. The archive comes from the release folder; `panel-update --fetch-archive` loads it for installations with `get-owpanel`, and the installer of a test build writes an unsigned one. New alert "Server scripts outdated" after 30 minutes, with all-clear.
-- Server script `server-scripts-update` (E-187): installs the server scripts of a release that the panel sends over stdin, signature first, checked against `/etc/owpanel/release-signers` before anything is unpacked; only `server/` and `VERSION` are used, installed by the new `setup-agent --keep-key`. Never an older release. Test builds (`unsigned`) only on servers whose installer was a test build itself (`/etc/owpanel/allow-unsigned`). The panel uses it in a following step.
+- Server script `server-scripts-update` (E-187): installs the server scripts of a release that the panel sends over stdin, signature first, checked against `/etc/owpanel/release-signers` before anything is unpacked; only `server/` and `VERSION` are used, installed by the new `setup-agent --keep-key`. Never an older release. Test builds (`unsigned`) only on servers whose installer was a test build itself (`/etc/owpanel/allow-unsigned`).
 - Server script `panel-update` (E-185), the first step of updating the panel from within: `panel-update --version x.y.z` downloads a tagged release of the project from GitHub, checks its checksum and its signature against `/etc/owpanel/release-signers`, and runs the installer of the new release in the background (unit `owpanel-update`), after waiting up to ten minutes for running tasks. Only newer versions are taken. `panel-update --status` reports the state of the last update.
 - Update the panel from within (E-185): under **Server → Updates** the card OWPanel links to the release notes of a newer version and installs it after confirming; the page follows the update and reloads when the new version runs. Optionally the panel installs patch versions by itself at night (at 4:47, a day after the release at the earliest, postponed while tasks run). New notifications "OWPanel updated" and "OWPanel update failed".
 - The documentation explains uploads from the command line: `scp`, `lftp mirror -R` and `rclone` over SFTP, and why `rsync` does not work for website users.
@@ -35,7 +44,7 @@ Updates from within the panel (E-185, E-187, E-188). From this version on, the p
 - Server → State lists the services one below the other, with the PHP-FPM versions in a second column.
 - The documentation starts with a choice between "Documentation for administrators" (`/docs/admin/`) and "Documentation for customers" (`/docs/customer/`); the sidebar shows only the pages of one of them, under a plain heading. The panel's "Documentation" link for administrators leads to `/docs/admin/` (E-183).
 - The website shows version 0.1 instead of "early development" and links to the source code.
-- The start page, introduction and READMEs describe OWPanel as native instead of "without Docker", since Docker apps for administrators are planned.
+- The start page, introduction and READMEs describe OWPanel as native instead of "without Docker".
 - The website adds a hash of the content to the addresses of its CSS and JavaScript, so browsers fetch a changed file at once instead of keeping the old one for up to 7 days.
 
 ### Fixed
