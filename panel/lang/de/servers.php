@@ -133,7 +133,7 @@ return [
         'panel' => [
             'title' => 'OWPanel',
             'installed' => 'Installiert',
-            'latest' => 'Neueste Version',
+            'latest' => 'Neueste stabile Version',
             'checked' => 'Zuletzt geprüft',
             'available' => 'Neue Version verfügbar',
             'test_build' => 'Testversion, kein Vergleich',
