@@ -1,0 +1,43 @@
+# Replaces the text of a published GitHub release with the version's
+# section of CHANGELOG.md on main, e.g. after correcting the changelog:
+# Actions -> "Release notes" -> "Run workflow" with the version.
+name: Release notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without "v", e.g. 0.2.2'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  notes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Start the workflow on main (Use workflow from: main)."
+          exit 1
+
+      # Actions are pinned to a commit, because tags can be moved (E-040).
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Replace the release text
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          scripts/release-notes "$VERSION" >"${RUNNER_TEMP}/notes.md"
+          gh release edit "v${VERSION}" --repo "$GITHUB_REPOSITORY" --notes-file "${RUNNER_TEMP}/notes.md"
+          echo "Release v${VERSION} now shows:"
+          cat "${RUNNER_TEMP}/notes.md"
