@@ -9,7 +9,7 @@ return [
         'scheduler' => 'Zeitplaner',
     ],
     'descriptions' => [
-        'default' => 'Führt alle Serveraktionen aus: Webseiten anlegen, Sicherungen, Zertifikate, Updates und alles andere, was als Aufgabe erscheint.',
+        'default' => 'Führt alle Serveraktionen aus: Webseiten anlegen, Sicherungen, Zertifikate, Updates und alles andere, was als Aufgabe erscheint. Mehrere Prozesse arbeiten für verschiedene Server gleichzeitig; auf einem Server läuft immer nur eine Aufgabe.',
         'queries' => 'Liest für das Datenbank-Werkzeug, die Logs, Sicherungen und fail2ban vom Server, damit Seitenaufrufe sich nie selbst mit Servern verbinden.',
         'scheduler' => 'Startet jede Minute die geplanten Arbeiten: Serverstatus, Sicherungen, Snapshots, Benachrichtigungen und die Prüfaufträge für diese Seite.',
     ],
@@ -21,6 +21,7 @@ return [
         'unknown' => 'noch keine Rückmeldung',
     ],
     'fields' => [
+        'processes' => 'Prozesse',
         'unit' => 'systemd-Dienst',
         'last_beat' => 'Zuletzt geantwortet',
         'last_run' => 'Zuletzt gelaufen',
@@ -28,6 +29,7 @@ return [
         'waiting' => 'Wartende Aufträge',
         'failed' => 'Fehlgeschlagene Aufträge',
     ],
+    'more_running' => 'und :count weitere',
     'never' => 'noch nie',
     'idle' => 'nichts',
     'since' => 'seit :time',

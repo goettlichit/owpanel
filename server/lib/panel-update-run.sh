@@ -37,7 +37,7 @@ write_status() {
 
 # Whatever happens, the panel keeps its worker and scheduler.
 start_panel() {
-  systemctl start owpanel-queue.service owpanel-scheduler.timer >/dev/null 2>&1 || true
+  systemctl start owpanel-queue.target owpanel-scheduler.timer >/dev/null 2>&1 || true
 }
 
 fail() {
@@ -85,7 +85,7 @@ main() {
     sleep 5
     waited=$((waited + 5))
   done
-  systemctl stop owpanel-queue.service || true
+  systemctl stop owpanel-queue.target || true
 
   log "running the installer of ${TARGET}"
   if ! (cd "$source" && ./install --no-reboot --skip-dns-check) >>"$LOG" 2>&1; then

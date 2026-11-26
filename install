@@ -52,7 +52,13 @@ readonly STATE_FILE="/etc/owpanel/panel.conf"
 readonly RELEASE_KEY_FILE="/etc/owpanel/release-signers"
 readonly PANEL_NGINX="/etc/nginx/conf.d/owpanel-panel.conf"
 readonly ACME_ROOT="/var/lib/owpanel/acme"
-readonly QUEUE_UNIT="owpanel-queue.service"
+readonly QUEUE_UNIT="owpanel-queue@.service"
+readonly QUEUE_TARGET="owpanel-queue.target"
+# Until 0.2.2 a single worker had this name (M5-1).
+readonly OLD_QUEUE_UNIT="owpanel-queue.service"
+# Default number of task workers; OWPANEL_QUEUE_WORKERS in .env overrides it.
+readonly QUEUE_WORKERS_DEFAULT=3
+readonly QUEUE_WORKERS_MAX=8
 readonly QUERY_UNIT="owpanel-query.service"
 readonly SCHEDULER_SERVICE="owpanel-scheduler.service"
 readonly SCHEDULER_TIMER="owpanel-scheduler.timer"
@@ -959,23 +965,56 @@ install_unit() {
 
 # Queue worker for server tasks, query worker for the database tool (E-079),
 # and the scheduler timer that checks the servers once a minute (E-075).
+# Number of task workers (M5-1): OWPANEL_QUEUE_WORKERS from the panel's
+# .env, 1 to 8, otherwise 3.
+queue_workers() {
+  local value="" env_file="${PANEL_ROOT}/shared/.env"
+  [[ -f "$env_file" ]] && value="$(owp_read_setting "$env_file" OWPANEL_QUEUE_WORKERS)"
+  if [[ "$value" =~ ^[0-9]+$ ]] && ((value >= 1 && value <= QUEUE_WORKERS_MAX)); then
+    printf '%s' "$value"
+  else
+    printf '%s' "$QUEUE_WORKERS_DEFAULT"
+  fi
+}
+
 start_queue() {
-  local changed=0 unit
-  step "Queue worker and scheduler"
-  for unit in "$QUEUE_UNIT" "$QUERY_UNIT" "$SCHEDULER_SERVICE" "$SCHEDULER_TIMER"; do
+  local changed=0 unit workers n
+  step "Queue workers and scheduler"
+  for unit in "$QUEUE_UNIT" "$QUEUE_TARGET" "$QUERY_UNIT" "$SCHEDULER_SERVICE" "$SCHEDULER_TIMER"; do
     if install_unit "$unit"; then
       changed=1
     fi
   done
+  # The single worker of older versions gives way to the group.
+  if [[ -f "/etc/systemd/system/${OLD_QUEUE_UNIT}" ]]; then
+    systemctl disable --now "$OLD_QUEUE_UNIT" >/dev/null 2>&1 || true
+    rm -f "/etc/systemd/system/${OLD_QUEUE_UNIT}"
+    changed=1
+  fi
   [[ "$changed" -eq 0 ]] || systemctl daemon-reload
   # Panel logs are rotated daily and kept for 14 days (E-092).
   install -o root -g root -m 0644 "${TEMPLATES}/logrotate-owpanel" /etc/logrotate.d/owpanel
-  for unit in "$QUEUE_UNIT" "$QUERY_UNIT"; do
-    systemctl enable "$unit" >/dev/null 2>&1
-    systemctl restart "$unit"
-    systemctl is-active --quiet "$unit" || owp_die "queue_failed" "${unit} did not start"
-    ok "${unit} running"
+
+  workers="$(queue_workers)"
+  for ((n = 1; n <= QUEUE_WORKERS_MAX; n++)); do
+    if ((n <= workers)); then
+      systemctl enable "owpanel-queue@${n}.service" >/dev/null 2>&1
+    else
+      systemctl disable --now "owpanel-queue@${n}.service" >/dev/null 2>&1 || true
+    fi
   done
+  systemctl enable "$QUEUE_TARGET" >/dev/null 2>&1
+  systemctl restart "$QUEUE_TARGET"
+  for ((n = 1; n <= workers; n++)); do
+    systemctl restart "owpanel-queue@${n}.service"
+    systemctl is-active --quiet "owpanel-queue@${n}.service" || owp_die "queue_failed" "owpanel-queue@${n} did not start"
+  done
+  ok "${workers} queue workers running"
+
+  systemctl enable "$QUERY_UNIT" >/dev/null 2>&1
+  systemctl restart "$QUERY_UNIT"
+  systemctl is-active --quiet "$QUERY_UNIT" || owp_die "queue_failed" "${QUERY_UNIT} did not start"
+  ok "${QUERY_UNIT} running"
   systemctl enable --now "$SCHEDULER_TIMER" >/dev/null 2>&1
   systemctl is-active --quiet "$SCHEDULER_TIMER" || owp_die "scheduler_failed" "${SCHEDULER_TIMER} did not start"
   # First check right away, so the overview shows the server as online.

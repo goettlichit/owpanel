@@ -32,6 +32,8 @@
                     <dl class="row mb-0">
                         <dt class="col-sm-5 fw-normal text-secondary">{{ __('workers.fields.unit') }}</dt>
                         <dd class="col-sm-7"><code>{{ $worker['unit'] }}</code></dd>
+                        <dt class="col-sm-5 fw-normal text-secondary">{{ __('workers.fields.processes') }}</dt>
+                        <dd class="col-sm-7">{{ $worker['processes'] }}</dd>
                         <dt class="col-sm-5 fw-normal text-secondary">{{ __('workers.fields.last_beat') }}</dt>
                         <dd class="col-sm-7">
                             @if ($worker['last_beat'])
@@ -44,6 +46,9 @@
                         <dd class="col-sm-7">
                             @if ($worker['current'])
                                 <code>{{ $worker['current'] }}</code> <span class="text-secondary">{{ __('workers.since', ['time' => $worker['current_since']->diffForHumans()]) }}</span>
+                                @if ($worker['running'] > 1)
+                                    <span class="text-secondary">{{ __('workers.more_running', ['count' => $worker['running'] - 1]) }}</span>
+                                @endif
                             @else
                                 <span class="text-secondary">{{ __('workers.idle') }}</span>
                             @endif

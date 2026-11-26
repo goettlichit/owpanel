@@ -61,7 +61,7 @@ return [
         'single' => [
             'driver' => 'single',
             // The queue worker runs as its own user and writes its own file
-            // (owpanel-queue.service), so neither can lock out the other.
+            // (owpanel-queue@.service), so neither can lock out the other.
             'path' => env('LOG_PATH', storage_path('logs/laravel.log')),
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
