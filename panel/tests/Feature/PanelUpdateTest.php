@@ -274,13 +274,13 @@ class PanelUpdateTest extends TestCase
         $card = Livewire::test(PanelUpdateState::class, ['server' => $this->panel])->assertSet('waited', true);
 
         $this->state(['state' => 'succeeded', 'finished_at' => now()->toIso8601String()]);
-        $card->call('$refresh');
+        $card->call('$refresh')->assertRedirect(route('servers.updates', $this->panel));
         $this->assertSame('OWPanel 1.3.0 ist installiert.', session('status'));
 
         $this->state(['state' => 'running']);
         $card = Livewire::test(PanelUpdateState::class, ['server' => $this->panel]);
         $this->state(['state' => 'failed', 'error' => 'install_failed', 'finished_at' => now()->toIso8601String()]);
-        $card->call('$refresh');
+        $card->call('$refresh')->assertRedirect(route('servers.updates', $this->panel));
         $this->assertStringContainsString('Update auf 1.3.0 fehlgeschlagen', (string) session('error'));
     }
 

@@ -13,7 +13,7 @@ use Livewire\Component;
 /**
  * State of the last update of the panel under Server -> Updates (E-185).
  * While an update runs it asks every five seconds and reloads the page
- * once it has ended, so versions and buttons follow.
+ * once it has ended, so versions, buttons and the message follow.
  */
 class PanelUpdateState extends Component
 {
@@ -36,14 +36,15 @@ class PanelUpdateState extends Component
         $update = PanelUpdate::current();
         $running = PanelUpdate::inProgress();
         // The message comes with the reload, when the update has really
-        // ended, not when the task that started it was done (E-185).
+        // ended, not when the task that started it was done (E-185). A
+        // redirect, because Livewire drops flashed messages without one.
         if (! $running && $this->waited) {
             if ($update['state'] === 'succeeded') {
                 session()->flash('status', __('servers.updates.panel.finished', ['version' => $update['version']]));
             } elseif ($update['state'] === 'failed') {
                 session()->flash('error', __('servers.updates.panel.state.failed', ['version' => $update['version'], 'error' => $update['error'] !== null && Lang::has('tasks.errors.'.$update['error']) ? __('tasks.errors.'.$update['error']) : $update['error']]));
             }
-            $this->js('window.location.reload()');
+            $this->redirect(route('servers.updates', $server));
         }
         $this->waited = $running;
 
