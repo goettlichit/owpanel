@@ -88,7 +88,7 @@ class SiteDnsLifecycleTest extends TestCase
     public function test_creating_a_website_creates_missing_records_first(): void
     {
         $runner = $this->runner('{"ok":true,"script":"site-create","domain":"example.de","user":"ow12345","uid":12345,"php":"8.5","tls":true,"www":true,"www_tls":true}');
-        Server::factory()->create(['public_ipv4' => '203.0.113.10', 'public_ipv6' => '2001:db8::10']);
+        Server::factory()->create(['hosts_panel' => true, 'public_ipv4' => '203.0.113.10', 'public_ipv6' => '2001:db8::10']);
         // www AAAA points elsewhere and stays as it is.
         $this->fakeZone(['www AAAA' => ['2001:db8::99']]);
         $admin = $this->admin();
@@ -108,7 +108,7 @@ class SiteDnsLifecycleTest extends TestCase
     public function test_without_zone_or_option_the_website_is_still_created(): void
     {
         $this->runner('{"ok":true,"script":"site-create","domain":"other.de","user":"ow12345","uid":12345,"php":"8.5","tls":false}');
-        Server::factory()->create(['public_ipv4' => '203.0.113.10', 'public_ipv6' => null]);
+        Server::factory()->create(['hosts_panel' => true, 'public_ipv4' => '203.0.113.10', 'public_ipv6' => null]);
         $this->fakeZone([]);
         $admin = $this->admin();
 
@@ -130,7 +130,7 @@ class SiteDnsLifecycleTest extends TestCase
     public function test_delete_page_asks_and_only_unchanged_panel_records_go(): void
     {
         $this->runner('{"ok":true,"script":"site-delete","user":"ow23456"}');
-        $server = Server::factory()->create(['public_ipv4' => '203.0.113.10']);
+        $server = Server::factory()->create(['hosts_panel' => true, 'public_ipv4' => '203.0.113.10']);
         $site = Site::factory()->for($server)->create(['domain' => 'example.de', 'system_user' => 'ow23456']);
         $site->dnsRecords()->create(['zone_id' => '42', 'zone_name' => 'example.de', 'name' => '@', 'type' => 'A', 'value' => '203.0.113.10', 'ttl' => 3600]);
         $site->dnsRecords()->create(['zone_id' => '42', 'zone_name' => 'example.de', 'name' => 'www', 'type' => 'A', 'value' => '203.0.113.10', 'ttl' => 3600]);
@@ -158,7 +158,7 @@ class SiteDnsLifecycleTest extends TestCase
     public function test_without_the_tick_all_records_stay(): void
     {
         $this->runner('{"ok":true,"script":"site-delete","user":"ow23456"}');
-        $server = Server::factory()->create(['public_ipv4' => '203.0.113.10']);
+        $server = Server::factory()->create(['hosts_panel' => true, 'public_ipv4' => '203.0.113.10']);
         $site = Site::factory()->for($server)->create(['domain' => 'example.de', 'system_user' => 'ow23456']);
         $site->dnsRecords()->create(['zone_id' => '42', 'zone_name' => 'example.de', 'name' => '@', 'type' => 'A', 'value' => '203.0.113.10', 'ttl' => 3600]);
         $this->fakeZone(['@ A' => ['203.0.113.10']]);
@@ -179,7 +179,7 @@ class SiteDnsLifecycleTest extends TestCase
 
     public function test_dns_page_offers_the_certificate_once_dns_points_here(): void
     {
-        $server = Server::factory()->create(['public_ipv4' => '203.0.113.10', 'public_ipv6' => null]);
+        $server = Server::factory()->create(['hosts_panel' => true, 'public_ipv4' => '203.0.113.10', 'public_ipv6' => null]);
         $site = Site::factory()->for($server)->create(['domain' => 'example.de', 'www' => false, 'tls' => false, 'wants_tls' => true]);
         $this->app->instance(DnsResolver::class, new class extends DnsResolver
         {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Backups\StorageBoxUsage;
+use App\Gateway\Ingress;
 use App\Hetzner\HetznerCloud;
 use App\Hetzner\HetznerException;
 use App\Mail\TestMail;
@@ -46,6 +47,21 @@ class SettingController extends Controller
             'imprintUrl' => Setting::get(Setting::IMPRINT_URL),
             'privacyUrl' => Setting::get(Setting::PRIVACY_URL),
             'helpUrl' => Setting::get(Setting::HELP_URL),
+        ]);
+    }
+
+    /**
+     * System -> Gateway: the addresses visitors reach the websites at
+     * (E-162, E-193).
+     */
+    public function gateway(): View
+    {
+        Gate::authorize('manage', Setting::class);
+
+        return view('system.gateway', [
+            'ingressIpv4' => Setting::get(Setting::INGRESS_IPV4),
+            'ingressIpv6' => Setting::get(Setting::INGRESS_IPV6),
+            'panelServer' => Server::panelHost(),
         ]);
     }
 
@@ -197,6 +213,28 @@ class SettingController extends Controller
         Audit::record('system.settings_changed', null, [], $request->user());
 
         return redirect()->route('settings.edit')->with('status', __('settings.saved'));
+    }
+
+    /**
+     * The addresses the websites are reached at (E-162, E-193). Empty
+     * fields use the public addresses of the panel server again. Existing
+     * DNS records are not changed here; each website's DNS page shows and
+     * sets the difference.
+     */
+    public function updateIngress(Request $request): RedirectResponse
+    {
+        Gate::authorize('manage', Setting::class);
+
+        $validated = $request->validate([
+            'ingress_ipv4' => Ingress::rules(4),
+            'ingress_ipv6' => Ingress::rules(6),
+        ]);
+        $before = Ingress::addresses();
+        Ingress::save($validated['ingress_ipv4'] ?? null, $validated['ingress_ipv6'] ?? null);
+        $after = Ingress::addresses();
+        Audit::record('system.ingress_changed', null, ['before' => $before, 'after' => $after], $request->user());
+
+        return redirect()->route('settings.gateway')->with('status', __($before === $after ? 'settings.ingress.saved' : 'settings.ingress.changed'));
     }
 
     /**

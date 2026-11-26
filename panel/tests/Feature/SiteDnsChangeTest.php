@@ -46,7 +46,7 @@ class SiteDnsChangeTest extends TestCase
 
     private function site(): Site
     {
-        $server = Server::factory()->create(['public_ipv4' => '203.0.113.10', 'public_ipv6' => null]);
+        $server = Server::factory()->create(['hosts_panel' => true, 'public_ipv4' => '203.0.113.10', 'public_ipv6' => null]);
 
         return Site::factory()->for($server)->create(['domain' => 'example.de', 'www' => true]);
     }

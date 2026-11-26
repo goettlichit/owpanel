@@ -9,6 +9,7 @@ Hier steht nur, was sich in einer Version für die Nutzer von OWPanel tatsächli
 ### Changed
 - Tasks for different servers run at the same time: three task workers (`owpanel-queue@1` to `@3` under `owpanel-queue.target`, number set by `OWPANEL_QUEUE_WORKERS` in `.env`, up to 8). Each server still runs one task at a time; a further task for the same server waits until the first has ended. System → Services shows the number of processes.
 - The server status check asks the servers side by side, so a server that does not answer no longer delays the others.
+- New page System → Gateway with the "Gateway addresses" (one IPv4, one IPv6) visitors reach the websites at. Left empty, the public addresses of the panel server apply as before. The DNS check of a website, "Create DNS records at Hetzner" and the hint before creating a website use these addresses.
 
 ## [0.2.2] - 2026-11-26
 

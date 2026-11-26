@@ -54,7 +54,7 @@ Besucher ── HTTPS, HTTP/3 ──► Panel-Server (Gateway, Zertifikate, ACME
 Kunden ── SFTP (Port 22, Hostname des Servers) ──► Server 2, Server 3
 ```
 
-- Alle Domains zeigen auf die Eingangsadressen: eine gemeinsame IPv4 und je Website eine IPv6 aus einem Präfix (E-162). Zuerst sind das die Adressen des Panel-Servers, für ein zweites Gateway Floating IPs (E-164).
+- Alle Domains zeigen auf die Eingangsadressen: eine gemeinsame IPv4 und je Website eine IPv6 aus einem Präfix (E-162). Zuerst sind das die Adressen des Panel-Servers, für ein zweites Gateway Floating IPs (E-164). Sie sind schon jetzt eine Einstellung unter System → Gateway, in der Oberfläche „Gateway-Adressen“ (`App\Gateway\Ingress`, leer = Adressen des Panel-Servers); die DNS-Prüfung der Websites nimmt ihr Soll von dort (E-193).
 - Das Gateway beendet TLS und QUIC und reicht jede Anfrage an „Server + Port“ weiter: an den NGINX der Website auf ihrem Server oder an eine Docker-App (E-163). Der NGINX auf dem Website-Server übernimmt die Besucheradresse nur vom Gateway (`set_real_ip_from`), damit Logs, Statistik und PHP die echte Adresse sehen.
 - Weitere Server kommen mit `bash get-owpanel --join <Panel-Adresse>` dazu (E-166), nur im selben privaten Hetzner-Netz. Das Panel steuert sie über die private Adresse. Öffentlich ist dort nur Port 22 für SSH und SFTP offen, alles andere nur aus dem privaten Subnetz. Ausgehend nutzen sie ihre eigene IPv4 und IPv6.
 - Websites liegen auf genau einem Server. Beim Anlegen schlägt das Panel den Server mit der meisten Reserve vor; ein Paket kann die erlaubten Server vorgeben (E-161). Ein Umzug ändert nur das Ziel im Gateway (Meilenstein 5.1).

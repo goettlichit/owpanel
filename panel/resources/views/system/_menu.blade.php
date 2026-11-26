@@ -7,6 +7,7 @@
         <x-nav-link route="settings.edit" icon="adjustments">{{ __('settings.title') }}</x-nav-link>
         <x-nav-link route="settings.mail" icon="mail">{{ __('settings.mail.title') }}</x-nav-link>
         <x-nav-link route="settings.oidc" icon="fingerprint">{{ __('settings.oidc.menu') }}</x-nav-link>
+        <x-nav-link route="settings.gateway" icon="door-enter">{{ __('settings.ingress.menu') }}</x-nav-link>
         <x-nav-link route="settings.services" icon="plug-connected">{{ __('settings.services.title') }}</x-nav-link>
         <x-nav-link route="settings.backup" icon="database-export">{{ __('settings.backup_page.title') }}</x-nav-link>
         <x-nav-link route="workers.index" icon="activity-heartbeat">{{ __('workers.title') }}</x-nav-link>
