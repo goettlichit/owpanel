@@ -122,20 +122,13 @@
             <div class="col-lg-4">
                 <x-card :title="__('sites.before.title')" tone="info">
                     <p class="mb-2">{{ __('sites.before.dns') }}</p>
-                    @php($addressed = $servers->filter(fn ($server) => $server->public_ipv4 || $server->public_ipv6))
-                    @if ($addressed->isEmpty())
+                    @php($ingress = ['A' => \App\Gateway\Ingress::ipv4(), 'AAAA' => \App\Gateway\Ingress::ipv6()])
+                    @if (array_filter($ingress) === [])
                         <p class="text-secondary">{{ __('sites.before.dns_unknown') }}</p>
                     @else
                         <ul class="mb-3">
-                            @foreach ($addressed as $server)
-                                @foreach (['A' => $server->public_ipv4, 'AAAA' => $server->public_ipv6] as $record => $address)
-                                    @if ($address)
-                                        <li>
-                                            @if ($servers->count() > 1)<span class="text-secondary">{{ $server->display_name }}:</span>@endif
-                                            <code class="text-break">{{ $record }} {{ $address }}</code>
-                                        </li>
-                                    @endif
-                                @endforeach
+                            @foreach (array_filter($ingress) as $record => $address)
+                                <li><code class="text-break">{{ $record }} {{ $address }}</code></li>
                             @endforeach
                         </ul>
                     @endif

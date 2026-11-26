@@ -162,7 +162,7 @@ return [
         'title' => 'Domain ändern',
         'description' => 'Die Webseite zieht auf eine neue Domain um.',
         'text' => 'Dateien, Datenbanken, SFTP, Cronjobs und Backups bleiben, wie sie sind. Mit Zertifikat fordert das Panel zuerst eines für die neue Domain an; bis dahin bleibt die Webseite unter :domain erreichbar. Lehnt Let’s Encrypt die neue Domain ab, bleibt alles beim Alten.',
-        'dns' => 'Lege vorher im DNS einen A- bzw. AAAA-Eintrag für die neue Domain auf diesen Server an, mit www-Adresse auch für www.<neue Domain>. Die alte Domain ist danach nicht mehr erreichbar.',
+        'dns' => 'Lege vorher im DNS einen A- bzw. AAAA-Eintrag für die neue Domain auf die Gateway-Adressen an (siehe DNS der Website), mit www-Adresse auch für www.<neue Domain>. Die alte Domain ist danach nicht mehr erreichbar.',
         'label' => 'Neue Domain',
         'submit' => 'Domain ändern',
         'same' => 'Das ist schon die Domain dieser Webseite.',
@@ -189,8 +189,8 @@ return [
 
     'before' => [
         'title' => 'Vor dem Anlegen',
-        'dns' => 'Der DNS-Eintrag der Domain muss schon auf den Server zeigen, sonst kann Let’s Encrypt sie nicht prüfen:',
-        'dns_unknown' => 'Die öffentlichen Adressen des Servers sind nicht bekannt.',
+        'dns' => 'Der DNS-Eintrag der Domain muss schon auf die Gateway-Adressen zeigen, sonst kann Let’s Encrypt sie nicht prüfen:',
+        'dns_unknown' => 'Die Gateway-Adressen sind nicht bekannt. Trage sie unter System → Gateway ein.',
         'firewall' => 'Für HTTP/3 muss UDP 443 offen sein, auch in einer Firewall beim Anbieter.',
         'user' => 'Das Panel lost einen eigenen Linux-Benutzer aus, etwa ow38217. Er ist zugleich der spätere SFTP-Benutzer.',
         'root' => 'Die Dateien gehören nach htdocs/, die Dokumentwurzel ist htdocs/public/.',

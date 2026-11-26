@@ -45,7 +45,13 @@
                     <dd class="col-sm-8">
                         {{-- The domain once its DNS points here; until then, e.g. while a website is
                              moved to this server, the server address that works at once. --}}
-                        @if ($domainHere)
+                        @if (! $domainReaches && $site->server->hostname)
+                            {{-- Behind the gateway: the host name of the website's server (E-166). --}}
+                            <code>{{ $site->server->hostname }}</code><x-copy-button :value="$site->server->hostname" />
+                            @if ($site->server->public_ipv4)
+                                <div class="small text-secondary">{{ __('sites.sftp.fields.host_alt', ['address' => $site->server->public_ipv4]) }}</div>
+                            @endif
+                        @elseif ($domainHere)
                             <code>{{ $site->domain }}</code><x-copy-button :value="$site->domain" />
                             @if ($site->server->public_ipv4)
                                 <div class="small text-secondary">{{ __('sites.sftp.fields.host_alt', ['address' => $site->server->public_ipv4]) }}</div>
@@ -55,7 +61,9 @@
                             @if ($site->server->public_ipv6)
                                 <div class="small text-secondary">{{ __('sites.sftp.fields.host_ipv6') }} <code>{{ $site->server->public_ipv6 }}</code></div>
                             @endif
-                            <div class="small text-secondary">{{ __('sites.sftp.fields.host_domain', ['domain' => $site->domain]) }}</div>
+                            @if ($domainReaches)
+                                <div class="small text-secondary">{{ __('sites.sftp.fields.host_domain', ['domain' => $site->domain]) }}</div>
+                            @endif
                         @endif
                     </dd>
 

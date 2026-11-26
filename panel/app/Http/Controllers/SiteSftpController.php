@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ServerScript;
 use App\Enums\SiteStatus;
+use App\Gateway\Ingress;
 use App\Jobs\ReadSsh;
 use App\Models\ServerTask;
 use App\Models\SftpKey;
@@ -143,6 +144,9 @@ class SiteSftpController extends Controller
             'site' => $site,
             // Whether the domain already reaches this server; while a website
             // is moved here it does not yet, so the server address comes first.
+            // Behind the gateway it never does: the domain points to the
+            // ingress addresses, SFTP goes to the server's host name (E-166).
+            'domainReaches' => $reaches = Ingress::reaches($site->server),
             'domainHere' => $site->server->public_ipv4 === null
                 || app(DnsResolver::class)->pointsTo($site->domain, [$site->server->public_ipv4, $site->server->public_ipv6]),
             'keys' => $site->sftpKeys()->orderBy('created_at')->orderBy('id')->get(),

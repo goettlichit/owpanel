@@ -35,9 +35,9 @@
                 </x-slot:actions>
                 <p>{{ __('dns.overall.'.$dns['state']) }}</p>
                 <dl class="row mb-0">
-                    <dt class="col-sm-4">{{ __('dns.fields.server') }}</dt>
+                    <dt class="col-sm-4">{{ __('dns.fields.ingress') }}</dt>
                     <dd class="col-sm-8">
-                        @forelse (array_filter([$site->server->public_ipv4, $site->server->public_ipv6]) as $address)
+                        @forelse (\App\Gateway\Ingress::addresses() as $address)
                             <code>{{ $address }}</code>@if (! $loop->last)<br>@endif
                         @empty
                             <span class="text-secondary">–</span>
