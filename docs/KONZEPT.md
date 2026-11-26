@@ -71,6 +71,7 @@ Alles andere ist anbieterunabhängig: NGINX, PHP-FPM, MariaDB, Zertifikate, Fire
 
 Geklärt am 2026-11-20 (E-161 bis E-169); die erste Version erscheint als Standalone und lässt sich ohne Migration erweitern.
 
+- Weitere Server nur beobachten, etwa eine Mailcow-VM: Zustand, Debian-Updates, Neustart und Benachrichtigungen im Panel, ohne dass das Panel dort etwas einrichtet (E-189)
 - Weitere Server hinter dem Panel-Server als Eingangstor (Gateway): Alle Domains zeigen auf das Panel, es reicht Anfragen über das private Netz an den Server der Website weiter; Websites werden beim Anlegen auf den Server mit der meisten Reserve vorgeschlagen (E-161)
 - Eine eigene IPv6-Adresse je Website (E-162)
 - Websites zwischen Servern umziehen, mit ihren Sicherungen (E-168)
