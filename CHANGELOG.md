@@ -4,6 +4,9 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 
 ## [Unreleased]
 
+### Fixed
+- Security: Symfony components `http-foundation`, `http-kernel`, `mailer`, `routing` and `serializer` updated to 8.1.12; `composer audit` reported advisories for the versions before (published 2026-11-24/25).
+
 ## [0.2.1] - 2026-11-25
 
 First release that can be installed from within the panel (from 0.2.0).
