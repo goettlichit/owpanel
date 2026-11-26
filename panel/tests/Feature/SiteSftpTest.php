@@ -6,6 +6,7 @@ use App\Enums\ServerScript;
 use App\Enums\SiteStatus;
 use App\Enums\TaskStatus;
 use App\Models\Customer;
+use App\Models\Server;
 use App\Models\ServerTask;
 use App\Models\SftpKey;
 use App\Models\Site;
@@ -253,7 +254,7 @@ class SiteSftpTest extends TestCase
     public function test_the_domain_is_shown_only_when_its_dns_points_to_the_server(): void
     {
         $site = $this->site();
-        $site->server->forceFill(['public_ipv4' => '203.0.113.10', 'public_ipv6' => '2001:db8::10'])->save();
+        $site->server->forceFill(['public_ipv4' => '203.0.113.10', 'public_ipv6' => '2001:db8::10', 'hosts_panel' => true])->save();
         $answers = ['shop.example.de' => ['203.0.113.10']];
         $this->mock(DnsResolver::class, function ($mock) use (&$answers) {
             $mock->makePartial()->shouldReceive('addresses')->andReturnUsing(function (string $host) use (&$answers) {
@@ -277,5 +278,19 @@ class SiteSftpTest extends TestCase
         $site->server->forceFill(['public_ipv4' => null, 'public_ipv6' => null])->save();
         $this->actingAs($this->admin())->get("/sites/{$site->id}/sftp")->assertOk()
             ->assertSee('shop.example.de')->assertDontSee('sobald ihr DNS');
+    }
+
+    public function test_behind_the_gateway_sftp_goes_to_the_host_name_of_the_server(): void
+    {
+        Server::factory()->panel()->create(['public_ipv4' => '203.0.113.1', 'public_ipv6' => '2001:db8::1']);
+        $site = $this->site();
+        $site->server->forceFill(['hostname' => 'web2.example.de', 'public_ipv4' => '203.0.113.20', 'public_ipv6' => null])->save();
+        $this->mock(DnsResolver::class, function ($mock) {
+            $mock->makePartial()->shouldReceive('addresses')->andReturn(['203.0.113.1']);
+        });
+
+        $this->actingAs($this->admin())->get("/sites/{$site->id}/sftp")->assertOk()
+            ->assertSeeInOrder(['web2.example.de', 'oder die IP-Adresse 203.0.113.20'])
+            ->assertDontSee('sobald ihr DNS');
     }
 }

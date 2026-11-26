@@ -162,7 +162,7 @@ return [
         'title' => 'Change domain',
         'description' => 'The website moves to a new domain.',
         'text' => 'Files, databases, SFTP, cron jobs and backups stay as they are. With a certificate, the panel first requests one for the new domain; until then the website stays reachable at :domain. If Let’s Encrypt refuses the new domain, everything stays as it was.',
-        'dns' => 'First add an A or AAAA record for the new domain pointing to this server in DNS, with the www address also for www.<new domain>. The old domain is no longer reachable afterwards.',
+        'dns' => 'First add an A or AAAA record for the new domain pointing to the panel’s ingress addresses in DNS (see the website’s DNS), with the www address also for www.<new domain>. The old domain is no longer reachable afterwards.',
         'label' => 'New domain',
         'submit' => 'Change domain',
         'same' => 'This already is the domain of this website.',
@@ -189,8 +189,8 @@ return [
 
     'before' => [
         'title' => 'Before you start',
-        'dns' => 'The DNS record of the domain must already point to the server, otherwise Let’s Encrypt cannot verify it:',
-        'dns_unknown' => 'The public addresses of the server are not known.',
+        'dns' => 'The DNS record of the domain must already point to the panel’s ingress addresses, otherwise Let’s Encrypt cannot verify it:',
+        'dns_unknown' => 'The ingress addresses are not known. Enter them under System → Settings.',
         'firewall' => 'HTTP/3 needs UDP 443 to be open, also in a firewall at your provider.',
         'user' => 'The panel picks a Linux user of its own at random, such as ow38217. It will also be the SFTP user.',
         'root' => 'Files go into htdocs/, the document root is htdocs/public/.',

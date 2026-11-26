@@ -10,6 +10,7 @@ return [
     'fields' => [
         'current' => 'Current',
         'server' => 'Server',
+        'ingress' => 'Ingress addresses',
         'zone' => 'Zone',
         'nameservers' => 'Name servers',
         'name' => 'Name',

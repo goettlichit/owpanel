@@ -40,7 +40,7 @@ class CustomerSitesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $server = Server::factory()->create(['name' => 'geheim-1', 'public_ipv4' => '203.0.113.10', 'public_ipv6' => null]);
+        $server = Server::factory()->create(['hosts_panel' => true, 'name' => 'geheim-1', 'public_ipv4' => '203.0.113.10', 'public_ipv6' => null]);
         $customer = Customer::factory()->create();
         $this->user = User::factory()->create(['customer_id' => $customer->id, 'password_change_required' => false]);
         $this->site = Site::factory()->for($customer)->for($server)->create(['domain' => 'meine.example', 'system_user' => 'ow38217', 'tls' => false, 'wants_tls' => false]);

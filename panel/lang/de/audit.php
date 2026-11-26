@@ -172,6 +172,7 @@ return [
             'oidc_disabled' => 'Anmeldung mit Pocket ID abgeschaltet',
             'test_mail_sent' => 'Testmail verschickt',
             'restored_dismissed' => 'Hinweis auf die Wiederherstellung des Panels ausgeblendet',
+            'ingress_changed' => 'Eingangsadressen geändert',
             'settings_changed' => 'Einstellungen geändert',
         ],
     ],

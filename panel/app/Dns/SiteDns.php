@@ -2,6 +2,7 @@
 
 namespace App\Dns;
 
+use App\Gateway\Ingress;
 use App\Hetzner\HetznerCloud;
 use App\Hetzner\HetznerException;
 use App\Models\Server;
@@ -11,7 +12,7 @@ use App\Support\DnsResolver;
 
 /**
  * DNS of a website (E-116): for the domain and, with www, www.<domain>, the
- * A and AAAA records the server needs, what the Hetzner zone holds, what
+ * A and AAAA records for the ingress addresses (E-193), what the Hetzner zone holds, what
  * the responsible name servers answer and what the panel server's resolver
  * sees. Only reads; changing follows in its own step.
  */
@@ -36,7 +37,7 @@ class SiteDns
     {
         $hosts = array_values(array_filter([$site->domain, $site->www ? 'www.'.$site->domain : null]));
 
-        return $this->checkHosts($site->server, $hosts, $site->domain, $fresh, $withZone);
+        return $this->checkAddresses(Ingress::ipv4(), Ingress::ipv6(), $hosts, $site->domain, $fresh, $withZone);
     }
 
     /**
@@ -47,6 +48,17 @@ class SiteDns
      * @return array<string, mixed> as check()
      */
     public function checkHosts(Server $server, array $hosts, string $zoneHost, bool $fresh = false, bool $withZone = true): array
+    {
+        return $this->checkAddresses($server->public_ipv4, $server->public_ipv6, $hosts, $zoneHost, $fresh, $withZone);
+    }
+
+    /**
+     * The same for given addresses.
+     *
+     * @param  list<string>  $hosts
+     * @return array<string, mixed> as check()
+     */
+    public function checkAddresses(?string $ipv4, ?string $ipv6, array $hosts, string $zoneHost, bool $fresh = false, bool $withZone = true): array
     {
         if ($fresh) {
             foreach ($hosts as $host) {
@@ -68,7 +80,7 @@ class SiteDns
 
         $rows = [];
         foreach ($hosts as $host) {
-            foreach (['A' => $server->public_ipv4, 'AAAA' => $server->public_ipv6] as $type => $expected) {
+            foreach (['A' => $ipv4, 'AAAA' => $ipv6] as $type => $expected) {
                 if ($expected === null || $expected === '') {
                     continue;
                 }

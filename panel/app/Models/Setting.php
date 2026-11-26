@@ -88,12 +88,19 @@ class Setting extends Model
 
     public const OIDC_NAME = 'oidc_name';
 
+    // Addresses the websites are reached at (E-162, E-193); empty means the
+    // public addresses of the panel server.
+    public const INGRESS_IPV4 = 'ingress_ipv4';
+
+    public const INGRESS_IPV6 = 'ingress_ipv6';
+
     public const KEYS = [
         self::IMPRINT_URL, self::PRIVACY_URL, self::HELP_URL,
         self::MAIL_HOST, self::MAIL_PORT, self::MAIL_ENCRYPTION, self::MAIL_USERNAME,
         self::MAIL_PASSWORD, self::MAIL_FROM_ADDRESS, self::MAIL_FROM_NAME,
         self::HETZNER_TOKEN, self::HETZNER_DNS_TOKEN, self::POCKET_ID_API_KEY, self::VAPID_PUBLIC, self::VAPID_PRIVATE, self::PANEL_RESTORED, self::PANEL_RELEASE, self::PANEL_UPDATE, self::PANEL_AUTO_UPDATE, self::STORAGE_BOXES, self::HEARTBEAT_URL, self::HEARTBEAT_STATE,
         self::OIDC_ISSUER, self::OIDC_CLIENT_ID, self::OIDC_CLIENT_SECRET, self::OIDC_NAME,
+        self::INGRESS_IPV4, self::INGRESS_IPV6,
     ];
 
     private const CACHE_KEY = 'owpanel.settings';

@@ -96,7 +96,7 @@ class SiteTest extends TestCase
 
     public function test_the_form_shows_the_dns_addresses_and_no_server_choice_for_one_server(): void
     {
-        Server::factory()->create(['public_ipv4' => '203.0.113.10', 'public_ipv6' => '2001:db8::10']);
+        Server::factory()->create(['hosts_panel' => true, 'public_ipv4' => '203.0.113.10', 'public_ipv6' => '2001:db8::10']);
 
         $this->actingAs($this->admin())->get('/sites/create')
             ->assertOk()

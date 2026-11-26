@@ -21,7 +21,7 @@ class SiteDnsTest extends TestCase
 
     private function site(bool $www = true): Site
     {
-        $server = Server::factory()->create(['public_ipv4' => '203.0.113.10', 'public_ipv6' => '2001:db8::10']);
+        $server = Server::factory()->create(['hosts_panel' => true, 'public_ipv4' => '203.0.113.10', 'public_ipv6' => '2001:db8::10']);
 
         return Site::factory()->for($server)->create(['domain' => 'shop.example.de', 'www' => $www]);
     }

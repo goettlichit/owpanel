@@ -5,6 +5,18 @@ return [
     'title' => 'Einstellungen',
     'saved' => 'Einstellungen gespeichert.',
     'submit' => 'Speichern',
+    'ingress' => [
+        'title' => 'Eingangsadressen',
+        'text' => 'Unter diesen Adressen erreichen Besucher alle Websites. Die DNS-Einträge der Websites (A und AAAA) zeigen hierher, nicht auf den Server, auf dem eine Website läuft. Leer gelassen gelten die öffentlichen Adressen des Panel-Servers; das passt, solange es keinen zweiten Eingang gibt.',
+        'ipv4' => 'IPv4',
+        'ipv6' => 'IPv6',
+        'default' => 'Leer: :address (Panel-Server)',
+        'no_default' => 'Leer: keine, der Panel-Server hat keine solche Adresse.',
+        'hint' => 'Vorhandene DNS-Einträge ändern sich dadurch nicht. Nach einer Änderung zeigt die DNS-Seite jeder Website den Unterschied und setzt ihn bei Hetzner auf Wunsch.',
+        'not_public' => 'Das muss eine öffentliche Adresse sein, keine private oder reservierte.',
+        'saved' => 'Eingangsadressen gespeichert.',
+        'changed' => 'Eingangsadressen geändert. Passe die DNS-Einträge der Websites an; die DNS-Seite jeder Website zeigt den Unterschied.',
+    ],
     'legal' => [
         'title' => 'Impressum und Datenschutz',
         'text' => 'Links zu den Seiten des Anbieters dieses Panels. Sie stehen in der Fußzeile jeder Seite, auch bei der Anmeldung, damit Kunden sie jederzeit finden.',
