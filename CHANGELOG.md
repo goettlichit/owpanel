@@ -2,19 +2,13 @@
 
 Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
-Hier steht nur, was sich in einer Version tatsächlich geändert hat; Pläne gehören in `docs/ROADMAP.md`. Der Abschnitt einer Version ist zugleich der Text ihres GitHub-Releases, den das Panel unter „Änderungen“ verlinkt.
+Hier steht nur, was sich in einer Version für die Nutzer von OWPanel tatsächlich geändert hat: Panel, Installer, Serverskripte und Anleitungen. Pläne gehören in `docs/ROADMAP.md`, Entscheidungen in `docs/ENTSCHEIDUNGEN.md`; Änderungen an der Entwicklung selbst (Workflows, Release-Ablauf, interne Doku) stehen hier nicht. Der Abschnitt einer Version ist zugleich der Text ihres GitHub-Releases, den das Panel unter „Änderungen“ verlinkt.
 
 ## [Unreleased]
 
 ## [0.2.2] - 2026-11-26
 
 Update from 0.2.1 from within the panel.
-
-### Added
-- Workflow "Tag release" (E-190): GitHub → Actions → "Tag release" → "Run workflow" with the version checks it, tags `main` and builds, signs and publishes the release; no local copy needed.
-
-### Changed
-- The text of a GitHub release is the version's section of `CHANGELOG.md` (`scripts/release-notes`), so the link "Changes" in the panel shows what changed.
 
 ### Fixed
 - Security: Symfony components `http-foundation`, `http-kernel`, `mailer`, `routing` and `serializer` updated to 8.1.12; `composer audit` reported advisories for the versions before (published 2026-11-24/25).
