@@ -35,10 +35,7 @@ class CheckServers extends Command
 
         foreach (array_chunk($ids, self::PARALLEL) as $chunk) {
             try {
-                $lines = Concurrency::run(array_map(
-                    fn (string $id) => static fn (): string => CheckServers::checkOne($id),
-                    $chunk,
-                ));
+                $lines = Concurrency::run(self::tasks($chunk));
             } catch (Throwable $e) {
                 // A process that broke off; the others have stored their result.
                 report($e);
@@ -53,6 +50,27 @@ class CheckServers extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * One closure per server for the child processes. Each closure stands
+     * on its own line: the closure serializer reads the source code and
+     * takes the first closure of a line, so a closure that returns a
+     * closure on the same line was sent as the outer one (E-191, fix).
+     *
+     * @param  list<string>  $ids
+     * @return array<string, \Closure(): string>
+     */
+    public static function tasks(array $ids): array
+    {
+        $tasks = [];
+        foreach ($ids as $id) {
+            $tasks[$id] = static function () use ($id): string {
+                return CheckServers::checkOne($id);
+            };
+        }
+
+        return $tasks;
     }
 
     /**
