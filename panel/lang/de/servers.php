@@ -140,6 +140,7 @@ return [
             'checking' => 'Wird geprüft …',
             'update' => 'Panel aktualisieren',
             'changes' => 'Änderungen',
+            'outdated_check' => 'Die letzte Prüfung war vor dem Update; „Jetzt prüfen“ fragt neu nach.',
             'last_update' => 'Letztes Update',
             'starting' => 'Update wird gestartet …',
             'confirm' => 'Änderungen von :version gelesen, jetzt aktualisieren',

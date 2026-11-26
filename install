@@ -835,6 +835,13 @@ artisan() {
   (cd "${RELEASE_DIR}/panel" && runuser -u "$PANEL_USER" -- php artisan "$@")
 }
 
+# Asks GitHub for the newest release right away, so Server -> Updates does
+# not show an older "newest version" after an update (E-154, E-185). Without
+# network it stays for the daily check.
+check_release_once() {
+  artisan owpanel:release-check --no-interaction >/dev/null 2>&1 || true
+}
+
 migrate() {
   step "Database tables"
   artisan migrate --force --no-interaction
@@ -1061,6 +1068,7 @@ main() {
   write_state
   write_release_key
   write_unsigned_permission
+  check_release_once
   final_updates
 
   printf '\n%s%s✓ OWPanel %s is ready%s\n\n' "$C_GREEN" "$C_BOLD" "$VERSION" "$C_RESET"

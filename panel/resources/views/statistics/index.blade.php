@@ -4,7 +4,8 @@
 --}}
 @php
     $number = fn (int $value) => \Illuminate\Support\Number::format($value, locale: app()->getLocale());
-    $link = fn (array $change) => route('statistics.index', array_filter(['site' => $site?->id, 'range' => $range] + $change, fn ($v) => $v !== null));
+    // The change wins over the current choice (array_merge, not +, which keeps the left side).
+    $link = fn (array $change) => route('statistics.index', array_filter(array_merge(['site' => $site?->id, 'range' => $range], $change), fn ($v) => $v !== null));
 @endphp
 <x-layouts.app :title="__('statistics.title')">
     <x-slot:sidebar>

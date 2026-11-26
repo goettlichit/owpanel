@@ -119,6 +119,24 @@ class StatisticsTest extends TestCase
         $this->actingAs($admin)->get('/system/statistics?range=bogus&site=nichts')->assertOk()->assertSee('Alle Webseiten');
     }
 
+    public function test_the_links_change_range_and_website(): void
+    {
+        $shop = Site::factory()->create(['domain' => 'shop.example.de']);
+        $shop->visits()->create(['date' => now()->toDateString(), 'visitors' => 1, 'pageviews' => 1, 'pages' => [['/', 1]]]);
+        $admin = $this->admin();
+
+        // From the default 30 days to the other ranges, without a website.
+        $this->actingAs($admin)->get('/system/statistics')->assertOk()
+            ->assertSee(e(route('statistics.index', ['range' => '7'])), false)
+            ->assertSee(e(route('statistics.index', ['range' => '90'])), false)
+            ->assertSee(e(route('statistics.index', ['range' => 'months'])), false)
+            ->assertSee(e(route('statistics.index', ['site' => $shop->id, 'range' => '30'])), false);
+
+        // With a website and 7 days, the ranges keep the website.
+        $this->actingAs($admin)->get("/system/statistics?site={$shop->id}&range=7")->assertOk()
+            ->assertSee(e(route('statistics.index', ['site' => $shop->id, 'range' => '90'])), false);
+    }
+
     public function test_customers_do_not_see_the_statistics_yet(): void
     {
         $customer = Customer::factory()->create();

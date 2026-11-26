@@ -4,6 +4,14 @@ Alle wichtigen Änderungen werden hier festgehalten. Das Format orientiert sich 
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-25
+
+First release that can be installed from within the panel (from 0.2.0).
+
+### Fixed
+- System → Statistics: the buttons for 7 days, 90 days and 14 months and the links to a website work again; they kept the current choice (30 days, all websites).
+- Server → Updates no longer shows an older "newest version" than the installed one after an update: the installer asks GitHub for the newest release at the end, and a stored version older than the installed one shows as "–" with a hint to check again.
+
 ## [0.2.0] - 2026-11-25
 
 Updates from within the panel (E-185, E-187, E-188). From this version on, the panel updates itself and the scripts of its servers from signed releases; installations of 0.1.0 move to 0.2.0 once by hand with `get-owpanel`.

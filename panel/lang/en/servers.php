@@ -140,6 +140,7 @@ return [
             'checking' => 'Checking …',
             'update' => 'Update panel',
             'changes' => 'Changes',
+            'outdated_check' => 'The last check was before the update; "Check now" asks again.',
             'last_update' => 'Last update',
             'starting' => 'Starting the update …',
             'confirm' => 'I have read the changes of :version, update now',
