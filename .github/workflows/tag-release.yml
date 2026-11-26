@@ -1,0 +1,128 @@
+# Sets the tag of a release and builds, signs and publishes it, by a button
+# on GitHub: Actions -> "Tag release" -> "Run workflow" with the version.
+# No local copy and no token are needed. The tag carries the noreply address
+# of whoever started the run.
+#
+# Before tagging it checks: started on main; version x.y.z (optionally a
+# pre-release) and newer than every existing tag; a section for it in
+# CHANGELOG.md; all other workflows on this commit of main finished green.
+#
+# A tag pushed with the workflow's own token starts no further workflow, so
+# this one calls the release workflow itself (workflow_call). Tags pushed by
+# hand still start it as before.
+name: Tag release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without "v", e.g. 0.2.2'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# One release at a time.
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Start the workflow on main (Use workflow from: main)."
+          exit 1
+
+      # Actions are pinned to a commit, because tags can be moved (E-040).
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          # Needed for pushing the tag; the job runs nothing from the
+          # checkout but the two shell scripts below, both from main.
+          persist-credentials: true
+
+      - name: Check version and changelog
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          # shellcheck source=server/lib/release.sh
+          source server/lib/release.sh
+          if ! owp_release_tagged "$VERSION"; then
+            echo "::error::\"$VERSION\" is not a release version (x.y.z, without v)."
+            exit 1
+          fi
+          tags="$(git ls-remote --tags --refs origin 'v*' | sed 's#.*refs/tags/v##')"
+          if grep -qxF "$VERSION" <<<"$tags"; then
+            echo "::error::v$VERSION exists already."
+            exit 1
+          fi
+          while IFS= read -r existing; do
+            if owp_release_tagged "$existing" && ! owp_release_newer "$VERSION" "$existing"; then
+              echo "::error::$VERSION is not newer than the existing v$existing."
+              exit 1
+            fi
+          done <<<"$tags"
+          if ! scripts/release-notes "$VERSION" >/dev/null; then
+            echo "::error::CHANGELOG.md has no section \"## [$VERSION]\"."
+            exit 1
+          fi
+          echo "Version $VERSION: new, newest, in CHANGELOG.md."
+
+      - name: Check that main is green
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${SHA}&per_page=50" \
+            --jq ".workflow_runs[] | select(.id != ${RUN_ID} and .name != \"Tag release\") | \"\(.name)|\(.status)|\(.conclusion)\"")"
+          if [[ -z "$runs" ]]; then
+            echo "::error::No workflow ran for ${SHA:0:7} on main yet."
+            exit 1
+          fi
+          bad=0
+          while IFS='|' read -r name status conclusion; do
+            echo "${name}: ${status} ${conclusion}"
+            if [[ "$status" != "completed" ]]; then
+              echo "::error::\"$name\" is still running on ${SHA:0:7}; try again when it is done."
+              bad=1
+            elif [[ "$conclusion" != "success" && "$conclusion" != "skipped" ]]; then
+              echo "::error::\"$name\" ended with \"$conclusion\" on ${SHA:0:7}."
+              bad=1
+            fi
+          done <<<"$runs"
+          exit "$bad"
+
+      - name: Set and push the tag
+        id: tag
+        env:
+          VERSION: ${{ inputs.version }}
+          ACTOR: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+        run: |
+          git config user.name "$ACTOR"
+          git config user.email "${ACTOR_ID}+${ACTOR}@users.noreply.github.com"
+          git tag -a "v${VERSION}" -m "OWPanel ${VERSION}"
+          git push origin "v${VERSION}"
+          echo "tag=v${VERSION}" >>"$GITHUB_OUTPUT"
+          echo "Tagged $(git rev-parse --short HEAD) as v${VERSION} by ${ACTOR}."
+
+  release:
+    needs: tag
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    secrets: inherit
