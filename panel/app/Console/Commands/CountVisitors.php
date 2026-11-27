@@ -20,12 +20,17 @@ class CountVisitors extends Command
 
     public function handle(): int
     {
-        // The access logs of all websites are at the gateway on the panel
-        // server (E-195).
-        $server = Server::panelHost();
-        if ($server !== null && Site::where('status', SiteStatus::Active->value)->exists()) {
-            CollectSiteStats::dispatch($server->getKey());
+        // The access logs of the websites are at their gateway (E-195).
+        $panel = Server::panelHost();
+        if ($panel !== null) {
+            if (Site::where('status', SiteStatus::Active->value)->exists()) {
+                CollectSiteStats::dispatch($panel->getKey());
+            }
+
+            return self::SUCCESS;
         }
+        Server::whereHas('sites', fn ($query) => $query->where('status', SiteStatus::Active->value))
+            ->each(fn (Server $server) => CollectSiteStats::dispatch($server->getKey()));
 
         return self::SUCCESS;
     }

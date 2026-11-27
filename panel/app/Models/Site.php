@@ -206,16 +206,27 @@ class Site extends Model
     }
 
     /**
+     * The latest task that ran, leaving out those skipped after a failed
+     * step: the failed step names what went wrong (E-106, E-195).
+     */
+    public function lastRunTask(): ?ServerTask
+    {
+        return $this->tasks()
+            ->where(fn ($query) => $query->whereNull('error')->orWhere('error', '!=', ServerTask::SKIPPED))
+            ->latest('created_at')->latest('id')->first();
+    }
+
+    /**
      * Whether the last attempt to create the site failed and can be repeated.
      * site-create is repeatable and brings a half-created site into shape.
      */
     public function canRetryCreate(): bool
     {
-        $latest = $this->latestTask();
+        $latest = $this->lastRunTask();
 
         return $this->status === SiteStatus::Failed
-            && ($latest?->script === ServerScript::SiteCreate
-                || ($latest?->script === ServerScript::GatewaySite && ! in_array('--remove', (array) $latest->arguments, true)))
+            && in_array($latest?->script, [ServerScript::SiteCreate, ServerScript::GatewaySite], true)
+            && ! $latest->removesSite()
             && ! $this->isBusy();
     }
 

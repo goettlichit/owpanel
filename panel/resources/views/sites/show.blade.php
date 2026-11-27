@@ -21,7 +21,7 @@
                 <x-icon :name="$failed ? 'alert-triangle' : 'loader-2'" class="mt-1" />
             <div class="flex-fill">
                 @if ($failed)
-                    {{ __($lastTask?->script === \App\Enums\ServerScript::SiteDelete ? 'sites.state.failed_delete' : 'sites.state.failed_create',
+                    {{ __($lastTask?->removesSite() ? 'sites.state.failed_delete' : 'sites.state.failed_create',
                         ['error' => $lastTask?->errorMessage() ?? '–']) }}
                 @else
                     {{ __('sites.state.'.$site->status->value) }}

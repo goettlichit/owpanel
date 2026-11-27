@@ -107,6 +107,17 @@ final class SiteDeploy
     }
 
     /**
+     * Whether gateway and backend of the website are on the same server,
+     * as on a single server (E-195).
+     */
+    public static function local(Site $site): bool
+    {
+        $gateway = Server::panelHost();
+
+        return $gateway === null || $gateway->is($site->server);
+    }
+
+    /**
      * The server whose gateway takes the visitors: the panel server.
      */
     public static function gatewayServer(Site $site): Server
@@ -125,7 +136,7 @@ final class SiteDeploy
             $domain,
             $site->system_user,
             $https,
-            listen: $server->backendAddress(),
+            listen: self::local($site) ? '127.0.0.1' : $server->backendAddress(),
             // The gateway's private address comes with "Server hinzufügen"
             // (M5-5); until then only the panel server's own backend.
             gateway: '127.0.0.1',
@@ -143,7 +154,7 @@ final class SiteDeploy
     {
         $server = $site->server;
         $values = $settings ?? PhpSettings::effective($site);
-        $local = $server->hostsPanel() || Server::panelHost() === null;
+        $local = self::local($site);
 
         return ServerTask::start(
             self::gatewayServer($site),

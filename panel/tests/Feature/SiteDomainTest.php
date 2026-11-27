@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ServerScript;
 use App\Enums\TaskStatus;
 use App\Models\Server;
 use App\Models\ServerTask;
@@ -51,7 +52,14 @@ class SiteDomainTest extends TestCase
         $response = $this->actingAs($admin)->post("/sites/{$site->id}/domain", ['new_domain' => 'New-Example.de']);
         $response->assertRedirect(route('sites.show', $site));
 
-        $this->assertSame(['--domain', 'new-example.de', '--type', 'php', '--user', $site->system_user, '--tls', '--www', '--previous-domain', 'old-example.de'], $runner->calls[0]->arguments);
+        // The backend answers to both names while the gateway moves, then
+        // lets go of the old one (E-195, E-112).
+        $this->assertSame(['--domain', 'new-example.de', '--type', 'php', '--user', $site->system_user, '--https', '--alias', 'old-example.de'], $runner->calls[0]->arguments);
+        $this->assertSame(
+            ['--domain', 'new-example.de', '--user', $site->system_user, '--backend-id', $server->backendId(), '--backend', '127.0.0.1', '--tls', '--www', '--previous-domain', 'old-example.de', '--body', '72', '--timeout', '90'],
+            $runner->calls[1]->arguments,
+        );
+        $this->assertSame(['--domain', 'new-example.de', '--type', 'php', '--user', $site->system_user, '--https', '--existing'], $runner->calls[2]->arguments);
         $site->refresh();
         $this->assertSame('new-example.de', $site->domain);
         $this->assertTrue($site->www);
@@ -68,7 +76,7 @@ class SiteDomainTest extends TestCase
 
         $this->actingAs($this->admin())->post("/sites/{$site->id}/domain", ['new_domain' => 'new.example.de'])->assertRedirect();
 
-        $this->assertSame(TaskStatus::Failed, ServerTask::sole()->status);
+        $this->assertSame(TaskStatus::Failed, ServerTask::where('script', ServerScript::SiteCreate->value)->sole()->status);
         $site->refresh();
         $this->assertSame('old.example.de', $site->domain);
         $this->assertTrue($site->tls);
@@ -83,7 +91,8 @@ class SiteDomainTest extends TestCase
 
         $this->actingAs($this->admin())->post("/sites/{$site->id}/domain", ['new_domain' => 'www.example.de'])->assertRedirect();
 
-        $this->assertNotContains('--www', $runner->calls[0]->arguments);
+        $this->assertSame('gateway-site', $runner->calls[1]->script->value);
+        $this->assertNotContains('--www', $runner->calls[1]->arguments);
         $site->refresh();
         $this->assertSame('www.example.de', $site->domain);
         $this->assertFalse($site->www);

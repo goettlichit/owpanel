@@ -197,8 +197,11 @@ class SiteWebserverTest extends TestCase
 
         $first = Rebuild::site($site, ScriptCall::LATEST, $this->admin());
 
+        // After the backend and its gateway (E-195).
+        $gateway = ServerTask::where('after_task_id', $first->id)->sole();
+        $this->assertSame(ServerScript::GatewaySite, $gateway->script);
         $rules = ServerTask::where('script', ServerScript::SiteNginx->value)->sole();
-        $this->assertSame($first->id, $rules->after_task_id);
+        $this->assertSame($gateway->id, $rules->after_task_id);
         $this->assertSame("path\t/vendor/\n", $rules->call()->stdin);
     }
 

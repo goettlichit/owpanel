@@ -196,7 +196,8 @@ class SiteSftpTest extends TestCase
             ->assertSessionHas('status', fn (string $message) => str_contains($message, 'folgt danach'));
         $this->assertSame([], $runner->calls);
 
-        $create = ServerTask::factory()->create(['server_id' => $site->server_id, 'site_id' => $site->id, 'script' => ServerScript::SiteCreate, 'status' => TaskStatus::Succeeded, 'result' => ['ok' => true]]);
+        // The gateway ends the setup of a website (E-195).
+        $create = ServerTask::factory()->create(['server_id' => $site->server_id, 'site_id' => $site->id, 'script' => ServerScript::GatewaySite, 'status' => TaskStatus::Succeeded, 'result' => ['ok' => true]]);
         $site->fresh()->taskFinished($create);
         $this->assertSame(1, ServerTask::where('script', ServerScript::SiteSftp->value)->count());
     }

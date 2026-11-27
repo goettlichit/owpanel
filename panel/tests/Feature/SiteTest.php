@@ -115,7 +115,7 @@ class SiteTest extends TestCase
         $response = $this->actingAs($admin)->post('/sites', ['domain' => 'shop.example.de', 'tls' => '1']);
 
         $site = Site::sole();
-        $task = ServerTask::sole();
+        $task = ServerTask::where('script', ServerScript::SiteCreate->value)->oldest('id')->first();
         $response->assertRedirect("/sites/{$site->id}");
 
         $this->assertSame($server->id, $site->server_id);
@@ -126,16 +126,24 @@ class SiteTest extends TestCase
 
         $this->assertSame($site->id, $task->site_id);
         $this->assertSame(ServerScript::SiteCreate, $task->script);
+        // Backend, gateway with the certificate, backend again for secure
+        // session cookies (E-195, E-176).
+        $this->assertSame(['site-create', 'gateway-site', 'site-create'], array_map(fn ($call) => $call->script->value, $runner->calls));
         $this->assertSame(
-            ['--domain', 'shop.example.de', '--type', 'php', '--user', $site->system_user, '--tls', '--php', '8.5', '--php-memory', '256', '--php-upload', '64', '--php-time', '60', '--php-processes', '10', '--php-errors', 'off'],
+            ['--domain', 'shop.example.de', '--type', 'php', '--user', $site->system_user, '--php', '8.5', '--php-memory', '256', '--php-upload', '64', '--php-time', '60', '--php-processes', '10', '--php-errors', 'off'],
             $runner->calls[0]->arguments,
         );
+        $this->assertSame(
+            ['--domain', 'shop.example.de', '--user', $site->system_user, '--backend-id', $server->backendId(), '--backend', '127.0.0.1', '--tls', '--body', '72', '--timeout', '90'],
+            $runner->calls[1]->arguments,
+        );
+        $this->assertSame(['--domain', 'shop.example.de', '--type', 'php', '--user', $site->system_user, '--https', '--existing'], $runner->calls[2]->arguments);
 
         $this->assertSame(SiteStatus::Active, $site->status);
         $this->assertTrue($site->tls);
         $this->assertSame('8.5', $site->php_version);
 
-        $this->assertSame(['site.created', 'server.task_started'], AuditLog::orderBy('id')->pluck('action')->all());
+        $this->assertSame(['site.created', 'server.task_started', 'server.task_started', 'server.task_started'], AuditLog::orderBy('id')->pluck('action')->all());
 
         $this->actingAs($admin)->get("/tasks/{$task->id}")
             ->assertSee('Webseite anlegen')
@@ -165,8 +173,9 @@ class SiteTest extends TestCase
 
         $this->assertSame([], $runner->calls);
         $this->assertSame(SiteStatus::Pending, Site::sole()->status);
-        $this->assertSame(TaskStatus::Pending, ServerTask::sole()->status);
-        Queue::assertPushed(RunServerTask::class);
+        // Backend and, after it, gateway (E-195).
+        $this->assertSame([TaskStatus::Pending, TaskStatus::Pending], ServerTask::pluck('status')->all());
+        Queue::assertPushed(RunServerTask::class, 1);
     }
 
     public function test_a_site_without_certificate_omits_tls(): void
@@ -177,7 +186,8 @@ class SiteTest extends TestCase
         $this->actingAs($this->admin())->post('/sites', ['domain' => 'shop.example.de', 'tls' => '0']);
 
         $site = Site::sole();
-        $this->assertNotContains('--tls', $runner->calls[0]->arguments);
+        $this->assertSame('gateway-site', $runner->calls[1]->script->value);
+        $this->assertNotContains('--tls', $runner->calls[1]->arguments);
         $this->assertFalse($site->wants_tls);
         $this->assertFalse($site->tls);
 
@@ -271,8 +281,9 @@ class SiteTest extends TestCase
         $this->actingAs($admin)->post('/sites', ['domain' => 'shop.example.de', 'tls' => '1', 'server' => $web2->id]);
 
         $this->assertSame($web2->id, Site::sole()->server_id);
-        $this->assertSame($web2->id, ServerTask::sole()->server_id);
-        $this->assertCount(1, $runner->calls);
+        // Without a marked panel server, the website's server is its own gateway.
+        $this->assertSame([$web2->id], ServerTask::pluck('server_id')->unique()->values()->all());
+        $this->assertSame(['site-create', 'gateway-site', 'site-create'], array_map(fn ($call) => $call->script->value, $runner->calls));
     }
 
     public function test_without_a_server_no_site_can_be_created(): void
@@ -320,11 +331,14 @@ class SiteTest extends TestCase
             ->assertRedirect("/sites/{$site->id}");
 
         $this->assertSame(
-            ['--domain', 'shop.example.de', '--type', 'php', '--user', $site->system_user, '--tls', '--php', '8.5', '--php-memory', '256', '--php-upload', '64', '--php-time', '60', '--php-processes', '10', '--php-errors', 'off'],
+            ['--domain', 'shop.example.de', '--type', 'php', '--user', $site->system_user, '--php', '8.5', '--php-memory', '256', '--php-upload', '64', '--php-time', '60', '--php-processes', '10', '--php-errors', 'off'],
             $runner->calls[0]->arguments,
         );
+        $this->assertContains('--tls', $runner->calls[1]->arguments);
         $this->assertSame(SiteStatus::Active, $site->fresh()->status);
-        $this->assertSame(2, $site->tasks()->count());
+        // The failed backend with its skipped gateway, then backend, gateway
+        // and backend again.
+        $this->assertSame(5, $site->tasks()->count());
     }
 
     public function test_an_active_site_cannot_be_retried(): void
@@ -353,12 +367,15 @@ class SiteTest extends TestCase
         $this->actingAs($admin)->delete("/sites/{$site->id}", ['confirm_domain' => ' Shop.Example.de '])
             ->assertRedirect('/sites');
 
-        $this->assertSame(['--user', 'ow23456'], $runner->calls[0]->arguments);
-        $this->assertSame(ServerScript::SiteDelete, $runner->calls[0]->script);
+        // The gateway lets go first, then the server deletes (E-195).
+        $this->assertSame(['--user', 'ow23456', '--remove'], $runner->calls[0]->arguments);
+        $this->assertSame(ServerScript::GatewaySite, $runner->calls[0]->script);
+        $this->assertSame(['--user', 'ow23456'], $runner->calls[1]->arguments);
+        $this->assertSame(ServerScript::SiteDelete, $runner->calls[1]->script);
         $this->assertNull(Site::find($site->id));
 
         // The task and its log stay, the audit log keeps domain and user.
-        $task = ServerTask::sole();
+        $task = ServerTask::where('script', ServerScript::SiteDelete->value)->sole();
         $this->assertSame(TaskStatus::Succeeded, $task->status);
         $this->assertNull($task->site_id);
         $entry = AuditLog::where('action', 'site.deleted')->sole();
@@ -402,7 +419,7 @@ class SiteTest extends TestCase
         $this->actingAs($admin)->delete("/sites/{$site->id}", ['confirm_domain' => 'shop.example.de'])
             ->assertSessionHas('error', 'Für diese Webseite läuft bereits eine Aufgabe. Warte, bis sie beendet ist.');
 
-        $this->assertSame(1, ServerTask::count());
+        $this->assertSame(2, ServerTask::count());
         $this->assertSame(SiteStatus::Pending, $site->fresh()->status);
     }
 

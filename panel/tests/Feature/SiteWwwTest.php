@@ -37,6 +37,19 @@ class SiteWwwTest extends TestCase
         return $runner;
     }
 
+    /**
+     * The gateway calls of a runner and their flags (E-195).
+     *
+     * @return list<list<string>>
+     */
+    private static function gatewayFlags(object $runner): array
+    {
+        return array_values(array_map(
+            fn ($call) => array_values(array_intersect($call->arguments, ['--tls', '--www'])),
+            array_filter($runner->calls, fn ($call) => $call->script->value === 'gateway-site'),
+        ));
+    }
+
     public function test_a_new_website_can_answer_to_www_too(): void
     {
         $runner = $this->runner();
@@ -51,7 +64,8 @@ class SiteWwwTest extends TestCase
         $site = Site::sole();
         $this->assertTrue($site->www);
         $this->assertTrue($site->www_tls);
-        $this->assertSame(['--domain', 'owpanel.org', '--type', 'php', '--user', $site->system_user, '--tls', '--www', '--php', '8.5', '--php-memory', '256', '--php-upload', '64', '--php-time', '60', '--php-processes', '10', '--php-errors', 'off'], $runner->calls[0]->arguments);
+        $this->assertSame(['--domain', 'owpanel.org', '--type', 'php', '--user', $site->system_user, '--php', '8.5', '--php-memory', '256', '--php-upload', '64', '--php-time', '60', '--php-processes', '10', '--php-errors', 'off'], $runner->calls[0]->arguments);
+        $this->assertSame([['--tls', '--www']], self::gatewayFlags($runner));
 
         $this->actingAs($admin)->get("/sites/{$site->id}/domain")->assertOk()
             ->assertSee('www.owpanel.org leitet auf owpanel.org weiter.')
@@ -90,7 +104,7 @@ class SiteWwwTest extends TestCase
         $response = $this->actingAs($admin)->post("/sites/{$site->id}/www", ['www' => '1']);
         $task = ServerTask::latest('created_at')->latest('id')->first();
         $response->assertRedirect(route('sites.domain.show', $site));
-        $this->assertSame(['--domain', 'owpanel.org', '--type', 'php', '--user', $site->system_user, '--tls', '--www'], $runner->calls[0]->arguments);
+        $this->assertSame([['--tls', '--www']], self::gatewayFlags($runner));
         $this->assertDatabaseHas('audit_logs', ['action' => 'site.www_enabled']);
 
         // Let's Encrypt refused www: the page says so and offers a new request.
@@ -102,10 +116,10 @@ class SiteWwwTest extends TestCase
             ->assertSee('Ohne Zertifikat')->assertSee('bg-orange', false);
         $this->actingAs($admin)->get("/sites/{$site->id}")->assertOk()->assertSee('www noch ohne Zertifikat, siehe „Webseite und Domain“.');
         $this->actingAs($admin)->post("/sites/{$site->id}/certificate")->assertRedirect();
-        $this->assertSame(['--domain', 'owpanel.org', '--type', 'php', '--user', $site->system_user, '--tls', '--www'], $runner->calls[1]->arguments);
+        $this->assertSame([['--tls', '--www'], ['--tls', '--www']], self::gatewayFlags($runner));
 
         $this->actingAs($admin)->post("/sites/{$site->id}/www", ['www' => '0'])->assertRedirect();
-        $this->assertSame(['--domain', 'owpanel.org', '--type', 'php', '--user', $site->system_user, '--tls'], $runner->calls[2]->arguments);
+        $this->assertSame([['--tls', '--www'], ['--tls', '--www'], ['--tls']], self::gatewayFlags($runner));
         $this->assertFalse($site->fresh()->www);
         $this->assertDatabaseHas('audit_logs', ['action' => 'site.www_disabled']);
     }
@@ -130,10 +144,11 @@ class SiteWwwTest extends TestCase
 
         Rebuild::site($site, 'latest', null);
 
-        $creates = ServerTask::where('script', 'site-create')->orderBy('created_at')->orderBy('id')->get();
-        $this->assertCount(2, $creates);
-        $this->assertContains('--www', $creates[0]->arguments);
-        $this->assertContains('--www', $creates[1]->arguments);
+        // www lives at the gateway (E-195).
+        $gateways = ServerTask::where('script', 'gateway-site')->orderBy('created_at')->orderBy('id')->get();
+        $this->assertCount(2, $gateways);
+        $this->assertContains('--www', $gateways[0]->arguments);
+        $this->assertContains('--www', $gateways[1]->arguments);
     }
 
     public function test_only_main_domains_get_www(): void
@@ -171,7 +186,7 @@ class SiteWwwTest extends TestCase
         $this->actingAs($this->admin())->get("/sites/{$site->id}/domain")->assertOk()
             ->assertSee('www-Adresse ausschalten')->assertDontSee('opacity-50', false);
         $this->actingAs($this->admin())->post("/sites/{$site->id}/www", ['www' => '0'])->assertRedirect();
-        $this->assertNotContains('--www', $runner->calls[0]->arguments);
-        $this->assertSame(['--domain', 'shop.example.de'], array_slice($runner->calls[0]->arguments, 0, 2));
+        $this->assertNotContains('--www', self::gatewayFlags($runner)[0]);
+        $this->assertSame(['--domain', 'shop.example.de'], array_slice($runner->calls[1]->arguments, 0, 2));
     }
 }

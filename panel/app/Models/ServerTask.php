@@ -158,6 +158,16 @@ class ServerTask extends Model
     }
 
     /**
+     * Whether the task removes a website: site-delete, or the gateway part
+     * before it (E-195).
+     */
+    public function removesSite(): bool
+    {
+        return $this->script === ServerScript::SiteDelete
+            || ($this->script === ServerScript::GatewaySite && in_array('--remove', (array) $this->arguments, true));
+    }
+
+    /**
      * The call to run. db-create gets the password of its database on stdin,
      * read from the encrypted column only now (E-078).
      */

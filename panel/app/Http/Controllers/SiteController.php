@@ -261,7 +261,7 @@ class SiteController extends Controller
         return view('sites.show', [
             'site' => $site->load(['server', 'customer'])->loadCount('databases'),
             // For the state banner; all tasks are under "Logs & tasks" (E-086).
-            'lastTask' => $site->tasks()->latest('created_at')->latest('id')->first(),
+            'lastTask' => $site->lastRunTask(),
             'busy' => $site->isBusy(),
             'showServer' => Server::count() > 1,
         ]);
@@ -302,7 +302,7 @@ class SiteController extends Controller
 
         return view('sites.certificate', [
             'site' => $site->load('server'),
-            'lastTask' => $site->tasks()->latest('created_at')->latest('id')->first(),
+            'lastTask' => $site->lastRunTask(),
             'busy' => $site->isBusy(),
         ]);
     }

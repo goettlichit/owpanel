@@ -362,7 +362,12 @@ class MaintenanceTest extends TestCase
         $this->actingAs($admin)->post("/sites/{$site->id}/certificate")
             ->assertRedirect("/sites/{$site->id}/certificate");
 
-        $this->assertSame(['--domain', 'shop.example.de', '--type', 'php', '--user', 'ow23456', '--tls'], $runner->calls[0]->arguments);
+        // Backend, then the gateway asks for the certificate (E-195), then the
+        // backend again for secure session cookies (E-176).
+        $this->assertSame(['site-create', 'gateway-site', 'site-create'], $runner->scripts());
+        $this->assertSame(['--domain', 'shop.example.de', '--type', 'php', '--user', 'ow23456'], $runner->calls[0]->arguments);
+        $this->assertContains('--tls', $runner->calls[1]->arguments);
+        $this->assertSame(['--domain', 'shop.example.de', '--type', 'php', '--user', 'ow23456', '--https', '--existing'], $runner->calls[2]->arguments);
         $site->refresh();
         $this->assertTrue($site->tls);
         $this->assertTrue($site->wants_tls);
@@ -388,7 +393,7 @@ class MaintenanceTest extends TestCase
         $this->assertSame(SiteStatus::Active, $site->status);
         $this->assertFalse($site->tls);
         $this->assertFalse($site->wants_tls);
-        $this->assertSame(TaskStatus::Failed, ServerTask::sole()->status);
+        $this->assertSame(TaskStatus::Failed, ServerTask::where('script', ServerScript::SiteCreate->value)->sole()->status);
 
         $this->actingAs($admin)->get("/sites/{$site->id}/certificate")
             ->assertSee('Die letzte Anforderung ist fehlgeschlagen')

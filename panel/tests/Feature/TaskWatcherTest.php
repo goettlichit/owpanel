@@ -113,8 +113,8 @@ class TaskWatcherTest extends TestCase
 
         // Suspending: the suspend button with its spinner text, not yet "Unsuspend".
         $this->actingAs($admin)->get("/sites/{$site->id}/suspension")->assertOk()
-            ->assertSee('data-ow-task="site-suspend" data-ow-busy="Webseite wird gesperrt …"', false)
-            ->assertDontSee('data-ow-task="site-unsuspend"', false);
+            ->assertSee('data-ow-task="site-suspend gateway-site" data-ow-busy="Webseite wird gesperrt …"', false)
+            ->assertDontSee('data-ow-task="site-unsuspend', false);
 
         $task->forceFill(['status' => TaskStatus::Succeeded])->save();
         $site->forceFill(['suspended_at' => null, 'suspended_by' => null])->save();
@@ -122,7 +122,7 @@ class TaskWatcherTest extends TestCase
 
         // Unsuspending: the unsuspend button, not yet the form to suspend.
         $this->actingAs($admin)->get("/sites/{$site->id}/suspension")->assertOk()
-            ->assertSee('data-ow-task="site-unsuspend" data-ow-busy="Webseite wird entsperrt …"', false)
+            ->assertSee('data-ow-task="site-unsuspend site-create gateway-site" data-ow-busy="Webseite wird entsperrt …"', false)
             ->assertDontSee('name="note"', false);
     }
 }

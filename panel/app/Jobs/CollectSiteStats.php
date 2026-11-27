@@ -41,12 +41,8 @@ class CollectSiteStats implements ShouldQueue
             return;
         }
 
-        // The access logs of all websites are written at the gateway on the
-        // panel server (E-195).
-        if (! $server->hostsPanel()) {
-            return;
-        }
-        Site::query()->where('status', SiteStatus::Active->value)->orderBy('domain')->get()
+        // The access logs of the websites are written at their gateway (E-195).
+        $server->gatewaySites()?->where('status', SiteStatus::Active->value)->orderBy('domain')->get()
             ->each(fn (Site $site) => $this->collect($runner, $server, $site));
     }
 
