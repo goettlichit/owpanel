@@ -6,6 +6,13 @@
 #   bash get-owpanel                       newest release (public repository)
 #   bash get-owpanel --version 1.2.0       a given release
 #   bash get-owpanel --dev [--branch B]    newest test build of a branch (default: main)
+#   bash get-owpanel --join <panel domain> --via <private address of the panel>
+#                                          a website server of that panel (E-196)
+#
+# --join fetches the release of the panel from the panel itself: by its name,
+# so its certificate is checked, over its private address. The one-time code
+# from Server -> Add server is asked for and handed to the installer in a
+# file. With --dev the panel may hand out its unsigned test build.
 #
 # Test builds are GitHub Actions artifacts. GitHub hands them out only with
 # a token, also for public repositories: a fine-grained token for this
@@ -28,6 +35,10 @@ readonly VERSION_RE='^([0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}(-[0-9A-Za-z.]{1,32})?|
 MODE="release"
 VERSION=""
 BRANCH="main"
+DEV=0
+JOIN_DOMAIN=""
+JOIN_VIA=""
+JOIN_TOKEN_FILE=""
 WORK=""
 HEADERS=""
 INSTALL_ARGS=()
@@ -83,7 +94,13 @@ parse_arguments() {
     case "$1" in
       --dev)
         MODE="dev"
+        DEV=1
         shift
+        ;;
+      --join | --via)
+        [[ $# -ge 2 ]] || die "$1 needs a value"
+        if [[ "$1" == "--join" ]]; then JOIN_DOMAIN="${2,,}"; else JOIN_VIA="$2"; fi
+        shift 2
         ;;
       --branch | --version)
         [[ $# -ge 2 ]] || die "$1 needs a value"
@@ -98,20 +115,71 @@ parse_arguments() {
   done
   [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]{1,100}$ && "$BRANCH" != *..* ]] || die "invalid branch name"
   [[ -z "$VERSION" || "$VERSION" =~ $VERSION_RE ]] || die "invalid version"
+  if [[ -n "$JOIN_DOMAIN" || -n "$JOIN_VIA" ]]; then
+    MODE="join"
+    [[ "$JOIN_DOMAIN" =~ ^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$ && "$JOIN_DOMAIN" == *.* ]] \
+      || die "--join needs the domain of the panel"
+    [[ "$JOIN_VIA" =~ ^(10|172|192)\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] \
+      || die "--via needs the private IPv4 address of the panel"
+    [[ -z "$VERSION" ]] || die "--join takes the version of the panel, not --version"
+  fi
+}
+
+# The release of the panel from the panel (E-196). The code goes into a
+# file for the installer, which deletes it after use.
+download_join() {
+  local token="" info sum signed
+  [[ -r /dev/tty ]] || die "run in a terminal, the code from the panel is asked for"
+  read -r -s -p "Code from the panel (Server -> Add server): " token </dev/tty
+  printf '\n' >/dev/tty
+  [[ "$token" =~ ^[A-Za-z0-9_-]{32,128}$ ]] || die "this is not a code from the panel"
+  HEADERS="$(mktemp)"
+  chmod 0600 "$HEADERS"
+  printf 'Authorization: Bearer %s\nAccept: text/plain\n' "$token" >"$HEADERS"
+  JOIN_TOKEN_FILE="$(mktemp)"
+  chmod 0600 "$JOIN_TOKEN_FILE"
+  printf '%s\n' "$token" >"$JOIN_TOKEN_FILE"
+  token=""
+
+  printf 'Asking the panel %s over %s ...\n' "$JOIN_DOMAIN" "$JOIN_VIA"
+  info="$(fetch_auth --resolve "${JOIN_DOMAIN}:443:${JOIN_VIA}" "https://${JOIN_DOMAIN}/join/info")" \
+    || die "the panel did not answer over ${JOIN_VIA}: check the private network, or the code is wrong or expired"
+  VERSION="$(sed -n 's/^version=//p' <<<"$info" | head -n 1)"
+  sum="$(sed -n 's/^sha256=//p' <<<"$info" | head -n 1)"
+  signed="$(sed -n 's/^signed=//p' <<<"$info" | head -n 1)"
+  [[ "$VERSION" =~ $VERSION_RE && "$sum" =~ ^[0-9a-f]{64}$ ]] || die "unexpected answer from the panel"
+  [[ "$signed" == 1 || "$DEV" -eq 1 ]] || die "the panel runs an unsigned test build; use --dev to accept it"
+  printf 'Downloading OWPanel %s from the panel ...\n' "$VERSION"
+  mkdir -p "${WORK}/download"
+  fetch_auth --resolve "${JOIN_DOMAIN}:443:${JOIN_VIA}" --output "${WORK}/download/owpanel-${VERSION}.tar.gz" \
+    "https://${JOIN_DOMAIN}/join/archive" || die "the panel did not hand out its archive"
+  printf '%s  owpanel-%s.tar.gz\n' "$sum" "$VERSION" >"${WORK}/download/owpanel-${VERSION}.tar.gz.sha256"
+  if [[ "$signed" == 1 ]]; then
+    fetch_auth --resolve "${JOIN_DOMAIN}:443:${JOIN_VIA}" --output "${WORK}/download/owpanel-${VERSION}.tar.gz.sig" \
+      "https://${JOIN_DOMAIN}/join/signature" || die "the panel did not hand out the signature"
+  fi
+  INSTALL_ARGS+=(--join "$JOIN_DOMAIN" --via "$JOIN_VIA")
 }
 
 # Newest successful run of the Release workflow on the branch, then its
 # archive artifact (a zip with the archive and its .sha256 file).
 download_dev() {
-  local run newest artifact branch_query
+  local run newest newest_json artifact branch_query
   read_token
   branch_query="$(printf '%s' "$BRANCH" | sed 's#/#%2F#g')"
   printf 'Looking for the newest test build of %s ...\n' "$BRANCH"
-  run="$(fetch_auth "${API}/actions/workflows/release.yml/runs?branch=${branch_query}&status=success&per_page=1" | first_id)"
+  # The newest build, if it succeeded. GitHub's filter for successful runs
+  # sometimes answers with an older one, which warned for nothing.
+  newest_json="$(fetch_auth "${API}/actions/workflows/release.yml/runs?branch=${branch_query}&per_page=1")"
+  newest="$(first_id <<<"$newest_json")"
+  if grep -q '"conclusion": *"success"' <<<"$newest_json"; then
+    run="$newest"
+  else
+    run="$(fetch_auth "${API}/actions/workflows/release.yml/runs?branch=${branch_query}&status=success&per_page=1" | first_id)"
+  fi
   [[ -n "$run" ]] || die "no successful build found for ${BRANCH}"
   # A failed or running newest build would otherwise go unnoticed, and an
   # older state gets installed (2026-11-18).
-  newest="$(fetch_auth "${API}/actions/workflows/release.yml/runs?branch=${branch_query}&per_page=1" | first_id)"
   if [[ -n "$newest" && "$newest" != "$run" ]]; then
     printf '\033[33mWarning: the newest build of %s failed or is still running.\n' "$BRANCH" >&2
     printf 'Installing the last successful one, which is older. See https://github.com/%s/actions/runs/%s\033[0m\n' "$REPO" "$newest" >&2
@@ -154,7 +222,7 @@ download_release() {
 # without key only warns. A signature that does not match always stops.
 verify_signature() {
   local archive="$1" required=0 signers
-  if [[ "$MODE" == "release" ]]; then
+  if [[ "$MODE" == "release" || ( "$MODE" == "join" && "$DEV" -eq 0 ) ]]; then
     required=1
   fi
   if [[ -z "$RELEASE_SIGNERS" ]]; then
@@ -209,7 +277,9 @@ main() {
   trap cleanup EXIT
   WORK="$(mktemp -d)"
 
-  if [[ "$MODE" == "dev" ]]; then
+  if [[ "$MODE" == "join" ]]; then
+    download_join
+  elif [[ "$MODE" == "dev" ]]; then
     download_dev
   else
     download_release
@@ -221,6 +291,8 @@ main() {
   HEADERS=""
 
   cd "$INSTALL_DIR"
+  # The installer reads the code of the panel from this file and deletes it.
+  [[ -z "$JOIN_TOKEN_FILE" ]] || export OWP_JOIN_TOKEN_FILE="$JOIN_TOKEN_FILE"
   exec ./install "${INSTALL_ARGS[@]}"
 }
 

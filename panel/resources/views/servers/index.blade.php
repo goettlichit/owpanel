@@ -2,10 +2,19 @@
     <x-slot:sidebar>
         <x-side-menu :title="__('ui.nav.servers')">
             <x-nav-link route="servers.index" icon="server">{{ __('servers.all') }}</x-nav-link>
+            @can('create', \App\Models\Server::class)
+                <x-nav-link route="servers.join" icon="circle-plus">{{ __('servers.join.title') }}</x-nav-link>
+            @endcan
         </x-side-menu>
     </x-slot:sidebar>
 
-    <x-page-header :title="__('servers.title')" :pretitle="__('ui.brand')" />
+    <x-page-header :title="__('servers.title')" :pretitle="__('ui.brand')">
+        @can('create', \App\Models\Server::class)
+            <x-slot:actions>
+                <a href="{{ route('servers.join') }}" class="btn btn-primary"><x-icon name="circle-plus" class="me-1" />{{ __('servers.join.title') }}</a>
+            </x-slot:actions>
+        @endcan
+    </x-page-header>
 
     <x-card :flush="true">
         @if ($servers->isEmpty())

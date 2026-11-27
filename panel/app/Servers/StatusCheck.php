@@ -67,6 +67,8 @@ class StatusCheck
             'php_versions' => $data['php_versions'] ?? $server->php_versions,
             // An older server-status says nothing: keep what was known (E-195).
             'backend_cert' => $data['backend_cert'] ?? $server->backend_cert,
+            // Null when the server is in no private network (E-196).
+            'private_ipv4' => $data['private_ipv4'],
             'checked_at' => $now,
             'last_seen_at' => $now,
             'check_error' => null,
@@ -179,6 +181,7 @@ class StatusCheck
             'release_keys' => $this->releaseKeys($json['release_keys'] ?? null),
             'php_versions' => $this->phpVersions($json['php_versions'] ?? null),
             'backend_cert' => $this->backendCert($json['backend_cert'] ?? null),
+            'private_ipv4' => $this->privateIpv4($json['private_ipv4'] ?? null),
         ];
 
         foreach (['uptime', 'cpu_cores', 'cpu', 'load', 'memory', 'swap', 'disk', 'network', 'interfaces'] as $required) {
@@ -190,6 +193,15 @@ class StatusCheck
         $data['cpu_cores'] = min($data['cpu_cores'], 65535);
 
         return $data;
+    }
+
+    /**
+     * A private IPv4 address (RFC 1918), or null (E-196).
+     */
+    private function privateIpv4(mixed $value): ?string
+    {
+        return is_string($value) && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false
+            && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE) === false ? $value : null;
     }
 
     /**

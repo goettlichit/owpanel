@@ -2,6 +2,23 @@
 
 return [
     'title' => 'Server',
+    'join' => [
+        'title' => 'Server hinzufügen',
+        'form_title' => 'Neuer Website-Server',
+        'text' => 'Ein neuer Server mit Debian 13 im selben privaten Hetzner-Netz wie dieser Panel-Server wird Website-Server: Er bekommt NGINX, PHP und MariaDB, ist öffentlich nur per SSH erreichbar, und seine Websites laufen über das Gateway dieses Panels. Gib ihm einen Namen; danach zeigt das Panel einen Code und den Befehl für den neuen Server.',
+        'name' => 'Name',
+        'name_hint' => 'Kleinbuchstaben, Ziffern und Bindestriche, z. B. web2. Der Hostname wird beim Einbinden abgefragt.',
+        'submit' => 'Code erzeugen',
+        'no_private' => 'Dieser Panel-Server hat noch keine private Adresse. Hänge ihn in der Hetzner Cloud Console an ein privates Netz; nach der nächsten Statusprüfung geht es hier weiter.',
+        'no_archive' => 'Das Archiv dieser Version liegt nicht auf dem Server. Spiele das Panel einmal mit get-owpanel ein oder warte auf das nächste Update.',
+        'command_title' => 'So bindest du :name ein',
+        'command_text' => 'Als root auf dem neuen Server:',
+        'step_download' => 'get-owpanel laden und die Prüfsumme mit der aus der Installationsanleitung vergleichen:',
+        'step_run' => 'Einbinden über das private Netz:',
+        'step_code' => 'Wenn danach gefragt wird, diesen Code eingeben:',
+        'once' => 'Der Code gilt einmal und :minutes Minuten. Er wird nur jetzt angezeigt; lädst du die Seite neu, ist er weg und du erzeugst einen neuen.',
+        'until' => 'Gültig bis',
+    ],
     'all' => 'Alle Server',
     'empty' => 'Noch kein Server eingetragen.',
     'empty_hint' => 'Der Installer trägt den eigenen Server ein. Von Hand geht es mit diesem Befehl auf der Konsole:',

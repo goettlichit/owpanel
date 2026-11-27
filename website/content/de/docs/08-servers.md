@@ -74,15 +74,24 @@ fail2ban sperrt Adressen, die sich wiederholt falsch per SSH anmelden: nach 5 Ve
 
 Die Zeitzone des Servers legt der Installer fest. Das Panel zeigt alle Zeiten in dieser Zeitzone an und gleicht die Uhrzeit per NTP ab.
 
-## Weitere Server (geplant)
+## Weitere Server
 
-Heute verwaltet das Panel den Server, auf dem es läuft. Nach dem ersten Release kommen weitere Server dazu, ohne Neuinstallation und ohne Migration:
+Ab Version 0.5.0 bindet das Panel weitere Server als Website-Server ein, ohne Neuinstallation und ohne Migration. Das Panel bleibt das Eingangstor: Alle Domains zeigen auf das Panel, es kümmert sich um Zertifikate und HTTP/3 und reicht jede Anfrage über das private Netz an den Server der Webseite weiter. Die weiteren Server sind von außen nur für SSH und SFTP erreichbar.
 
-- Unter **Server → Server hinzufügen** zeigt das Panel einen Befehl mit einem Einmal-Code. Du führst ihn auf einem frischen Debian-13-Server aus, der im selben privaten Netzwerk der Hetzner Cloud hängt.
-- Das Panel bleibt das Eingangstor: Alle Domains zeigen auf das Panel, es kümmert sich um Zertifikate und HTTP/3 und reicht jede Anfrage an den Server der Webseite weiter. Die weiteren Server sind von außen nur für SSH und SFTP erreichbar.
-- Beim Anlegen einer Webseite schlägt das Panel den Server mit der meisten Reserve vor. Umziehen kannst du eine Webseite später von Hand, ihre Sicherungen ziehen mit.
-- Für eigene Dienste wie Pocket ID kommen danach Docker-Apps dazu, nur für Administratoren.
+Voraussetzungen:
+
+- Der Panel-Server hängt in einem privaten Netz der Hetzner Cloud (Cloud Console → Netzwerke). Nach der nächsten Statusprüfung kennt das Panel seine private Adresse.
+- Der neue Server ist ein frischer Debian-13-Server im selben privaten Netz.
+
+So geht es:
+
+1. Unter **Server → Server hinzufügen** einen Namen eingeben, etwa `web02`, und **Code erzeugen** wählen. Das Panel zeigt den Code nur jetzt; er gilt 15 Minuten und einmal.
+2. Auf dem neuen Server als root `get-owpanel` laden und die Prüfsumme wie bei der Installation vergleichen.
+3. Den angezeigten Befehl ausführen, etwa `bash get-owpanel --join panel.example.de --via 10.0.0.2`, und den Code eingeben, wenn danach gefragt wird.
+4. Der Installer fragt den Hostnamen, richtet den Server ein und meldet ihn beim Panel an. Das dauert einige Minuten. Danach steht der Server unter **Server**, und beim Anlegen einer Webseite lässt er sich auswählen.
+
+Bricht der Installer mit „the panel did not confirm the firewall“ ab, hat das Panel den Server über das private Netz nicht per SSH erreicht; die Firewall wurde zurückgenommen, und du kannst es nach der Fehlersuche mit einem neuen Code noch einmal versuchen.
 
 ::: tip
-Schon jetzt sinnvoll: Lege alle Server in derselben Netzwerkzone an (bei Hetzner etwa Nürnberg, Falkenstein und Helsinki) und nimm sie in eine gemeinsame **Platzierungsgruppe** vom Typ „Spread“. Dann laufen sie auf verschiedenen physischen Rechnern, und der Ausfall eines Rechners trifft nur einen Server. Die Gruppe kostet nichts; bestehende Server lassen sich nur ausgeschaltet aufnehmen. Hilfreich sind auch Namen nach der Aufgabe, etwa `gw01` für den Panel-Server und `web01`, `web02` für weitere Server.
+Lege alle Server in derselben Netzwerkzone an (bei Hetzner etwa Nürnberg, Falkenstein und Helsinki) und nimm sie in eine gemeinsame **Platzierungsgruppe** vom Typ „Spread“. Dann laufen sie auf verschiedenen physischen Rechnern, und der Ausfall eines Rechners trifft nur einen Server. Die Gruppe kostet nichts; bestehende Server lassen sich nur ausgeschaltet aufnehmen. Hilfreich sind auch Namen nach der Aufgabe, etwa `gw01` für den Panel-Server und `web01`, `web02` für weitere Server.
 :::

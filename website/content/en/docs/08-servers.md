@@ -74,15 +74,24 @@ fail2ban bans addresses that repeatedly fail to sign in over SSH: for one hour a
 
 The installer sets the server's time zone. The panel shows all times in this time zone and keeps the clock in sync over NTP.
 
-## More servers (planned)
+## More servers
 
-Today the panel manages the server it runs on. After the first release, more servers join without reinstalling and without migration:
+From version 0.5.0 the panel adds more servers as website servers, without reinstalling and without migration. The panel stays the gateway: every domain points to the panel, which takes care of certificates and HTTP/3 and passes each request over the private network to the server of the website. The other servers are reachable from outside only for SSH and SFTP.
 
-- Under **Server → Add server** the panel shows a command with a one-time code. You run it on a fresh Debian 13 server in the same private network of the Hetzner Cloud.
-- The panel stays the gateway: every domain points to the panel, which takes care of certificates and HTTP/3 and passes each request on to the server of the website. The other servers are reachable from outside only for SSH and SFTP.
-- When you create a website, the panel suggests the server with the most room. You can move a website by hand later, and its backups move with it.
-- After that, Docker apps follow for your own services such as Pocket ID, for administrators only.
+Requirements:
+
+- The panel server is attached to a private network of the Hetzner Cloud (Cloud Console → Networks). After the next status check the panel knows its private address.
+- The new server is a fresh Debian 13 server in the same private network.
+
+How it works:
+
+1. Under **Servers → Add server** enter a name such as `web02` and choose **Create code**. The panel shows the code only now; it works once and for 15 minutes.
+2. On the new server, as root, load `get-owpanel` and compare the checksum as for the installation.
+3. Run the command shown, e.g. `bash get-owpanel --join panel.example.com --via 10.0.0.2`, and enter the code when asked.
+4. The installer asks for the host name, sets up the server and registers it with the panel. This takes a few minutes. The server then appears under **Servers** and can be chosen when you create a website.
+
+If the installer stops with “the panel did not confirm the firewall”, the panel did not reach the server by SSH over the private network; the firewall was rolled back, and after fixing the cause you can try again with a new code.
 
 ::: tip
-Useful already now: create all servers in the same network zone (at Hetzner for example Nuremberg, Falkenstein and Helsinki) and put them into a shared **placement group** of the type “spread”. They then run on different physical hosts, and the failure of one host hits only one server. The group costs nothing; existing servers can only join while switched off. Names by role help too, such as `gw01` for the panel server and `web01`, `web02` for more servers.
+Create all servers in the same network zone (at Hetzner for example Nuremberg, Falkenstein and Helsinki) and put them into a shared **placement group** of the type “spread”. They then run on different physical hosts, and the failure of one host hits only one server. The group costs nothing; existing servers can only join while switched off. Names by role help too, such as `gw01` for the panel server and `web01`, `web02` for more servers.
 :::

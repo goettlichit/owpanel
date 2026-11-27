@@ -2,6 +2,23 @@
 
 return [
     'title' => 'Servers',
+    'join' => [
+        'title' => 'Add server',
+        'form_title' => 'New website server',
+        'text' => 'A new server with Debian 13 in the same private Hetzner network as this panel server becomes a website server: it gets NGINX, PHP and MariaDB, is reachable from the public by SSH only, and its websites run through the gateway of this panel. Give it a name; the panel then shows a code and the command for the new server.',
+        'name' => 'Name',
+        'name_hint' => 'Lowercase letters, digits and hyphens, e.g. web2. The host name is asked for while it joins.',
+        'submit' => 'Create code',
+        'no_private' => 'This panel server has no private address yet. Attach it to a private network in the Hetzner Cloud Console; after the next status check you can go on here.',
+        'no_archive' => 'The archive of this version is not on the server. Install the panel once with get-owpanel or wait for the next update.',
+        'command_title' => 'How to add :name',
+        'command_text' => 'As root on the new server:',
+        'step_download' => 'Load get-owpanel and compare the checksum with the one in the installation guide:',
+        'step_run' => 'Join over the private network:',
+        'step_code' => 'When asked, enter this code:',
+        'once' => 'The code works once and for :minutes minutes. It is shown only now; if you reload the page it is gone and you create a new one.',
+        'until' => 'Valid until',
+    ],
     'all' => 'All servers',
     'empty' => 'No server has been added yet.',
     'empty_hint' => 'The installer adds its own server. To add one by hand, use this console command:',

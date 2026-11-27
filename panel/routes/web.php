@@ -10,6 +10,7 @@ use App\Http\Controllers\DatabaseController;
 use App\Http\Controllers\DatabaseToolController;
 use App\Http\Controllers\DatabaseTransferController;
 use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\JoinController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\My\SiteLogController as MySiteLogController;
 use App\Http\Controllers\My\SiteSftpController as MySiteSftpController;
@@ -23,6 +24,7 @@ use App\Http\Controllers\ServerBackupController;
 use App\Http\Controllers\ServerController;
 use App\Http\Controllers\ServerDnsController;
 use App\Http\Controllers\ServerFirewallController;
+use App\Http\Controllers\ServerJoinController;
 use App\Http\Controllers\ServerSnapshotController;
 use App\Http\Controllers\ServerSshController;
 use App\Http\Controllers\ServerTaskController;
@@ -38,10 +40,20 @@ use App\Http\Controllers\SiteWebserverController;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\UserController;
 use App\Oidc\OidcSettings;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 // Login, logout, two-factor authentication and password change come from
 // Laravel Fortify (config/fortify.php, E-050).
+
+// A new server joins with its one-time code (E-166, E-196). No session or
+// CSRF token: the code in the Authorization header is the only key.
+Route::middleware('throttle:20,1')->withoutMiddleware([ValidateCsrfToken::class])->prefix('/join')->group(function () {
+    Route::get('/info', [JoinController::class, 'info'])->name('join.info');
+    Route::get('/archive', [JoinController::class, 'archive'])->name('join.archive');
+    Route::get('/signature', [JoinController::class, 'signature'])->name('join.signature');
+    Route::post('/register', [JoinController::class, 'register'])->name('join.register');
+});
 
 // Language and colour scheme also work on the login page.
 Route::middleware('throttle:30,1')->group(function () {
@@ -301,6 +313,9 @@ Route::middleware('auth')->group(function () {
         });
 
         Route::get('/servers', [ServerController::class, 'index'])->name('servers.index');
+        // Before /servers/{server}, so "join" is no server id (E-196).
+        Route::get('/servers/join', [ServerJoinController::class, 'create'])->name('servers.join');
+        Route::post('/servers/join', [ServerJoinController::class, 'store'])->middleware('throttle:10,1')->name('servers.join.store');
         Route::get('/servers/{server}', [ServerController::class, 'show'])->name('servers.show');
         Route::get('/servers/{server}/load', [ServerController::class, 'load'])->name('servers.load');
         Route::get('/servers/{server}/updates', [ServerController::class, 'updates'])->name('servers.updates');

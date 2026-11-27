@@ -137,9 +137,9 @@ final class SiteDeploy
             $site->system_user,
             $https,
             listen: self::local($site) ? '127.0.0.1' : $server->backendAddress(),
-            // The gateway's private address comes with "Server hinzufügen"
-            // (M5-5); until then only the panel server's own backend.
-            gateway: '127.0.0.1',
+            // The backend trusts the visitor's address only from the
+            // gateway: itself, or the panel server's private address (E-196).
+            gateway: self::local($site) ? '127.0.0.1' : (Server::panelHost()?->private_ipv4 ?? '127.0.0.1'),
             existingOnly: $existingOnly,
             php: $php,
             settings: $settings,

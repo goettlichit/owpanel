@@ -140,6 +140,18 @@ class ServerStatusTest extends TestCase
         }
     }
 
+    public function test_the_check_stores_the_private_address(): void
+    {
+        $server = Server::factory()->create(['name' => 'web1']);
+        // Only an RFC 1918 address; anything else leaves none (E-196).
+        foreach (['10.0.0.3' => '10.0.0.3', '203.0.113.5' => null, '10.0.0.3"<b>' => null] as $value => $expected) {
+            $this->fake(new FakeScriptRunner([self::answer(['private_ipv4' => $value])]));
+            $this->travel(2)->minutes();
+            $this->artisan('owpanel:check-servers')->assertSuccessful();
+            $this->assertSame($expected, $server->fresh()->private_ipv4, $value);
+        }
+    }
+
     public function test_the_php_versions_of_a_server_are_kept_and_shown(): void
     {
         $server = Server::factory()->create(['name' => 'web1']);

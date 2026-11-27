@@ -18,6 +18,10 @@ readonly OWP_FW_TIMEOUT=60
 # shellcheck disable=SC2034  # used by firewall-confirm and the firewall module
 readonly OWP_FW_RULES="/etc/owpanel/firewall-rules.list"
 readonly OWP_FW_MAX_RULES=100
+# Role of the server (E-196): "panel" (default) takes visitors on 80 and
+# 443; "web" is a website server behind the gateway, open to the public on
+# SSH only and to the private networks in PRIVATE_NETS on every port.
+OWP_ROLE_FILE="${OWP_ROLE_FILE:-/etc/owpanel/role}"
 
 # Serializes apply, confirm and rollback, which all touch the same state.
 owp_firewall_lock() {
@@ -81,11 +85,36 @@ owp_firewall_rule() {
     "${family:+${family} saddr ${source} }" "$proto" "$port" "$number"
 }
 
+# Reads KEY of the role file; empty if missing.
+owp_role_value() {
+  [[ -f "$OWP_ROLE_FILE" ]] || return 0
+  sed -n "s/^${1}=//p" "$OWP_ROLE_FILE" | tail -n 1
+}
+
+# The fixed rules of the role: HTTP, HTTPS and HTTP/3 for the panel server,
+# the private networks for a website server (E-196).
+owp_firewall_role_rules() {
+  local role nets net checked=""
+  role="$(owp_role_value ROLE)"
+  if [[ "$role" != web ]]; then
+    printf '        tcp dport { 80, 443 } accept comment "OWPanel HTTP and HTTPS"\n'
+    printf '        udp dport 443 accept comment "OWPanel HTTP/3"\n'
+    return 0
+  fi
+  nets="$(owp_role_value PRIVATE_NETS)"
+  for net in $nets; do
+    owp_valid_private_net "$net" || owp_die "invalid_role" "invalid private network ${net} in ${OWP_ROLE_FILE}"
+    checked+="${checked:+, }${net}"
+  done
+  [[ -n "$checked" ]] || owp_die "invalid_role" "${OWP_ROLE_FILE} names no private network"
+  printf '        ip saddr { %s } accept comment "OWPanel private network"\n' "$checked"
+}
+
 # Renders the complete rule set: fixed ports from the template plus the own
 # rules from a list file.
 # Usage: owp_firewall_render <output> <ssh ports> [<rules list>]
 owp_firewall_render() {
-  local output="$1" ports="$2" list="${3:-}" line rules="" number=0 rule
+  local output="$1" ports="$2" list="${3:-}" line rules="" number=0 rule role
   if [[ -n "$list" && -s "$list" ]]; then
     while IFS= read -r line || [[ -n "$line" ]]; do
       [[ -n "$line" ]] || continue
@@ -97,8 +126,10 @@ owp_firewall_render() {
     done <"$list"
   fi
   [[ -n "$rules" ]] || rules=$'        # no own rules\n'
+  # owp_die in the subshell only ends the subshell, so the status counts here.
+  role="$(owp_firewall_role_rules)" || owp_die "invalid_role" "the role in ${OWP_ROLE_FILE} is invalid"
   owp_render "${OWP_FW_TEMPLATE:-${OWP_ROOT}/templates/nftables/owpanel.nft}" "$output" \
-    "SSH_PORTS=${ports}" "OWN_RULES=${rules%$'\n'}"
+    "SSH_PORTS=${ports}" "ROLE_RULES=${role}" "OWN_RULES=${rules%$'\n'}"
 }
 
 # Returns 0 if nothing has to change: the rules are saved, loaded and no

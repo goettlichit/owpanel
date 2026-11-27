@@ -22,6 +22,14 @@ class ServerPolicy
     }
 
     /**
+     * Add a server with a one-time code (E-196).
+     */
+    public function create(User $user): bool
+    {
+        return $user->isAdmin();
+    }
+
+    /**
      * Start the harmless test script (server/bin/panel-test).
      */
     public function runTest(User $user, Server $server): bool
