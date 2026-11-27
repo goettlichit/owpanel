@@ -6,6 +6,10 @@ Hier steht nur, was sich in einer Version für die Nutzer von OWPanel tatsächli
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-27
+
+Update from 0.3.0 from within the panel. On the update the installer rewrites the configuration of every website; each one shows two short tasks.
+
 ### Changed
 - Every website now has two parts: the gateway on the panel server takes the visitors (certificate, HTTP/3, www, suspension page, access log) and passes them over an encrypted connection to the backend on the website's server (PHP, own rules, error log). On a single server both run there; visitors notice nothing, and PHP still sees their address and HTTPS. The installer converts all websites on the update; each shows two tasks, "Create website" and "Set up website gateway".
 - Suspending a website shows the suspension page at the gateway first; deleting removes the gateway with the certificate first.
