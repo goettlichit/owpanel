@@ -676,12 +676,16 @@ write_env() {
 # The archive the panel sends to its servers (server-scripts-update, E-187).
 # A release keeps the signed archive that panel-update left in its folder
 # when the installer runs again; a test build gets an unsigned archive with
-# just server/ and VERSION. Otherwise panel-update --fetch-archive loads it.
+# server/, VERSION, the installer and the release key, which a new server
+# needs to join (E-196). Otherwise panel-update --fetch-archive loads it.
 keep_scripts_archive() {
   local release="$1" stage="$2" name="owpanel-${VERSION}.tar.gz" file
   if [[ "$VERSION" == dev-* ]]; then
+    local -a parts=(server VERSION install)
+    # The release key, so a joined server checks later releases too.
+    [[ -f "${SOURCE_ROOT}/release-signers" ]] && parts+=(release-signers)
     tar -czf "${stage}/${name}" -C "$SOURCE_ROOT" --owner=0 --group=0 --numeric-owner \
-      --transform "s,^,owpanel-${VERSION}/," server VERSION
+      --transform "s,^,owpanel-${VERSION}/," "${parts[@]}"
     return 0
   fi
   for file in "$name" "${name}.sha256" "${name}.sig"; do
