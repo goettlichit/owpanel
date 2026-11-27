@@ -6,6 +6,12 @@ Hier steht nur, was sich in einer Version für die Nutzer von OWPanel tatsächli
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-27
+
+Update from 0.4.0 from within the panel. On the update the installer rewrites the configuration of every website; each one shows short tasks.
+
+**Note:** websites on an added server are not backed up yet. Backups for these servers come with the next version; until then keep such websites on the panel server or back them up yourself.
+
 ### Added
 - Add server: under Servers → Add server the panel shows a one-time code and the command `bash get-owpanel --join <panel domain> --via <private address>`. A fresh Debian 13 server in the same private Hetzner network becomes a website server: it loads the scripts from the panel over the private network, gets NGINX, PHP and MariaDB, is reachable from the public by SSH only, and its websites run through the gateway of the panel.
 - When the server of a website cannot be reached, visitors see a neutral page “temporarily unavailable” instead of an NGINX error.

@@ -42,7 +42,7 @@
         "home": "To the start page"
     },
     "home": {
-        "status_badge": "Version 0.4",
+        "status_badge": "Version 0.5",
         "title": "Server panel for Debian: simple, native, bilingual",
         "lead": "OWPanel sets up websites with HTTPS and HTTP/3, databases, backups and notifications natively on your own Debian server. No configuration files, in English and German.",
         "cta_docs": "Read the documentation",
@@ -96,7 +96,7 @@
                 { "state": "done", "title": "Customer area", "text": "Packages, customer access, websites, databases, cron jobs, backups, storage and suspension" },
                 { "state": "done", "title": "Public release", "text": "SSH hardening, security review, blocklists, signed releases, version 0.1" },
                 { "state": "done", "title": "Updates from the panel", "text": "Update the panel with one click or at night, server scripts follow by themselves, every release with a checked signature, version 0.2" },
-                { "state": "next", "title": "Multi-server", "text": "More servers behind the panel as the gateway, an IPv6 address per website, move websites together with their backups" },
+                { "state": "next", "title": "Multi-server", "text": "More servers behind the panel as the gateway (since 0.5), next their backups, choosing the server on creation, moving websites with their backups" },
                 { "state": "planned", "title": "Docker apps", "text": "Your own services such as Pocket ID as a Compose project on a server, reachable through the panel, for administrators only" },
                 { "state": "planned", "title": "API", "text": "Connect your own homepage: customers, packages, status and a note about unpaid invoices" }
             ]
