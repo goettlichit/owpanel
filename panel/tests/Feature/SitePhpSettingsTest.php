@@ -67,7 +67,7 @@ class SitePhpSettingsTest extends TestCase
         $site->refresh();
         $this->assertSame([512, 100, 120, true], [$site->php_memory_mb, $site->php_upload_mb, $site->php_time_s, $site->php_display_errors]);
         $task = ServerTask::where('script', ServerScript::SiteCreate->value)->sole();
-        $this->assertSame(['--domain', 'shop.example.de', '--type', 'php', '--user', 'ow38217', '--https', ...self::settingArgs(512, 100, 120, 6, true)], $task->arguments);
+        $this->assertSame(['--domain', 'shop.example.de', '--type', 'php', '--user', 'ow38217', ...self::settingArgs(512, 100, 120, 6, true)], $task->arguments);
         // The gateway takes the same uploads and waits as long (E-173, E-195).
         $gateway = ServerTask::where('script', ServerScript::GatewaySite->value)->sole();
         $this->assertSame(['--body', '108', '--timeout', '150'], array_slice($gateway->arguments, -4));
@@ -110,7 +110,7 @@ class SitePhpSettingsTest extends TestCase
         // Only the active website; the suspended one gets them with its next change.
         $task = ServerTask::where('script', ServerScript::SiteCreate->value)->sole();
         $this->assertSame($site->id, $task->site_id);
-        $this->assertSame(['--domain', 'shop.example.de', '--type', 'php', '--user', 'ow38217', '--https', ...self::settingArgs(256, 64, 120, 4)], $task->arguments);
+        $this->assertSame(['--domain', 'shop.example.de', '--type', 'php', '--user', 'ow38217', ...self::settingArgs(256, 64, 120, 4)], $task->arguments);
         // What the website chose stays; it applies again with a bigger package.
         $this->assertSame(512, $site->fresh()->php_memory_mb);
     }

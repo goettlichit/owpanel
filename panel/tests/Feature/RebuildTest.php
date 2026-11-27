@@ -196,12 +196,14 @@ class RebuildTest extends TestCase
             'site-restore --user ow38217 --snapshot latest --scope all',
             'site-cron --user ow38217',
             'site-sftp --user ow38217 --state on',
-            'site-create --domain shop.example.de --type php --user ow38217',
+            // Planned with the certificate the website had.
+            'site-create --domain shop.example.de --type php --user ow38217 --https',
             $gateway.' --tls --body 72 --timeout 90',
+            'site-create --domain shop.example.de --type php --user ow38217 --existing',
         ], self::steps($runner->calls));
         // The database keeps its password; it goes on stdin only.
         $this->assertSame($database->password."\n", $runner->calls[3]->stdin);
-        $this->assertSame(9, ServerTask::where('status', TaskStatus::Succeeded->value)->count());
+        $this->assertSame(10, ServerTask::where('status', TaskStatus::Succeeded->value)->count());
         $this->assertDatabaseHas('audit_logs', ['action' => 'site.rebuild_started']);
 
         // Each step names the one before it.
