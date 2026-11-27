@@ -12,6 +12,7 @@ use App\Servers\ScriptRunner;
 use App\Servers\ScriptsUpdater;
 use App\Servers\ServerConnectionException;
 use App\Servers\ServerLane;
+use App\Servers\StatusCheck;
 use App\Servers\TaskOutput;
 use App\Support\PanelRelease;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -39,7 +40,24 @@ class RunServerTask implements ShouldQueue
      */
     public int $timeout = 3700;
 
+    /** How long a changing task waits for matching server scripts (E-194). */
+    public const OUTDATED_WAIT_MINUTES = 30;
+
+    /** Seconds between two looks while it waits. */
+    public const OUTDATED_RETRY_SECONDS = 30;
+
     public function __construct(public readonly string $taskId) {}
+
+    /**
+     * Puts the task back to pending, frees its server for the scripts
+     * update and comes back later as a new job.
+     */
+    private function waitForScripts(ServerTask $task): void
+    {
+        $task->forceFill(['status' => TaskStatus::Pending, 'started_at' => null])->save();
+        ServerLane::release($task->getKey());
+        self::dispatch($task->getKey())->delay(now()->addSeconds(self::OUTDATED_RETRY_SECONDS));
+    }
 
     public function handle(ScriptRunner $runner): void
     {
@@ -62,12 +80,26 @@ class RunServerTask implements ShouldQueue
 
         // Scripts of another version may not know what the panel asks for:
         // only updating, reading, backups and maintenance run until the
-        // panel has brought them up to date (E-167).
-        if ($task->server->scriptsOutdated() && ! $task->script->runsWhenOutdated()) {
-            $output->append(__('tasks.outdated_log', ['scripts' => $task->server->scripts_version, 'panel' => PanelRelease::installed()])."\n");
-            $output->flush();
-            $this->finish($task, TaskStatus::Failed, error: 'scripts_outdated');
+        // panel has brought them up to date (E-167). The stored version may
+        // be from before an update of the panel, so the server is asked
+        // first; while the scripts still differ, the task waits up to
+        // half an hour instead of failing at once (E-194).
+        if (! $task->script->runsWhenOutdated() && $task->server->scriptsOutdated()) {
+            (new StatusCheck($runner))->run($task->server);
+            $task->server->refresh();
+        }
+        if (! $task->script->runsWhenOutdated() && $task->server->scriptsOutdated()) {
             ScriptsUpdater::ensure($task->server);
+            if (blank($task->output)) {
+                $output->append(__('tasks.outdated_log', ['scripts' => $task->server->scripts_version, 'panel' => PanelRelease::installed()])."\n");
+                $output->flush();
+            }
+            if ($task->created_at->greaterThan(now()->subMinutes(self::OUTDATED_WAIT_MINUTES))) {
+                $this->waitForScripts($task);
+
+                return;
+            }
+            $this->finish($task, TaskStatus::Failed, error: 'scripts_outdated');
 
             return;
         }

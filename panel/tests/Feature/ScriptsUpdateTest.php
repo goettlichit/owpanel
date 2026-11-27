@@ -80,20 +80,45 @@ class ScriptsUpdateTest extends TestCase
         return $server->tasks()->where('script', ServerScript::ServerScriptsUpdate->value)->get();
     }
 
+    /**
+     * @return array<string, mixed> a server-status answer with this scripts version
+     */
+    private function status(string $version): array
+    {
+        return [
+            'hostname' => 'web2.example.de', 'os' => 'Debian GNU/Linux 13 (trixie)', 'kernel' => '6.12.48+deb13-amd64',
+            'uptime' => 7200, 'cpu_cores' => 2, 'cpu' => 12.5, 'load' => [0.5, 0.4, 0.3],
+            'memory' => ['total' => 4_000_000_000, 'used' => 1_000_000_000], 'swap' => ['total' => 0, 'used' => 0],
+            'disk' => ['total' => 40_000_000_000, 'used' => 30_000_000_000], 'network' => ['rx' => 1, 'tx' => 1],
+            'reboot_required' => false, 'scripts_version' => $version,
+        ];
+    }
+
     public function test_changing_tasks_wait_while_the_scripts_differ(): void
     {
         $this->archive();
-        $runner = new ScriptedRunner(['site-backup' => ['snapshot' => 'abcd1234']]);
+        $runner = new ScriptedRunner(['server-status' => $this->status('1.2.0')]);
         $change = ServerTask::start($this->web, ScriptCall::sshPasswordLogin(false), null);
 
+        // The server is asked first; it still has 1.2.0, so the task waits.
         $change = $this->runTask($change, $runner);
 
-        $this->assertSame(TaskStatus::Failed, $change->status);
-        $this->assertSame('scripts_outdated', $change->error);
+        $this->assertSame(TaskStatus::Pending, $change->status);
+        $this->assertNull($change->error);
         $this->assertStringContainsString('(1.2.0)', (string) $change->output);
-        $this->assertSame([], $runner->scripts());
+        $this->assertSame(['server-status'], $runner->scripts());
+        $this->assertNull($this->web->fresh()->busy_task_id);
+        Queue::assertPushed(RunServerTask::class, fn (RunServerTask $job) => $job->taskId === $change->id && $job->delay !== null);
         // Meanwhile the panel has started the update.
         $this->assertCount(1, $this->scriptsTasks($this->web));
+
+        // After half an hour it gives up, with one log line only.
+        $this->travel(31)->minutes();
+        $change = $this->runTask($change, $runner);
+        $this->assertSame(TaskStatus::Failed, $change->status);
+        $this->assertSame('scripts_outdated', $change->error);
+        $this->assertSame(1, substr_count((string) $change->output, '(1.2.0)'));
+        $this->assertNull($this->web->fresh()->busy_task_id);
 
         // Backups, reading and maintenance still run.
         $this->assertTrue(ServerScript::SiteBackup->runsWhenOutdated());
@@ -101,6 +126,32 @@ class ScriptsUpdateTest extends TestCase
         $this->assertTrue(ServerScript::ServerReboot->runsWhenOutdated());
         $this->assertFalse(ServerScript::SiteCreate->runsWhenOutdated());
         $this->assertFalse(ServerScript::FirewallRules->runsWhenOutdated());
+    }
+
+    public function test_a_stored_version_from_before_a_panel_update_does_not_hold_tasks_back(): void
+    {
+        // The panel was just updated; the last check still saw the old scripts.
+        $this->panel->forceFill(['scripts_version' => '1.2.0'])->save();
+        $runner = new ScriptedRunner(['server-status' => $this->status('1.3.0'), 'server-ssh' => []]);
+        $change = ServerTask::start($this->panel, ScriptCall::sshPasswordLogin(false), null);
+
+        $change = $this->runTask($change, $runner);
+
+        $this->assertSame(TaskStatus::Succeeded, $change->status);
+        $this->assertSame(['server-status', 'server-ssh'], $runner->scripts());
+        $this->assertSame('1.3.0', $this->panel->fresh()->scripts_version);
+        $this->assertCount(0, $this->scriptsTasks($this->panel));
+    }
+
+    public function test_tasks_that_run_with_other_scripts_do_not_ask_first(): void
+    {
+        $runner = new ScriptedRunner(['site-backup' => ['snapshot' => 'abcd1234']]);
+        $task = ServerTask::start($this->web, ScriptCall::sshPasswordLogin(false), null);
+        $task->forceFill(['script' => ServerScript::ServerReboot, 'arguments' => []])->save();
+
+        $this->runTask($task, $runner);
+
+        $this->assertNotContains('server-status', $runner->scripts());
     }
 
     public function test_the_update_sends_signature_and_archive_and_counts_at_once(): void
@@ -174,13 +225,7 @@ class ScriptsUpdateTest extends TestCase
     {
         $this->archive();
         $this->panel->forceFill(['scripts_version' => null])->save();
-        $this->app->instance(ScriptRunner::class, new ScriptedRunner(['server-status' => [
-            'hostname' => 'web2.example.de', 'os' => 'Debian GNU/Linux 13 (trixie)', 'kernel' => '6.12.48+deb13-amd64',
-            'uptime' => 7200, 'cpu_cores' => 2, 'cpu' => 12.5, 'load' => [0.5, 0.4, 0.3],
-            'memory' => ['total' => 4_000_000_000, 'used' => 1_000_000_000], 'swap' => ['total' => 0, 'used' => 0],
-            'disk' => ['total' => 40_000_000_000, 'used' => 30_000_000_000], 'network' => ['rx' => 1, 'tx' => 1],
-            'reboot_required' => false, 'scripts_version' => '1.2.0',
-        ]]));
+        $this->app->instance(ScriptRunner::class, new ScriptedRunner(['server-status' => $this->status('1.2.0')]));
 
         $this->artisan('owpanel:check-servers')->assertSuccessful();
 
