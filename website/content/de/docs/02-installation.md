@@ -25,7 +25,7 @@ echo "8c7d3149b9e48bf6323f3255338bde6049e8113548420d5b4723889cd9565271  get-owpa
 bash get-owpanel
 ```
 
-Mit `--version 0.2.0` installierst du ein bestimmtes Release statt des neuesten.
+Mit `--version 0.3.0` installierst du ein bestimmtes Release statt des neuesten.
 
 ::: info
 Der öffentliche Schlüssel der Releases hat den Fingerabdruck `SHA256:nyG5UqHzb6roksup2dgAXJoWO57px1eDWM2zLWh+z4E`. Testbauten für die Entwicklung (`bash get-owpanel --dev`) gibt GitHub nur mit einem Fine-grained Token mit „Actions: Read“ heraus; das Skript fragt danach.
