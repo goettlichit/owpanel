@@ -90,7 +90,7 @@ So geht es:
 3. Den angezeigten Befehl ausführen, etwa `bash get-owpanel --join panel.example.de --via 10.0.0.2`, und den Code eingeben, wenn danach gefragt wird.
 4. Der Installer fragt den Hostnamen, richtet den Server ein und meldet ihn beim Panel an. Das dauert einige Minuten. Danach steht der Server unter **Server**, und beim Anlegen einer Webseite lässt er sich auswählen.
 
-Bricht der Installer mit „the panel did not confirm the firewall“ ab, hat das Panel den Server über das private Netz nicht per SSH erreicht; die Firewall wurde zurückgenommen, und du kannst es nach der Fehlersuche mit einem neuen Code noch einmal versuchen. Hat sich der Server schon angemeldet, erkennt ihn das Panel an seinem Host-Schlüssel wieder; er behält seinen Namen, der Name beim neuen Code spielt dann keine Rolle.
+Bricht der Installer mit „the panel did not confirm the firewall“ ab, hat das Panel den Server über das private Netz nicht per SSH erreicht; die Firewall wurde zurückgenommen, und du kannst es nach der Fehlersuche mit einem neuen Code noch einmal versuchen. Steht der Server schon in der Liste, gib beim neuen Code seinen Namen ein: Das Panel bindet ihn dann neu ein, aber nur, wenn sich dieselbe Maschine mit demselben Host-Schlüssel meldet.
 
 ::: tip
 Lege alle Server in derselben Netzwerkzone an (bei Hetzner etwa Nürnberg, Falkenstein und Helsinki) und nimm sie in eine gemeinsame **Platzierungsgruppe** vom Typ „Spread“. Dann laufen sie auf verschiedenen physischen Rechnern, und der Ausfall eines Rechners trifft nur einen Server. Die Gruppe kostet nichts; bestehende Server lassen sich nur ausgeschaltet aufnehmen. Hilfreich sind auch Namen nach der Aufgabe, etwa `gw01` für den Panel-Server und `web01`, `web02` für weitere Server.

@@ -90,7 +90,7 @@ How it works:
 3. Run the command shown, e.g. `bash get-owpanel --join panel.example.com --via 10.0.0.2`, and enter the code when asked.
 4. The installer asks for the host name, sets up the server and registers it with the panel. This takes a few minutes. The server then appears under **Servers** and can be chosen when you create a website.
 
-If the installer stops with “the panel did not confirm the firewall”, the panel did not reach the server by SSH over the private network; the firewall was rolled back, and after fixing the cause you can try again with a new code. If the server had registered already, the panel recognises it by its host key; it keeps its name, and the name of the new code does not matter.
+If the installer stops with “the panel did not confirm the firewall”, the panel did not reach the server by SSH over the private network; the firewall was rolled back, and after fixing the cause you can try again with a new code. If the server is already listed, enter its name for the new code: the panel then joins it again, but only if the same machine reports with the same host key.
 
 ::: tip
 Create all servers in the same network zone (at Hetzner for example Nuremberg, Falkenstein and Helsinki) and put them into a shared **placement group** of the type “spread”. They then run on different physical hosts, and the failure of one host hits only one server. The group costs nothing; existing servers can only join while switched off. Names by role help too, such as `gw01` for the panel server and `web01`, `web02` for more servers.

@@ -80,13 +80,16 @@ class JoinController extends Controller
         ]);
         abort_if($validator->fails(), 422, 'invalid');
         $data = $validator->validated();
-        // An address the panel already knows, its own included, is taken.
-        // Only the same machine may join again, recognised by its pinned
-        // host key, e.g. after an aborted run; it keeps its name.
+        // A code for the name of an existing server joins it again, e.g.
+        // after an aborted run, but only the same machine: its pinned host
+        // key must match. Otherwise a known address, the panel's included,
+        // is taken.
         $hostKey = HostKey::normalize($data['host_key']);
-        $known = Server::where('host', $data['private_ipv4'])->orWhere('private_ipv4', $data['private_ipv4'])->get();
-        $again = $known->count() === 1 && ! $known->first()->hostsPanel() && hash_equals((string) $known->first()->host_key, $hostKey) ? $known->first() : null;
-        abort_if($known->isNotEmpty() && $again === null, 409, 'known');
+        $again = Server::where('name', $token->name)->first();
+        abort_if($again !== null && ($again->hostsPanel() || ! hash_equals((string) $again->host_key, $hostKey)), 409, 'other');
+        $taken = Server::where(fn ($query) => $query->where('host', $data['private_ipv4'])->orWhere('private_ipv4', $data['private_ipv4']))
+            ->when($again !== null, fn ($query) => $query->whereKeyNot($again->getKey()))->exists();
+        abort_if($taken, 409, 'known');
 
         $server = DB::transaction(function () use ($token, $data, $hostKey, $again) {
             // Used up first, so a second request with the same code fails.
@@ -95,7 +98,7 @@ class JoinController extends Controller
 
             $server = $again ?? new Server;
             $server->forceFill([
-                'name' => $again?->name ?? $token->name,
+                'name' => $token->name,
                 'host' => $data['private_ipv4'],
                 'port' => (int) $data['ssh_port'],
                 'host_key' => $hostKey,

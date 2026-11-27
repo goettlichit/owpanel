@@ -7,7 +7,7 @@ return [
         'form_title' => 'New website server',
         'text' => 'A new server with Debian 13 in the same private Hetzner network as this panel server becomes a website server: it gets NGINX, PHP and MariaDB, is reachable from the public by SSH only, and its websites run through the gateway of this panel. Give it a name; the panel then shows a code and the command for the new server.',
         'name' => 'Name',
-        'name_hint' => 'Lowercase letters, digits and hyphens, e.g. web2. The host name is asked for while it joins.',
+        'name_hint' => 'Lowercase letters, digits and hyphens, e.g. web2. The host name is asked for while it joins. The name of an existing server joins it again, e.g. after an aborted run; this works only on the same machine.',
         'submit' => 'Create code',
         'no_private' => 'This panel server has no private address yet. Attach it to a private network in the Hetzner Cloud Console; after the next status check you can go on here.',
         'no_archive' => 'The archive of this version is not on the server. Install the panel once with get-owpanel or wait for the next update.',

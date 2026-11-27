@@ -38,7 +38,8 @@ class ServerJoinController extends Controller
     {
         Gate::authorize('create', Server::class);
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:63', 'regex:/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', Rule::unique('servers', 'name')],
+            // The name of an existing website server joins it again (E-196).
+            'name' => ['required', 'string', 'max:63', 'regex:/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', Rule::unique('servers', 'name')->where('hosts_panel', true)],
         ]);
         [$token, $code] = ServerJoinToken::issue($validated['name'], $request->user());
         Audit::record('server.join_started', null, ['name' => $token->name], $request->user());

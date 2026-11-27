@@ -7,7 +7,7 @@ return [
         'form_title' => 'Neuer Website-Server',
         'text' => 'Ein neuer Server mit Debian 13 im selben privaten Hetzner-Netz wie dieser Panel-Server wird Website-Server: Er bekommt NGINX, PHP und MariaDB, ist öffentlich nur per SSH erreichbar, und seine Websites laufen über das Gateway dieses Panels. Gib ihm einen Namen; danach zeigt das Panel einen Code und den Befehl für den neuen Server.',
         'name' => 'Name',
-        'name_hint' => 'Kleinbuchstaben, Ziffern und Bindestriche, z. B. web2. Der Hostname wird beim Einbinden abgefragt.',
+        'name_hint' => 'Kleinbuchstaben, Ziffern und Bindestriche, z. B. web2. Der Hostname wird beim Einbinden abgefragt. Der Name eines vorhandenen Servers bindet ihn neu ein, etwa nach einem abgebrochenen Lauf; das geht nur auf derselben Maschine.',
         'submit' => 'Code erzeugen',
         'no_private' => 'Dieser Panel-Server hat noch keine private Adresse. Hänge ihn in der Hetzner Cloud Console an ein privates Netz; nach der nächsten Statusprüfung geht es hier weiter.',
         'no_archive' => 'Das Archiv dieser Version liegt nicht auf dem Server. Spiele das Panel einmal mit get-owpanel ein oder warte auf das nächste Update.',
