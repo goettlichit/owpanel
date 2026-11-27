@@ -152,8 +152,9 @@ join_wait_for_firewall() {
     sleep 2
     waited=$((waited + 2))
   done
-  nft list table inet owpanel 2>/dev/null | grep -q 'OWPanel private network' && [[ ! -e "$JOIN_FW_PENDING" ]] \
-    || owp_die "firewall_not_confirmed" "the panel did not confirm the firewall; it was rolled back. Check SSH from the panel over ${JOIN_PRIVATE_IP}"
+  if [[ -e "$JOIN_FW_PENDING" ]] || ! nft list table inet owpanel 2>/dev/null | grep -q 'OWPanel private network'; then
+    owp_die "firewall_not_confirmed" "the panel did not confirm the firewall; it was rolled back. Check SSH from the panel over ${JOIN_PRIVATE_IP}"
+  fi
   ok "firewall confirmed by the panel"
 }
 

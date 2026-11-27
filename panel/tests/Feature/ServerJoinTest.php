@@ -82,17 +82,16 @@ class ServerJoinTest extends TestCase
 
         $admin = $this->admin();
         $this->actingAs($admin)->get('/servers/join')->assertOk()->assertSee(__('servers.join.form_title'));
-        $this->actingAs($admin)->post('/servers/join', ['name' => 'web2'])->assertRedirect('/servers/join');
+        $this->actingAs($admin)->post('/servers/join', ['name' => 'web2'])->assertRedirect('/servers/join')->assertSessionHas('join_code');
+        $code = session('join_code');
 
         $token = ServerJoinToken::sole();
         $this->assertSame('web2', $token->name);
         $this->assertSame($admin->id, $token->user_id);
         $this->assertTrue(AuditLog::where('action', 'server.join_started')->exists());
 
-        $page = $this->actingAs($admin)->get('/servers/join')->assertOk();
-        $page->assertSee('--join localhost --via 10.0.0.2', false);
-        $code = session('join_code');
-        $this->assertNotNull($code);
+        $this->actingAs($admin)->get('/servers/join')->assertOk()
+            ->assertSee('--join localhost --via 10.0.0.2', false)->assertSee($code);
         $this->assertSame(hash('sha256', $code), $token->token_hash);
         // Gone after one view.
         $this->actingAs($admin)->get('/servers/join')->assertDontSee($code);
@@ -159,7 +158,7 @@ class ServerJoinTest extends TestCase
         $this->assertNotNull($token->used_at);
         $this->assertSame($server->id, $token->server_id);
         $task = ServerTask::where('server_id', $server->id)->sole();
-        $this->assertSame(ServerScript::FirewallConfirm->value, $task->script);
+        $this->assertSame(ServerScript::FirewallConfirm, $task->script);
         $this->assertTrue(AuditLog::where('action', 'server.joined')->exists());
 
         // Used up.
