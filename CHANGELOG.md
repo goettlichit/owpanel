@@ -6,6 +6,9 @@ Hier steht nur, was sich in einer Version für die Nutzer von OWPanel tatsächli
 
 ## [Unreleased]
 
+### Added
+- Add server: under Servers → Add server the panel shows a one-time code and the command `bash get-owpanel --join <panel domain> --via <private address>`. A fresh Debian 13 server in the same private Hetzner network becomes a website server: it loads the scripts from the panel over the private network, gets NGINX, PHP and MariaDB, is reachable from the public by SSH only, and its websites run through the gateway of the panel.
+
 ## [0.4.0] - 2026-11-27
 
 Update from 0.3.0 from within the panel. On the update the installer rewrites the configuration of every website; each one shows two short tasks.

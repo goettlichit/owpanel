@@ -105,14 +105,3 @@ owp_site_backend() {
 owp_valid_backend_id() {
   [[ "$1" =~ ^[0-9a-z]{1,40}$ ]]
 }
-
-# An IPv4 address for the backend listener or the gateway.
-owp_valid_ipv4() {
-  local -a parts=()
-  local part
-  [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
-  IFS=. read -r -a parts <<<"$1"
-  for part in "${parts[@]}"; do
-    [[ "$part" =~ ^(0|[1-9][0-9]*)$ ]] && ((part <= 255)) || return 1
-  done
-}

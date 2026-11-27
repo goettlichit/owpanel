@@ -471,3 +471,28 @@ owp_pending_kernel() {
 owp_reboot_required() {
   [[ -e "${OWP_STATUS_REBOOT_FILE:-/run/reboot-required}" || -n "$(owp_pending_kernel)" ]]
 }
+
+# A dotted IPv4 address without leading zeros.
+owp_valid_ipv4() {
+  local -a parts=()
+  local part
+  [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
+  IFS=. read -r -a parts <<<"$1"
+  for part in "${parts[@]}"; do
+    [[ "$part" =~ ^(0|[1-9][0-9]*)$ ]] && ((part <= 255)) || return 1
+  done
+}
+
+# A private IPv4 address (RFC 1918).
+owp_private_ipv4() {
+  local a b
+  owp_valid_ipv4 "$1" || return 1
+  IFS=. read -r a b _ _ <<<"$1"
+  ((a == 10)) || ((a == 172 && b >= 16 && b <= 31)) || ((a == 192 && b == 168))
+}
+
+# A private IPv4 network with prefix (RFC 1918), e.g. 10.0.0.0/16.
+owp_valid_private_net() {
+  [[ "$1" =~ ^([0-9.]+)/([0-9]{1,2})$ ]] || return 1
+  ((BASH_REMATCH[2] >= 8 && BASH_REMATCH[2] <= 32)) && owp_private_ipv4 "${BASH_REMATCH[1]}"
+}

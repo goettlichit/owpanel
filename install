@@ -19,6 +19,10 @@
 #
 # Without --hostname an unattended run keeps the host name.
 #
+# With --join <panel domain> --via <private address of the panel> the server
+# becomes a website server of that panel instead (E-196, server/lib/join.sh);
+# get-owpanel --join does that.
+#
 # On a first run in a terminal the installer offers to restore the panel
 # from its backup on a Hetzner Storage Box instead (E-099, see
 # docs/WIEDERHERSTELLUNG.md). Domain and accounts then come from the backup.
@@ -39,6 +43,10 @@ source "${SOURCE_ROOT}/server/lib/install.sh"
 source "${SOURCE_ROOT}/server/lib/panel-restore.sh"
 # shellcheck source=server/lib/hostname.sh
 source "${SOURCE_ROOT}/server/lib/hostname.sh"
+# shellcheck source=server/lib/firewall.sh
+source "${SOURCE_ROOT}/server/lib/firewall.sh"
+# shellcheck source=server/lib/join.sh
+source "${SOURCE_ROOT}/server/lib/join.sh"
 
 readonly TEMPLATES="${SOURCE_ROOT}/server/templates/panel"
 readonly PANEL_USER="ow10000"
@@ -107,7 +115,8 @@ export OWP_COLOR_ERROR="${C_RED}${C_BOLD}" OWP_COLOR_RESET="$C_RESET"
 usage() {
   owp_die "invalid_arguments" "usage: install [--domain <domain>] [--hostname <name>] [--timezone <zone>] [--admin-email <email>]
        [--admin-first-name <name>] [--admin-last-name <name>] [--admin-password-file <file>]
-       [--skip-dns-check] [--reboot | --no-reboot]"
+       [--skip-dns-check] [--reboot | --no-reboot]
+       install --join <panel domain> --via <private address of the panel> [--hostname <name>]"
 }
 
 step() {
@@ -216,7 +225,7 @@ parse_arguments() {
   local password_file=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --domain | --hostname | --timezone | --admin-email | --admin-first-name | --admin-last-name | --admin-password-file)
+      --domain | --hostname | --timezone | --admin-email | --admin-first-name | --admin-last-name | --admin-password-file | --join | --via)
         [[ $# -ge 2 ]] || usage
         case "$1" in
           --domain)
@@ -224,6 +233,8 @@ parse_arguments() {
             DOMAIN_GIVEN=1
             ;;
           --hostname) HOSTNAME_NEW="${2,,}" ;;
+          --join) JOIN_DOMAIN="${2,,}" ;;
+          --via) JOIN_VIA="$2" ;;
           --timezone) TIMEZONE="$2" ;;
           --admin-email) ADMIN_EMAIL="$2" ;;
           --admin-first-name) ADMIN_FIRST_NAME="$2" ;;
@@ -252,8 +263,12 @@ parse_arguments() {
 
 check_release() {
   local file
-  for file in VERSION panel/artisan panel/vendor/autoload.php panel/public/build/manifest.json \
-    server/provision/setup-agent server/bin/server-provision; do
+  local -a files=(VERSION server/provision/setup-agent server/bin/server-provision)
+  # A website server needs no panel; a test build's archive has none (E-196).
+  if [[ -z "$JOIN_DOMAIN" && -z "$JOIN_VIA" ]]; then
+    files+=(panel/artisan panel/vendor/autoload.php panel/public/build/manifest.json)
+  fi
+  for file in "${files[@]}"; do
     [[ -e "${SOURCE_ROOT}/${file}" ]] \
       || owp_die "not_a_release" "${file} is missing; run the installer from a release archive"
   done
@@ -627,6 +642,9 @@ prepare_directories() {
     storage/framework/views storage/logs storage/app/transfers; do
     install -d -o "$PANEL_USER" -g "$PANEL_USER" -m 2770 "${PANEL_ROOT}/shared/${dir}"
   done
+  # The public half of the panel's SSH key, which a new server gets while
+  # it joins (E-196). The private key stays readable for the worker only.
+  install -o root -g "$PANEL_USER" -m 0644 "${WORKER_KEY}.pub" "${PANEL_ROOT}/shared/storage/app/panel-ssh.pub"
   # nginx serves the static files through the group, like for websites.
   usermod --append --groups "$PANEL_USER" "$OWP_WEB_USER"
   # The restored .env keeps the APP_KEY that decrypts the stored secrets.
@@ -662,12 +680,16 @@ write_env() {
 # The archive the panel sends to its servers (server-scripts-update, E-187).
 # A release keeps the signed archive that panel-update left in its folder
 # when the installer runs again; a test build gets an unsigned archive with
-# just server/ and VERSION. Otherwise panel-update --fetch-archive loads it.
+# server/, VERSION, the installer and the release key, which a new server
+# needs to join (E-196). Otherwise panel-update --fetch-archive loads it.
 keep_scripts_archive() {
   local release="$1" stage="$2" name="owpanel-${VERSION}.tar.gz" file
   if [[ "$VERSION" == dev-* ]]; then
+    local -a parts=(server VERSION install)
+    # The release key, so a joined server checks later releases too.
+    [[ -f "${SOURCE_ROOT}/release-signers" ]] && parts+=(release-signers)
     tar -czf "${stage}/${name}" -C "$SOURCE_ROOT" --owner=0 --group=0 --numeric-owner \
-      --transform "s,^,owpanel-${VERSION}/," server VERSION
+      --transform "s,^,owpanel-${VERSION}/," "${parts[@]}"
     return 0
   fi
   for file in "$name" "${name}.sha256" "${name}.sig"; do
@@ -1067,6 +1089,12 @@ main() {
   # Not owp_lock: the server scripts take that lock themselves.
   exec 7>/run/owpanel-install.lock
   flock -n 7 || owp_die "already_running" "another installer run is in progress"
+
+  # A website server of an existing panel (E-166, E-196).
+  if [[ -n "$JOIN_DOMAIN" || -n "$JOIN_VIA" ]]; then
+    join_main
+    return 0
+  fi
 
   banner
   load_state

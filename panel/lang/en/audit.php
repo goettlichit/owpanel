@@ -110,6 +110,8 @@ return [
             'rebuild_started' => 'Rebuild of websites from their backups started',
             'task_started' => 'Server task started',
             'reboot_requested' => 'Server restart requested',
+            'joined' => 'Server joined',
+            'join_started' => 'Code for adding a server created',
             'firewall_rule_added' => 'Firewall rule added',
             'firewall_rule_deleted' => 'Firewall rule deleted',
             'fail2ban_ignore_added' => 'fail2ban exception added',

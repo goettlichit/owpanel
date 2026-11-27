@@ -13,6 +13,7 @@ setup() {
   source "${ROOT}/server/lib/firewall.sh"
   RULES="${BATS_TEST_TMPDIR}/firewall.nft"
   export OWP_FW_TEMPLATE="${ROOT}/server/templates/nftables/owpanel.nft"
+  export OWP_ROLE_FILE="${BATS_TEST_TMPDIR}/role"
 }
 
 @test "joins SSH ports for the template" {
@@ -91,4 +92,43 @@ setup() {
   run owp_firewall_render "$RULES" "22" "${BATS_TEST_TMPDIR}/rules.list"
   [ "$status" -eq 1 ]
   [[ "${lines[-1]}" == *'"error":"invalid_rule"'* ]]
+}
+
+@test "a website server accepts web traffic only from the private network (E-196)" {
+  printf 'ROLE=web\nPRIVATE_NETS=10.0.0.0/16 10.1.0.0/24\nPANEL=panel.example.de\n' >"$OWP_ROLE_FILE"
+  owp_firewall_render "$RULES" "22"
+  grep -q 'ip saddr { 10.0.0.0/16, 10.1.0.0/24 } accept comment "OWPanel private network"' "$RULES"
+  ! grep -q 'tcp dport { 80, 443 }' "$RULES"
+  ! grep -q 'udp dport 443' "$RULES"
+  grep -q 'tcp dport { 22 } accept comment "OWPanel SSH"' "$RULES"
+}
+
+@test "a website server with a public or broken network is refused" {
+  for nets in "203.0.113.0/24" "10.0.0.0/16;drop" "" "10.0.0.0/33"; do
+    printf 'ROLE=web\nPRIVATE_NETS=%s\n' "$nets" >"$OWP_ROLE_FILE"
+    run owp_firewall_render "$RULES" "22"
+    [ "$status" -ne 0 ]
+  done
+}
+
+@test "the rendered rules of a website server pass nft -c" {
+  [ "$(id -u)" -eq 0 ] || skip "nft -c needs root"
+  command -v nft || skip "nft not installed"
+  printf 'ROLE=web\nPRIVATE_NETS=10.0.0.0/16\n' >"$OWP_ROLE_FILE"
+  owp_firewall_render "$RULES" "22"
+  nft -c -f "$RULES"
+}
+
+@test "private networks are checked" {
+  owp_valid_private_net 10.0.0.0/16
+  owp_valid_private_net 172.16.5.0/24
+  owp_valid_private_net 192.168.1.7/32
+  ! owp_valid_private_net 203.0.113.0/24
+  ! owp_valid_private_net 172.32.0.0/16
+  ! owp_valid_private_net 10.0.0.0
+  ! owp_valid_private_net 10.0.0.0/7
+  ! owp_valid_private_net 10.0.0.0/33
+  ! owp_valid_private_net '10.0.0.0/16 '
+  owp_private_ipv4 10.0.0.3
+  ! owp_private_ipv4 8.8.8.8
 }

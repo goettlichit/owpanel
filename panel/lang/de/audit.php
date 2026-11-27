@@ -110,6 +110,8 @@ return [
             'rebuild_started' => 'Neuaufbau von Webseiten aus Sicherungen gestartet',
             'task_started' => 'Serveraufgabe gestartet',
             'reboot_requested' => 'Neustart eines Servers angefordert',
+            'joined' => 'Server eingebunden',
+            'join_started' => 'Code zum Hinzufügen eines Servers erzeugt',
             'firewall_rule_added' => 'Firewall-Regel angelegt',
             'firewall_rule_deleted' => 'Firewall-Regel gelöscht',
             'fail2ban_ignore_added' => 'fail2ban-Ausnahme eingetragen',

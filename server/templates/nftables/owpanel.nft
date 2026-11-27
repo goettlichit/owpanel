@@ -19,8 +19,7 @@ table inet owpanel {
         udp sport 547 udp dport 546 accept comment "DHCPv6"
 
         tcp dport { @SSH_PORTS@ } accept comment "OWPanel SSH"
-        tcp dport { 80, 443 } accept comment "OWPanel HTTP and HTTPS"
-        udp dport 443 accept comment "OWPanel HTTP/3"
+@ROLE_RULES@
 
         # Own rules from the panel (E-090)
 @OWN_RULES@

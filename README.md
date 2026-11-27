@@ -87,7 +87,7 @@ Das Startskript `get-owpanel` lädt das neueste Release von GitHub, prüft Prüf
 
 ```sh
 curl -fsSL -o get-owpanel https://raw.githubusercontent.com/goettlichit/owpanel/main/get-owpanel
-echo "8c7d3149b9e48bf6323f3255338bde6049e8113548420d5b4723889cd9565271  get-owpanel" | sha256sum -c
+echo "8c0c7c270c3e2ef1971afd2e7780561753aff5edcc6591341ce0b2244b34a557  get-owpanel" | sha256sum -c
 bash get-owpanel                 # neuestes Release, mit --version 0.4.0 ein bestimmtes
 ```
 

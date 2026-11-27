@@ -17,7 +17,8 @@ set -euo pipefail
 # fingerprints (SHA256) of the keys in /etc/owpanel/release-signers.
 # "php_versions" lists the PHP versions installed for websites (E-172).
 # "backend_cert" is the certificate of the backend (PEM), which the gateway
-# pins (E-186, E-195), or null before server-provision.
+# pins (E-186, E-195), or null before server-provision. "private_ipv4" is
+# the address in a private network (E-196), or null.
 
 # shellcheck source=server/lib/common.sh
 source /opt/owpanel/lib/common.sh
@@ -204,6 +205,21 @@ php_versions_json() {
   printf '[%s]' "$list"
 }
 
+# The address of this server in a private network (RFC 1918) as a JSON
+# string, or null (E-196). The panel steers other servers over it, and the
+# gateway reaches their backends there.
+private_ipv4_json() {
+  local address
+  while read -r address; do
+    address="${address%/*}"
+    if owp_private_ipv4 "$address"; then
+      printf '"%s"' "$address"
+      return 0
+    fi
+  done < <(ip -4 -o addr show scope global 2>/dev/null | awk '{ print $4 }')
+  printf 'null'
+}
+
 # The backend certificate as a JSON string with \n, or null (E-195). Only
 # base64 lines between the PEM markers, so nothing else can reach the JSON.
 backend_cert_json() {
@@ -298,11 +314,11 @@ main() {
   number network "$rx"
   number network "$tx"
 
-  owp_result_ok "$(printf '"hostname":"%s","os":"%s","kernel":"%s","uptime":%s,"cpu_cores":%s,"cpu":%s.%s,"load":[%s,%s,%s],"memory":{"total":%s,"used":%s},"swap":{"total":%s,"used":%s},"disk":{"total":%s,"used":%s},"network":{"rx":%s,"tx":%s,"interfaces":%s},"reboot_required":%s,"sites":%s,"services":%s,"scripts_version":%s,"release_keys":%s,"php_versions":%s,"backend_cert":%s' \
+  owp_result_ok "$(printf '"hostname":"%s","os":"%s","kernel":"%s","uptime":%s,"cpu_cores":%s,"cpu":%s.%s,"load":[%s,%s,%s],"memory":{"total":%s,"used":%s},"swap":{"total":%s,"used":%s},"disk":{"total":%s,"used":%s},"network":{"rx":%s,"tx":%s,"interfaces":%s},"reboot_required":%s,"sites":%s,"services":%s,"scripts_version":%s,"release_keys":%s,"php_versions":%s,"backend_cert":%s,"private_ipv4":%s' \
     "$(host_name)" "$(os_name)" "$(kernel_release)" "$uptime" "$cores" \
     "$((cpu / 10))" "$((cpu % 10))" "$load1" "$load5" "$load15" \
     "$mem_total" "$((mem_total - mem_available))" "$swap_total" "$((swap_total - swap_free))" \
-    "$disk_total" "$disk_used" "$rx" "$tx" "$(network_interfaces_json)" "$reboot" "$(site_users_json)" "$(services_json)" "$(scripts_version_json)" "$(release_keys_json)" "$(php_versions_json)" "$(backend_cert_json)")"
+    "$disk_total" "$disk_used" "$rx" "$tx" "$(network_interfaces_json)" "$reboot" "$(site_users_json)" "$(services_json)" "$(scripts_version_json)" "$(release_keys_json)" "$(php_versions_json)" "$(backend_cert_json)" "$(private_ipv4_json)")"
 }
 
 main "$@"

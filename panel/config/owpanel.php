@@ -101,6 +101,9 @@ return [
     'ssh' => [
         'user' => 'owpanel-agent',
         'private_key' => env('OWPANEL_SSH_PRIVATE_KEY', storage_path('app/private/ssh/id_ed25519')),
+        // The public half, which a new server gets while it joins (E-196);
+        // the installer writes it.
+        'public_key' => env('OWPANEL_SSH_PUBLIC_KEY', storage_path('app/panel-ssh.pub')),
         'connect_timeout' => 10,
     ],
 

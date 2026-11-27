@@ -10,8 +10,8 @@ use App\Support\PanelRelease;
  * (server-scripts-update, E-187). It lies next to the release:
  * releases/<version>/owpanel-<version>.tar.gz with its signature .sig,
  * kept by panel-update or loaded by panel-update --fetch-archive. A test
- * build has an unsigned archive with just server/ and VERSION, written by
- * its installer.
+ * build has an unsigned archive with server/, VERSION and the installer
+ * (for joining, E-196), written by its installer.
  */
 final class ScriptsArchive
 {

@@ -56,7 +56,7 @@ Kunden ── SFTP (Port 22, Hostname des Servers) ──► Server 2, Server 3
 
 - Alle Domains zeigen auf die Eingangsadressen: eine gemeinsame IPv4 und je Website eine IPv6 aus einem Präfix (E-162). Zuerst sind das die Adressen des Panel-Servers, für ein zweites Gateway Floating IPs (E-164). Sie sind schon jetzt eine Einstellung unter System → Gateway, in der Oberfläche „Gateway-Adressen“ (`App\Gateway\Ingress`, leer = Adressen des Panel-Servers); die DNS-Prüfung der Websites nimmt ihr Soll von dort (E-193).
 - Das Gateway beendet TLS und QUIC und reicht jede Anfrage an „Server + Port“ weiter: an den NGINX der Website auf ihrem Server oder an eine Docker-App (E-163). Der NGINX auf dem Website-Server übernimmt die Besucheradresse nur vom Gateway (`set_real_ip_from`), damit Logs, Statistik und PHP die echte Adresse sehen.
-- Weitere Server kommen mit `bash get-owpanel --join <Panel-Adresse>` dazu (E-166), nur im selben privaten Hetzner-Netz. Das Panel steuert sie über die private Adresse. Öffentlich ist dort nur Port 22 für SSH und SFTP offen, alles andere nur aus dem privaten Subnetz. Ausgehend nutzen sie ihre eigene IPv4 und IPv6.
+- Weitere Server kommen mit `bash get-owpanel --join <Panel-Domain> --via <private Adresse>` dazu (E-166, E-196), nur im selben privaten Hetzner-Netz. Das Panel steuert sie über die private Adresse. Öffentlich ist dort nur Port 22 für SSH und SFTP offen, alles andere nur aus dem privaten Subnetz. Ausgehend nutzen sie ihre eigene IPv4 und IPv6.
 - Websites liegen auf genau einem Server. Beim Anlegen schlägt das Panel den Server mit der meisten Reserve vor; ein Paket kann die erlaubten Server vorgeben (E-161). Ein Umzug ändert nur das Ziel im Gateway (Meilenstein 5.1).
 - Standalone ist der Fall, in dem Gateway und Website-Server derselbe Server sind. Der Gateway-Modus kommt über ein Update der wiederholbaren Skripte, ohne Migration.
 - Serveraufgaben laufen je Server nacheinander und für verschiedene Server parallel; die Statusabfrage läuft als Job je Server.
@@ -109,7 +109,7 @@ Grundeinrichtung und Rechte stammen aus denselben Skripten wie bei weiteren Serv
 | Domänenlogik | Regeln für Server, Websites, Datenbanken und Backups |
 | Queue-Jobs | Lange Aktionen im Hintergrund ausführen |
 | SSH-Client | Freigegebene Skripte starten und Ausgaben erfassen |
-| `get-owpanel --join` | Weiteren Server mit dem Installer einrichten und beim Panel anmelden (geplant, E-166) |
+| `get-owpanel --join` | Weiteren Server mit dem Installer einrichten und beim Panel anmelden (E-166, E-196) |
 | `server/provision/` | Agent-Benutzer anlegen (`setup-agent`), Dienste wiederholbar konfigurieren (`modules/`) |
 | `server/lib/` | Gemeinsame Bash-Funktionen |
 | `server/bin/` | Per `sudo` freigegebene Einzelaktionen, z. B. `server-provision` und `site-create` |
@@ -148,15 +148,15 @@ Grundlage sind E-095 bis E-100, E-103 und E-105; die Sicherheitsregeln stehen in
 
 ## Ablauf: Weiteren Server einbinden
 
-Geplant nach E-166 und E-167.
+Umgesetzt mit E-196 nach E-166 und E-167.
 
-1. Der Administrator legt unter Server → „Server hinzufügen“ einen Namen fest. Das Panel erzeugt ein Einmal-Token (15 Minuten, einmal gültig) und zeigt `bash get-owpanel --join <Panel-Adresse>`.
-2. Der Nutzer führt den Befehl als root auf einem frischen Debian-13-Server im selben privaten Hetzner-Netz aus. `get-owpanel` fragt das Token ab, statt es als Parameter zu nehmen.
-3. Mit dem Token lädt es vom Panel per HTTPS die Serverskripte in der Version des Panels und den öffentlichen SSH-Schlüssel des Panels und prüft das Archiv.
-4. Der Installer richtet den Server mit denselben Schritten wie bei einer Installation ein, ohne die Teile des Panels: Hostname, `setup-agent`, `server-provision` mit der Firewall eines Website-Servers, Zeitzone.
-5. Er meldet Host-Schlüssel, Hostname, private und öffentliche Adressen mit dem Token zurück.
-6. Das Panel prüft SSH über die private Adresse gegen genau diesen Host-Schlüssel, bestätigt die Firewall (E-044) und entwertet das Token.
-7. Danach bietet es einen Backup-Subaccount auf derselben Storage Box wie beim Panel-Server an (E-168).
+1. Der Administrator legt unter Server → „Server hinzufügen“ einen Namen fest. Das Panel erzeugt einen Einmal-Code (15 Minuten, einmal gültig) und zeigt ihn einmal mit `bash get-owpanel --join <Panel-Domain> --via <private Adresse des Panel-Servers>`.
+2. Der Nutzer führt den Befehl als root auf einem frischen Debian-13-Server im selben privaten Hetzner-Netz aus. `get-owpanel` fragt den Code ab und spricht das Panel über `curl --resolve <Domain>:443:<private Adresse>` an.
+3. Mit dem Code lädt es von `/join/info`, `/join/archive` und `/join/signature` Version, Name, Zeitzone, den öffentlichen SSH-Schlüssel des Panels und das Archiv seiner Version und prüft Prüfsumme und Signatur.
+4. Der Installer (`install --join`, `server/lib/join.sh`) richtet den Server ohne die Teile des Panels ein: `setup-agent` mit dem Panel-Schlüssel, Zeitzone, Hostname, `/etc/owpanel/role`, `server-provision` mit der Firewall eines Website-Servers.
+5. Er meldet über `/join/register` Hostname, private und öffentliche Adressen, SSH-Port, Host-Schlüssel und Backend-Zertifikat.
+6. Das Panel entwertet den Code, legt den Server mit der privaten Adresse und dem gepinnten Host-Schlüssel an und bestätigt die Firewall (E-044) über SSH; der Installer wartet darauf.
+7. Der Backup-Subaccount auf derselben Storage Box folgt später (E-168).
 
 ## Ablauf: Website anlegen
 

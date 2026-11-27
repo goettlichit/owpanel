@@ -146,3 +146,21 @@ embedded_signers() {
   run bash "${ROOT}/scripts/release-notes" 0.2.1 "${ROOT}/CHANGELOG.md"
   [ "$status" -eq 0 ]
 }
+
+@test "get-owpanel --join needs the panel's domain and private address (E-196)" {
+  load_get_owpanel "$SIGNERS"
+  MODE="release" VERSION="" JOIN_DOMAIN="" JOIN_VIA="" BRANCH="main" INSTALL_ARGS=()
+  parse_arguments --join Panel.Example.de --via 10.0.0.2
+  [ "$MODE" = "join" ]
+  [ "$JOIN_DOMAIN" = "panel.example.de" ]
+  [ "$JOIN_VIA" = "10.0.0.2" ]
+
+  for args in "--join panel.example.de" "--via 10.0.0.2" "--join panel --via 10.0.0.2" \
+    "--join panel.example.de --via 203.0.113.2" "--join panel.example.de --via 10.0.0.2;id" \
+    "--join panel.example.de --via 10.0.0.2 --version 0.4.0" "--join"; do
+    JOIN_DOMAIN="" JOIN_VIA="" VERSION=""
+    # shellcheck disable=SC2086  # the words are the arguments
+    run parse_arguments $args
+    [ "$status" -ne 0 ]
+  done
+}

@@ -25,6 +25,11 @@ provision_quic() {
 # certificate from server-status.
 provision_backend() {
   local dir=/etc/owpanel/backend
+  # Binding before the private address exists, e.g. at boot (E-196).
+  install -o root -g root -m 0644 "${TEMPLATES}/sysctl/60-owpanel-backend.conf" \
+    /etc/sysctl.d/60-owpanel-backend.conf
+  sysctl --quiet --load=/etc/sysctl.d/60-owpanel-backend.conf \
+    || owp_die "sysctl_failed" "could not allow binding the private address"
   install -d -o root -g root -m 0755 /etc/owpanel "$dir" /etc/owpanel/backends \
     /etc/nginx/owpanel-backend /etc/nginx/owpanel-upstreams
   if [[ ! -s "${dir}/backend.key" || ! -s "${dir}/backend.crt" ]]; then
