@@ -41,7 +41,8 @@ class CollectSiteStats implements ShouldQueue
             return;
         }
 
-        $server->sites()->where('status', SiteStatus::Active->value)->orderBy('domain')->get()
+        // The access logs of the websites are written at their gateway (E-195).
+        $server->gatewaySites()?->where('status', SiteStatus::Active->value)->orderBy('domain')->get()
             ->each(fn (Site $site) => $this->collect($runner, $server, $site));
     }
 

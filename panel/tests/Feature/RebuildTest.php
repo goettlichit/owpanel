@@ -185,17 +185,25 @@ class RebuildTest extends TestCase
         $first = ServerTask::orderBy('created_at')->orderBy('id')->first();
         $response->assertRedirect("/sites/{$site->id}/backups");
 
+        $gateway = 'gateway-site --domain shop.example.de --user ow38217 --backend-id '.$server->backendId().' --backend 127.0.0.1';
         $this->assertSame([
-            'site-create --domain shop.example.de --type php --user ow38217 --php 8.5 --php-memory 256 --php-upload 64 --php-time 60 --php-processes 10 --php-errors off',
+            // Backend, then gateway (E-195); the gateway reports no
+            // certificate yet, so the backend drops secure cookies (E-176).
+            'site-create --domain shop.example.de --type php --user ow38217 --https --php 8.5 --php-memory 256 --php-upload 64 --php-time 60 --php-processes 10 --php-errors off',
+            $gateway.' --body 72 --timeout 90',
+            'site-create --domain shop.example.de --type php --user ow38217 --existing',
             'db-create --name ow38217_shop',
             'site-restore --user ow38217 --snapshot latest --scope all',
             'site-cron --user ow38217',
             'site-sftp --user ow38217 --state on',
-            'site-create --domain shop.example.de --type php --user ow38217 --tls',
+            // Planned with the certificate the website had.
+            'site-create --domain shop.example.de --type php --user ow38217 --https',
+            $gateway.' --tls --body 72 --timeout 90',
+            'site-create --domain shop.example.de --type php --user ow38217 --existing',
         ], self::steps($runner->calls));
         // The database keeps its password; it goes on stdin only.
-        $this->assertSame($database->password."\n", $runner->calls[1]->stdin);
-        $this->assertSame(6, ServerTask::where('status', TaskStatus::Succeeded->value)->count());
+        $this->assertSame($database->password."\n", $runner->calls[3]->stdin);
+        $this->assertSame(10, ServerTask::where('status', TaskStatus::Succeeded->value)->count());
         $this->assertDatabaseHas('audit_logs', ['action' => 'site.rebuild_started']);
 
         // Each step names the one before it.
@@ -213,9 +221,11 @@ class RebuildTest extends TestCase
 
         $this->actingAs($this->admin())->post("/sites/{$site->id}/backups/rebuild", ['confirm' => '1'])->assertRedirect();
 
-        $this->assertSame(['site-create', 'db-create'], array_map(fn (ScriptCall $call) => $call->script->value, $runner->calls));
+        $scripts = array_map(fn (ScriptCall $call) => $call->script->value, $runner->calls);
+        $this->assertSame(['site-create', 'gateway-site'], array_slice($scripts, 0, 2));
+        $this->assertSame('db-create', end($scripts));
         $skipped = ServerTask::where('error', ServerTask::SKIPPED)->pluck('script')->map->value->all();
-        $this->assertEqualsCanonicalizing(['site-restore', 'site-create'], $skipped);
+        $this->assertEqualsCanonicalizing(['site-restore', 'site-create', 'gateway-site'], $skipped);
         // The database does not exist on the server, as the panel now shows.
         $this->assertSame('failed', $database->fresh()->status->value);
     }

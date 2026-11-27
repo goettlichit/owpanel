@@ -130,7 +130,7 @@
         <div class="col-12 d-flex flex-column gap-3">
             @if ($missing->isNotEmpty())
                 {{-- Websites the panel knows but the server lacks (E-106). --}}
-                <form data-ow-busy="{{ __('tasks.busy.rebuild') }}" data-ow-task="site-create" method="POST" action="{{ route('servers.backups.rebuild', $server) }}">
+                <form data-ow-busy="{{ __('tasks.busy.rebuild') }}" data-ow-task="site-create gateway-site" method="POST" action="{{ route('servers.backups.rebuild', $server) }}">
                     @csrf
                     <x-card :title="__('server_backups.missing.title')" accent="orange">
                         <p class="text-secondary">{{ __('server_backups.missing.text') }}</p>

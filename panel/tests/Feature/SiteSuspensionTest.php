@@ -77,9 +77,13 @@ class SiteSuspensionTest extends TestCase
         $this->assertSame('admin', $site->suspended_by);
         $this->assertSame('Rechnung 2026-117 offen', $site->suspend_note);
         $this->assertTrue($user->fresh()->isLocked());
-        $task = ServerTask::sole();
-        $this->assertSame(ServerScript::SiteSuspend, $task->script);
+        // The gateway shows the suspension page first, then the server rests
+        // PHP, cron and SFTP (E-195).
+        $gateway = ServerTask::where('script', ServerScript::GatewaySite->value)->sole();
+        $this->assertContains('--suspended', $gateway->arguments);
+        $task = ServerTask::where('script', ServerScript::SiteSuspend->value)->sole();
         $this->assertSame(['--user', 'ow38217'], $task->arguments);
+        $this->assertSame($gateway->id, $task->after_task_id);
         $this->assertTrue(AuditLog::where('action', 'site.suspended')->exists());
         $this->assertTrue(AuditLog::where('action', 'customer.access_locked')->exists());
 
@@ -98,7 +102,12 @@ class SiteSuspensionTest extends TestCase
         $site->refresh();
         $this->assertFalse($site->isSuspended());
         $this->assertNull($site->suspend_note);
-        $this->assertSame(ServerScript::SiteUnsuspend, ServerTask::sole()->script);
+        // The server first, then the backend again, then the open gateway.
+        $this->assertSame(
+            [ServerScript::SiteUnsuspend, ServerScript::SiteCreate, ServerScript::GatewaySite],
+            ServerTask::orderBy('created_at')->orderBy('id')->pluck('script')->all(),
+        );
+        $this->assertNotContains('--suspended', ServerTask::where('script', ServerScript::GatewaySite->value)->sole()->arguments);
         $this->assertTrue($user->fresh()->isLocked());
         $this->assertTrue(AuditLog::where('action', 'site.unsuspended')->exists());
     }

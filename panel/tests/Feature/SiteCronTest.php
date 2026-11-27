@@ -129,8 +129,8 @@ class SiteCronTest extends TestCase
             ->assertSessionHas('status', fn (string $message) => str_contains($message, 'danach übertragen'));
         $this->assertSame([], $runner->calls);
 
-        // When site-create succeeds, the waiting jobs are sent.
-        $create = ServerTask::factory()->create(['server_id' => $site->server_id, 'site_id' => $site->id, 'script' => ServerScript::SiteCreate, 'status' => TaskStatus::Succeeded, 'result' => ['ok' => true]]);
+        // When the gateway after site-create succeeds (E-195), the waiting jobs are sent.
+        $create = ServerTask::factory()->create(['server_id' => $site->server_id, 'site_id' => $site->id, 'script' => ServerScript::GatewaySite, 'status' => TaskStatus::Succeeded, 'result' => ['ok' => true]]);
         $site->taskFinished($create);
         $this->assertSame(SiteStatus::Active, $site->fresh()->status);
         $this->assertSame(1, ServerTask::where('script', ServerScript::SiteCron->value)->count());

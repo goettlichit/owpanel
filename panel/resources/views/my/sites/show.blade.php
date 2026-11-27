@@ -93,7 +93,7 @@
                 @if ($active && $site->canRequestCertificate())
                     @can('requestCertificate', $site)
                         <x-slot:actions>
-                            <form data-ow-busy="{{ __('tasks.busy.certificate') }}" data-ow-task="site-create" method="POST" action="{{ route('my.sites.certificate', $site) }}">
+                            <form data-ow-busy="{{ __('tasks.busy.certificate') }}" data-ow-task="site-create gateway-site" method="POST" action="{{ route('my.sites.certificate', $site) }}">
                                 @csrf
                                 <button type="submit" class="btn btn-primary" @disabled($busy)>
                                     <x-icon name="certificate" class="me-1" />{{ __('sites.certificate.request') }}
@@ -124,7 +124,7 @@
                     @endif
                     @can('requestCertificate', $site)
                         <x-slot:actions>
-                            <form data-ow-busy="{{ __('tasks.busy.www') }}" data-ow-task="site-create" method="POST" action="{{ route('my.sites.www', $site) }}">
+                            <form data-ow-busy="{{ __('tasks.busy.www') }}" data-ow-task="site-create gateway-site" method="POST" action="{{ route('my.sites.www', $site) }}">
                                 @csrf
                                 <input type="hidden" name="www" value="{{ $site->www ? 0 : 1 }}">
                                 <button type="submit" @class(['btn', 'btn-primary' => ! $site->www, 'btn-outline-secondary' => $site->www]) @disabled($busy || (! $site->www && ! $wwwOffered))>
@@ -132,7 +132,7 @@
                                 </button>
                             </form>
                             @if ($site->canRequestWwwCertificate())
-                                <form data-ow-busy="{{ __('tasks.busy.certificate') }}" data-ow-task="site-create" method="POST" action="{{ route('my.sites.certificate', $site) }}">
+                                <form data-ow-busy="{{ __('tasks.busy.certificate') }}" data-ow-task="site-create gateway-site" method="POST" action="{{ route('my.sites.certificate', $site) }}">
                                     @csrf
                                     <button type="submit" class="btn btn-outline-primary" @disabled($busy)>
                                         <x-icon name="certificate" class="me-1" />{{ __('sites.www.retry_certificate') }}

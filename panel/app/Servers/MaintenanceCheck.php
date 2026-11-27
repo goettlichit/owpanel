@@ -193,7 +193,8 @@ class MaintenanceCheck
             'panel_certificate_expires_at' => $expiry['ow10000'] ?? null,
         ])->save();
 
-        $server->sites()->each(function (Site $site) use ($expiry) {
+        // The certificates of the websites live at their gateway (E-195).
+        $server->gatewaySites()?->each(function (Site $site) use ($expiry) {
             $site->forceFill(['certificate_expires_at' => $expiry[$site->system_user] ?? null])->save();
         });
     }

@@ -8,6 +8,7 @@ use App\Enums\SiteStatus;
 use App\Enums\TaskStatus;
 use App\Servers\ScriptCall;
 use App\Sites\Domain;
+use App\Sites\SiteDeploy;
 use App\Support\Audit;
 use Database\Factories\SiteFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -205,13 +206,27 @@ class Site extends Model
     }
 
     /**
+     * The latest task that ran, leaving out those skipped after a failed
+     * step: the failed step names what went wrong (E-106, E-195).
+     */
+    public function lastRunTask(): ?ServerTask
+    {
+        return $this->tasks()
+            ->where(fn ($query) => $query->whereNull('error')->orWhere('error', '!=', ServerTask::SKIPPED))
+            ->latest('created_at')->latest('id')->first();
+    }
+
+    /**
      * Whether the last attempt to create the site failed and can be repeated.
      * site-create is repeatable and brings a half-created site into shape.
      */
     public function canRetryCreate(): bool
     {
+        $latest = $this->lastRunTask();
+
         return $this->status === SiteStatus::Failed
-            && $this->latestTask()?->script === ServerScript::SiteCreate
+            && in_array($latest?->script, [ServerScript::SiteCreate, ServerScript::GatewaySite], true)
+            && ! $latest->removesSite()
             && ! $this->isBusy();
     }
 
@@ -325,9 +340,17 @@ class Site extends Model
         $succeeded = $task->status === TaskStatus::Succeeded;
 
         match ($task->script) {
+            // The backend part (E-195); the gateway after it decides.
             ServerScript::SiteCreate => $succeeded
-                ? $this->activated($task)
+                ? $this->backendWritten($task)
                 : $this->createFailed(),
+            ServerScript::GatewaySite => match (true) {
+                in_array('--remove', (array) $task->arguments, true) => $succeeded
+                    ? null
+                    : $this->forceFill(['status' => SiteStatus::Failed])->save(),
+                $succeeded => $this->activated($task),
+                default => $this->createFailed(),
+            },
             ServerScript::SiteDelete => $succeeded
                 ? $this->deleteAfterScript($task)
                 : $this->forceFill(['status' => SiteStatus::Failed])->save(),
@@ -344,8 +367,10 @@ class Site extends Model
             'tls' => ($task->result['tls'] ?? false) === true,
             'www_tls' => ($task->result['www_tls'] ?? false) === true,
             'certificate_expires_at' => $this->reportedExpiry($task),
-            'php_version' => $this->reportedPhpVersion($task) ?? $this->php_version,
         ])->save();
+        // Session cookies follow a new or lost certificate (E-176), and the
+        // backend lets go of a previous domain (E-112).
+        SiteDeploy::followGateway($this, $task);
 
         // Cron jobs and SFTP set up while the website was being created
         // (E-088, E-089). Both tasks read their data when they run.
@@ -354,6 +379,17 @@ class Site extends Model
         }
         if (! $wasActive && $this->sftp_enabled) {
             ServerTask::start($this->server, ScriptCall::siteSftp($this->system_user, false), null, $this);
+        }
+    }
+
+    /**
+     * The backend reports the PHP version it runs (E-172).
+     */
+    private function backendWritten(ServerTask $task): void
+    {
+        $php = $this->reportedPhpVersion($task);
+        if ($php !== null && $php !== $this->php_version) {
+            $this->forceFill(['php_version' => $php])->save();
         }
     }
 

@@ -56,10 +56,29 @@ class FakeScriptRunner implements ScriptRunner
             file_put_contents($call->stdoutFile, (string) $this->stdout);
         }
 
-        foreach ($this->chunks as $chunk) {
+        $chunks = array_map(fn (string $chunk) => self::forPart($chunk, $call->script->value), $this->chunks);
+        foreach ($chunks as $chunk) {
             $onOutput($chunk);
         }
 
-        return ScriptResult::fromOutput($call->script->value, implode('', $this->chunks), $this->exitCode, $this->timedOut);
+        return ScriptResult::fromOutput($call->script->value, implode('', $chunks), $this->exitCode, $this->timedOut);
+    }
+
+    /**
+     * A website runs as backend and gateway (E-195): an answer prepared for
+     * one part of a website also answers the other parts of the same step,
+     * so tests of a step need one fake only.
+     */
+    private static function forPart(string $chunk, string $script): string
+    {
+        $parts = [
+            'gateway-site' => ['site-create', 'site-suspend', 'site-unsuspend', 'site-delete'],
+            'site-create' => ['site-unsuspend'],
+        ];
+        foreach ($parts[$script] ?? [] as $other) {
+            $chunk = str_replace('"script":"'.$other.'"', '"script":"'.$script.'"', $chunk);
+        }
+
+        return $chunk;
     }
 }

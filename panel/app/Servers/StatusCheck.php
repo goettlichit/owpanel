@@ -65,6 +65,8 @@ class StatusCheck
             'release_keys' => $data['release_keys'],
             // An older server-status says nothing: keep what was known (E-172).
             'php_versions' => $data['php_versions'] ?? $server->php_versions,
+            // An older server-status says nothing: keep what was known (E-195).
+            'backend_cert' => $data['backend_cert'] ?? $server->backend_cert,
             'checked_at' => $now,
             'last_seen_at' => $now,
             'check_error' => null,
@@ -176,6 +178,7 @@ class StatusCheck
             'scripts_version' => $this->text($json['scripts_version'] ?? null, self::VERSION_PATTERN),
             'release_keys' => $this->releaseKeys($json['release_keys'] ?? null),
             'php_versions' => $this->phpVersions($json['php_versions'] ?? null),
+            'backend_cert' => $this->backendCert($json['backend_cert'] ?? null),
         ];
 
         foreach (['uptime', 'cpu_cores', 'cpu', 'load', 'memory', 'swap', 'disk', 'network', 'interfaces'] as $required) {
@@ -187,6 +190,17 @@ class StatusCheck
         $data['cpu_cores'] = min($data['cpu_cores'], 65535);
 
         return $data;
+    }
+
+    /**
+     * The backend certificate (E-195): one PEM block of base64 lines, or
+     * null. The gateway checks it again before pinning it.
+     */
+    private function backendCert(mixed $value): ?string
+    {
+        $block = '/\A-----BEGIN CERTIFICATE-----\n([A-Za-z0-9+\/=]{1,76}\n){1,60}-----END CERTIFICATE-----\n\z/';
+
+        return is_string($value) && strlen($value) <= 8192 && preg_match($block, $value) === 1 ? $value : null;
     }
 
     /**

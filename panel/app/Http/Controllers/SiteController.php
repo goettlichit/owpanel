@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Servers\ScriptCall;
 use App\Sites\Domain;
 use App\Sites\PhpSettings;
+use App\Sites\SiteDeploy;
 use App\Support\Area;
 use App\Support\Audit;
 use Closure;
@@ -157,11 +158,8 @@ class SiteController extends Controller
             $dnsNote = $this->createDnsRecords($site, $request->user());
         }
 
-        $task = DB::transaction(fn () => ServerTask::start(
-            $server,
-            ScriptCall::siteCreate($site->domain, $site->system_user, $tls, $www, php: $php, settings: PhpSettings::effective($site)),
-            $request->user(),
-            $site,
+        $task = DB::transaction(fn () => SiteDeploy::configure(
+            $site, $request->user(), $tls, www: $www, php: $php, settings: PhpSettings::effective($site),
         ));
 
         // The overview of the new website waits for the task (E-152); a note
@@ -263,7 +261,7 @@ class SiteController extends Controller
         return view('sites.show', [
             'site' => $site->load(['server', 'customer'])->loadCount('databases'),
             // For the state banner; all tasks are under "Logs & tasks" (E-086).
-            'lastTask' => $site->tasks()->latest('created_at')->latest('id')->first(),
+            'lastTask' => $site->lastRunTask(),
             'busy' => $site->isBusy(),
             'showServer' => Server::count() > 1,
         ]);
@@ -304,7 +302,7 @@ class SiteController extends Controller
 
         return view('sites.certificate', [
             'site' => $site->load('server'),
-            'lastTask' => $site->tasks()->latest('created_at')->latest('id')->first(),
+            'lastTask' => $site->lastRunTask(),
             'busy' => $site->isBusy(),
         ]);
     }
@@ -324,11 +322,8 @@ class SiteController extends Controller
         $task = DB::transaction(function () use ($request, $site) {
             $site->forceFill(['status' => SiteStatus::Pending])->save();
 
-            return ServerTask::start(
-                $site->server,
-                ScriptCall::siteCreate($site->domain, $site->system_user, $site->wants_tls, $site->www, php: $site->server->phpFor($site), settings: PhpSettings::effective($site)),
-                $request->user(),
-                $site,
+            return SiteDeploy::configure(
+                $site, $request->user(), (bool) $site->wants_tls, php: $site->server->phpFor($site), settings: PhpSettings::effective($site),
             );
         });
 
@@ -353,12 +348,7 @@ class SiteController extends Controller
 
             Audit::record('site.certificate_requested', $site, ['domain' => $site->domain], $request->user());
 
-            return ServerTask::start(
-                $site->server,
-                ScriptCall::siteCreate($site->domain, $site->system_user, true, $site->www),
-                $request->user(),
-                $site,
-            );
+            return SiteDeploy::configure($site, $request->user(), true);
         });
 
         return $this->afterTask($request, $site);
@@ -392,12 +382,7 @@ class SiteController extends Controller
             $site->forceFill(['www' => $www, 'www_tls' => false])->save();
             Audit::record($www ? 'site.www_enabled' : 'site.www_disabled', $site, ['domain' => $site->domain], $request->user());
 
-            return ServerTask::start(
-                $site->server,
-                ScriptCall::siteCreate($site->domain, $site->system_user, $site->tls || $site->wants_tls, $www),
-                $request->user(),
-                $site,
-            );
+            return SiteDeploy::configure($site, $request->user(), $site->tls || $site->wants_tls, www: $www);
         });
 
         return $this->afterTask($request, $site);
@@ -427,12 +412,7 @@ class SiteController extends Controller
 
         DB::transaction(function () use ($request, $site, $php) {
             Audit::record('site.php_changed', $site, ['domain' => $site->domain, 'from' => $site->php_version, 'to' => $php], $request->user());
-            $task = ServerTask::start(
-                $site->server,
-                ScriptCall::siteCreate($site->domain, $site->system_user, $site->tls || $site->wants_tls, $site->www, php: $php),
-                $request->user(),
-                $site,
-            );
+            $task = SiteDeploy::configure($site, $request->user(), $site->tls || $site->wants_tls, php: $php);
             if ($site->cronJobs()->exists()) {
                 ServerTask::start($site->server, ScriptCall::siteCron($site->system_user, []), $request->user(), $site, after: $task);
             }
@@ -477,12 +457,7 @@ class SiteController extends Controller
         DB::transaction(function () use ($request, $site, $changed) {
             $site->save();
             Audit::record('site.php_settings_changed', $site, ['domain' => $site->domain, 'changed' => $changed], $request->user());
-            ServerTask::start(
-                $site->server,
-                ScriptCall::siteCreate($site->domain, $site->system_user, $site->tls || $site->wants_tls, $site->www, settings: PhpSettings::effective($site)),
-                $request->user(),
-                $site,
-            );
+            SiteDeploy::configure($site, $request->user(), $site->tls || $site->wants_tls, settings: PhpSettings::effective($site));
         });
 
         return $this->afterTask($request, $site);
@@ -538,12 +513,7 @@ class SiteController extends Controller
         $task = DB::transaction(function () use ($request, $site, $domain, $www) {
             Audit::record('site.domain_change_started', $site, ['from' => $site->domain, 'to' => $domain], $request->user());
 
-            return ServerTask::start(
-                $site->server,
-                ScriptCall::siteCreate($domain, $site->system_user, $site->tls || $site->wants_tls, $www, $site->domain),
-                $request->user(),
-                $site,
-            );
+            return SiteDeploy::configure($site, $request->user(), $site->tls || $site->wants_tls, www: $www, domain: $domain, previousDomain: $site->domain);
         });
 
         return redirect()->route('sites.show', $site);
@@ -602,12 +572,7 @@ class SiteController extends Controller
                 'delete_dns' => $deleteDns,
             ], $request->user());
 
-            return ServerTask::start(
-                $site->server,
-                ScriptCall::siteDelete($site->system_user),
-                $request->user(),
-                $site,
-            );
+            return SiteDeploy::remove($site, $request->user());
         });
 
         // The list shows the website as being deleted until the task is done.

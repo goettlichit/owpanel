@@ -74,10 +74,12 @@ setup() {
 
 @test "renders all site templates without leftover placeholders" {
   local template
-  for template in "${ROOT}"/server/templates/nginx/site-*.conf "${ROOT}/server/templates/php/site-pool.conf"; do
+  for template in "${ROOT}"/server/templates/nginx/site-*.conf "${ROOT}"/server/templates/nginx/gateway-*.conf \
+    "${ROOT}/server/templates/nginx/backend-default.conf" "${ROOT}/server/templates/php/site-pool.conf"; do
     owp_render "$template" "${BATS_TEST_TMPDIR}/out" DOMAIN=example.de \
       USER=ow10042 ROOT=/var/www/ow10042 SCHEME=https NAMES='example.de www.example.de' \
-      BODY=72 TIMEOUT=90 PROCESSES=10 MEMORY=256 UPLOAD=64 POST=72 TIME=60 TERMINATE=90 ERRORS=off SECURE=off
+      BODY=72 TIMEOUT=90 PROCESSES=10 MEMORY=256 UPLOAD=64 POST=72 TIME=60 TERMINATE=90 ERRORS=off SECURE=off \
+      LISTEN=127.0.0.1 GATEWAY=127.0.0.1 BACKEND=01abc ADDRESS=127.0.0.1
     ! grep -q '@[A-Z_]*@' "${BATS_TEST_TMPDIR}/out"
     ! grep -q 'example\.de' <(grep -E 'root |_log |ssl_certificate|open_basedir|listen = ' "${BATS_TEST_TMPDIR}/out")
   done
@@ -119,8 +121,8 @@ setup() {
 }
 
 render_https() {
-  owp_render "${ROOT}/server/templates/nginx/site-php-https.conf" "${BATS_TEST_TMPDIR}/https.conf" \
-    DOMAIN=example.de USER=ow38217 ROOT=/var/www/ow38217 BODY=72 TIMEOUT=90
+  owp_render "${ROOT}/server/templates/nginx/gateway-site-https.conf" "${BATS_TEST_TMPDIR}/https.conf" \
+    DOMAIN=example.de USER=ow38217 BODY=72 TIMEOUT=90 BACKEND=01abc
 }
 
 @test "HTTPS sites listen for HTTP/3 without reuseport" {
@@ -131,13 +133,18 @@ render_https() {
   ! grep -q reuseport "${BATS_TEST_TMPDIR}/https.conf"
 }
 
-@test "every block of an HTTPS site includes the header snippet" {
+@test "the gateway announces HTTP/3 for the TLS block, the backend sets the other headers (E-195)" {
   render_https
+  [ "$(grep -c 'include /etc/nginx/owpanel/gateway-headers.conf;' "${BATS_TEST_TMPDIR}/https.conf")" -eq 1 ]
+  ! grep -q 'add_header' "${BATS_TEST_TMPDIR}/https.conf"
+  grep -qF "add_header Alt-Svc 'h3=\":443\"; ma=86400' always;" "${ROOT}/server/templates/nginx/gateway-headers.conf"
+  ! grep -q 'Alt-Svc' "${ROOT}/server/templates/nginx/backend-headers.conf"
+  owp_site_backend "${ROOT}/server/templates/nginx" "${BATS_TEST_TMPDIR}/backend.conf" example.de ow38217 /var/www/ow38217 72 90 127.0.0.1 127.0.0.1
   local blocks includes
-  # The TLS server block and its six location blocks (placeholder page,
-  # E-171; static files, E-176).
-  blocks="$(awk '/listen 443 ssl;/{s=1} s && /^    location /{n++} END{print n+1}' "${BATS_TEST_TMPDIR}/https.conf")"
-  includes="$(grep -c 'include /etc/nginx/owpanel/headers.conf;' "${BATS_TEST_TMPDIR}/https.conf")"
+  # The server block and its six location blocks (placeholder page, E-171;
+  # static files, E-176).
+  blocks="$(awk '/listen 127.0.0.1:8443 ssl;/{s=1} s && /^    location /{n++} END{print n+1}' "${BATS_TEST_TMPDIR}/backend.conf")"
+  includes="$(grep -c 'include /etc/nginx/owpanel/backend-headers.conf;' "${BATS_TEST_TMPDIR}/backend.conf")"
   [ "$blocks" -eq 7 ]
   [ "$includes" -eq "$blocks" ]
 }
@@ -160,7 +167,7 @@ render_https() {
 }
 
 render_site() {
-  owp_site_nginx "${ROOT}/server/templates/nginx" "${BATS_TEST_TMPDIR}/site.conf" "$1" example.de ow38217 /var/www/ow38217 "$2" "$3"
+  owp_site_gateway "${ROOT}/server/templates/nginx" "${BATS_TEST_TMPDIR}/site.conf" "$1" example.de ow38217 "$2" "$3" 72 90 01abc
 }
 
 @test "without www a site answers to its domain only" {
@@ -200,21 +207,52 @@ render_site() {
   [ "$(owp_server_names "${BATS_TEST_TMPDIR}/n.conf" | tr '\n' ' ')" = "a.de www.a.de b.de " ]
 }
 
-@test "site-create checks --www" {
-  sed "s#/opt/owpanel/lib/#${ROOT}/server/lib/#" "${ROOT}/server/bin/site-create" >"${BATS_TEST_TMPDIR}/site-create"
-  run bash "${BATS_TEST_TMPDIR}/site-create" --domain www.example.de --type php --user ow38217 --www
+gateway_site_copy() {
+  sed "s#/opt/owpanel/lib/#${ROOT}/server/lib/#" "${ROOT}/server/bin/gateway-site" >"${BATS_TEST_TMPDIR}/gateway-site"
+}
+
+@test "gateway-site checks --www" {
+  gateway_site_copy
+  run bash "${BATS_TEST_TMPDIR}/gateway-site" --domain www.example.de --user ow38217 --backend-id 01abc --backend 127.0.0.1 --www
   [ "$status" -eq 1 ]
+  [ "${lines[-1]}" = '{"ok":false,"script":"gateway-site","error":"invalid_arguments"}' ]
+}
+
+@test "gateway-site checks backend, body and timeout (E-195)" {
+  gateway_site_copy
+  local args
+  for args in "--backend-id 01ABC --backend 127.0.0.1" "--backend-id 01abc --backend 10.0.0.256" \
+    "--backend-id 01abc --backend example.de" "--backend-id 01abc --backend 127.0.0.1 --body 0" \
+    "--backend-id 01abc --backend 127.0.0.1 --timeout 99999" "--backend-id '../x' --backend 127.0.0.1"; do
+    # shellcheck disable=SC2086
+    eval "run bash \"\${BATS_TEST_TMPDIR}/gateway-site\" --domain example.de --user ow38217 $args"
+    [ "$status" -eq 1 ] || { echo "accepted: $args"; return 1; }
+    [ "${lines[-1]}" = '{"ok":false,"script":"gateway-site","error":"invalid_arguments"}' ]
+  done
+  run bash "${BATS_TEST_TMPDIR}/gateway-site" --user ow38217 --remove --tls
+  [ "${lines[-1]}" = '{"ok":false,"script":"gateway-site","error":"invalid_arguments"}' ]
+}
+
+@test "site-create checks --listen and --gateway (E-195)" {
+  sed "s#/opt/owpanel/lib/#${ROOT}/server/lib/#" "${ROOT}/server/bin/site-create" >"${BATS_TEST_TMPDIR}/site-create"
+  run bash "${BATS_TEST_TMPDIR}/site-create" --domain example.de --type php --user ow38217 --listen 1.2.3
+  [ "${lines[-1]}" = '{"ok":false,"script":"site-create","error":"invalid_arguments"}' ]
+  run bash "${BATS_TEST_TMPDIR}/site-create" --domain example.de --type php --user ow38217 --gateway '127.0.0.1;'
+  [ "${lines[-1]}" = '{"ok":false,"script":"site-create","error":"invalid_arguments"}' ]
+  run bash "${BATS_TEST_TMPDIR}/site-create" --domain example.de --type php --user ow38217 --tls
   [ "${lines[-1]}" = '{"ok":false,"script":"site-create","error":"invalid_arguments"}' ]
 }
 
-# change_domain without root, nginx and certbot: the copy of site-create is
+# change_domain without root, nginx and certbot: the copy of gateway-site is
 # sourced without running main, and the outside world is stubbed.
 change_domain_setup() {
   # The libraries are loaded by setup, the constants are set below.
+  # shellcheck source=server/lib/suspend.sh
+  source "${ROOT}/server/lib/suspend.sh"
   sed -e '/^main "\$@"$/d' -e '/^source /d' -e '/^readonly /d' -e '/^set -euo pipefail$/d' \
-    "${ROOT}/server/bin/site-create" >"${BATS_TEST_TMPDIR}/site-create-lib"
+    "${ROOT}/server/bin/gateway-site" >"${BATS_TEST_TMPDIR}/gateway-site-lib"
   # shellcheck disable=SC1091
-  source "${BATS_TEST_TMPDIR}/site-create-lib"
+  source "${BATS_TEST_TMPDIR}/gateway-site-lib"
   NGINX_SITES="${BATS_TEST_TMPDIR}/sites"
   TEMPLATES="${ROOT}/server/templates"
   OWP_TMPDIR="${BATS_TEST_TMPDIR}/tmp"
@@ -266,19 +304,31 @@ change_domain_setup() {
   [[ "${lines[-1]}" == *'"error":"domain_mismatch"'* ]]
 }
 
-@test "site-create checks --previous-domain" {
-  sed "s#/opt/owpanel/lib/#${ROOT}/server/lib/#" "${ROOT}/server/bin/site-create" >"${BATS_TEST_TMPDIR}/site-create"
-  run bash "${BATS_TEST_TMPDIR}/site-create" --domain example.de --type php --user ow38217 --previous-domain example.de
+@test "gateway-site checks --previous-domain" {
+  gateway_site_copy
+  run bash "${BATS_TEST_TMPDIR}/gateway-site" --domain example.de --user ow38217 --backend-id 01abc --backend 127.0.0.1 --previous-domain example.de
   [ "$status" -eq 1 ]
-  [ "${lines[-1]}" = '{"ok":false,"script":"site-create","error":"invalid_arguments"}' ]
-  run bash "${BATS_TEST_TMPDIR}/site-create" --domain example.de --type php --user ow38217 --previous-domain 'bad domain'
+  [ "${lines[-1]}" = '{"ok":false,"script":"gateway-site","error":"invalid_arguments"}' ]
+  run bash "${BATS_TEST_TMPDIR}/gateway-site" --domain example.de --user ow38217 --backend-id 01abc --backend 127.0.0.1 --previous-domain 'bad domain'
   [ "$status" -eq 1 ]
-  [ "${lines[-1]}" = '{"ok":false,"script":"site-create","error":"invalid_domain"}' ]
+  [ "${lines[-1]}" = '{"ok":false,"script":"gateway-site","error":"invalid_domain"}' ]
+}
+
+# Functions of site-create, sourced without running main.
+site_create_setup() {
+  sed -e '/^main "\$@"$/d' -e '/^source /d' -e '/^readonly /d' -e '/^set -euo pipefail$/d' \
+    "${ROOT}/server/bin/site-create" >"${BATS_TEST_TMPDIR}/site-create-lib"
+  # shellcheck disable=SC1091
+  source "${BATS_TEST_TMPDIR}/site-create-lib"
+  TEMPLATES="${ROOT}/server/templates"
+  OWP_TMPDIR="${BATS_TEST_TMPDIR}/tmp"
+  mkdir -p "$OWP_TMPDIR"
+  owp_warn() { :; }
 }
 
 # The placeholder page of a website (E-171).
 welcome_setup() {
-  change_domain_setup
+  site_create_setup
   WELCOME_OVERRIDE="${BATS_TEST_TMPDIR}/override.html"
   WELCOME_DIR="${BATS_TEST_TMPDIR}/welcome"
   install() {
@@ -313,11 +363,10 @@ welcome_setup() {
 
 @test "the site templates show the placeholder only for the start page" {
   local file
-  for file in site-php-http.conf site-php-https.conf; do
-    grep -q 'index index.php index.html /.owpanel-welcome.html;' "${ROOT}/server/templates/nginx/${file}"
-    grep -q 'alias /var/lib/owpanel/welcome/@USER@.html;' "${ROOT}/server/templates/nginx/${file}"
-    grep -qF 'if ($request_uri !~ "^/(\?|$)")' "${ROOT}/server/templates/nginx/${file}"
-  done
+  local file="site-backend.conf"
+  grep -q 'index index.php index.html /.owpanel-welcome.html;' "${ROOT}/server/templates/nginx/${file}"
+  grep -q 'alias /var/lib/owpanel/welcome/@USER@.html;' "${ROOT}/server/templates/nginx/${file}"
+  grep -qF 'if ($request_uri !~ "^/(\?|$)")' "${ROOT}/server/templates/nginx/${file}"
 }
 
 @test "site-create accepts --existing" {
@@ -329,7 +378,7 @@ welcome_setup() {
 }
 
 @test "the command php of the cron jobs points to the version of the website (E-172)" {
-  change_domain_setup
+  site_create_setup
   PHP_CLI_DIR="${BATS_TEST_TMPDIR}/php"
   install() {
     local -a args=()
@@ -354,7 +403,7 @@ welcome_setup() {
 
 # PHP settings of a website (E-173).
 settings_setup() {
-  change_domain_setup
+  site_create_setup
   PHP_CLI_DIR="${BATS_TEST_TMPDIR}/php"
   declare -gA SETTINGS=()
   declare -gA SETTING_DEFAULT=([memory]=256 [upload]=64 [time]=60 [errors]=off [processes]=10)
@@ -406,8 +455,8 @@ settings_setup() {
   SETTINGS[errors]=on
   SETTINGS[processes]=4
   owp_apply_config() { cp "$1" "${BATS_TEST_TMPDIR}/pool.conf"; }
-  certificate_covers() { return 1; }
-  write_pool ow10042 /var/www/ow10042 8.5 example.de
+  HTTPS=0
+  write_pool ow10042 /var/www/ow10042 8.5
   local pool="${BATS_TEST_TMPDIR}/pool.conf"
   grep -qx 'pm.max_children = 4' "$pool"
   grep -qx 'php_admin_value\[memory_limit\] = 512M' "$pool"
@@ -417,30 +466,34 @@ settings_setup() {
   grep -qx 'request_terminate_timeout = 330s' "$pool"
   grep -qx 'php_flag\[display_errors\] = on' "$pool"
 
-  owp_site_nginx "${ROOT}/server/templates/nginx" "${BATS_TEST_TMPDIR}/site.conf" https example.de ow10042 /var/www/ow10042 0 0 136 330
+  owp_site_backend "${ROOT}/server/templates/nginx" "${BATS_TEST_TMPDIR}/site.conf" example.de ow10042 /var/www/ow10042 136 330 127.0.0.1 127.0.0.1
   grep -q 'client_max_body_size 136m;' "${BATS_TEST_TMPDIR}/site.conf"
   grep -q 'fastcgi_read_timeout 330s;' "${BATS_TEST_TMPDIR}/site.conf"
+  # The gateway carries the same limits, else it would refuse or cut off first (E-173).
+  owp_site_gateway "${ROOT}/server/templates/nginx" "${BATS_TEST_TMPDIR}/gateway.conf" https example.de ow10042 0 0 136 330 01abc
+  grep -q 'client_max_body_size 136m;' "${BATS_TEST_TMPDIR}/gateway.conf"
+  grep -q 'proxy_read_timeout 330s;' "${BATS_TEST_TMPDIR}/gateway.conf"
 }
 
-@test "session cookies are secure only while a certificate covers the site (E-176)" {
+@test "session cookies are secure only while visitors use HTTPS (E-176)" {
   settings_setup
   read_settings ow10042
   owp_apply_config() { cp "$1" "${BATS_TEST_TMPDIR}/pool.conf"; }
   local pool="${BATS_TEST_TMPDIR}/pool.conf"
-  certificate_covers() { return 1; }
-  write_pool ow10042 /var/www/ow10042 8.5 example.de
+  HTTPS=0
+  write_pool ow10042 /var/www/ow10042 8.5
   grep -qx 'php_flag\[session.cookie_secure\] = off' "$pool"
   grep -qx 'php_flag\[session.cookie_httponly\] = on' "$pool"
   grep -qx 'php_flag\[session.use_strict_mode\] = on' "$pool"
   grep -qx 'php_value\[session.cookie_samesite\] = Lax' "$pool"
-  certificate_covers() { [ "$1" = ow10042 ] && [ "$2" = example.de ]; }
-  write_pool ow10042 /var/www/ow10042 8.5 example.de
+  HTTPS=1
+  write_pool ow10042 /var/www/ow10042 8.5
   grep -qx 'php_flag\[session.cookie_secure\] = on' "$pool"
 }
 
 @test "static files get browser caching after the block for hidden files (E-176)" {
   local file conf
-  for file in site-php-http.conf site-php-https.conf; do
+  for file in site-backend.conf; do
     conf="${ROOT}/server/templates/nginx/${file}"
     grep -q 'expires 7d;' "$conf"
     grep -q 'expires 30d;' "$conf"
@@ -470,7 +523,7 @@ settings_setup() {
 
 @test "refusals of hidden files go to the shared log for fail2ban (E-174)" {
   local file
-  for file in nginx/site-php-http.conf nginx/site-php-https.conf panel/nginx-https.conf; do
+  for file in nginx/gateway-site-http.conf nginx/gateway-site-https.conf panel/nginx-https.conf; do
     awk '/location ~ \/\\.\(\?!well-known\/\) \{/,/\}/' "${ROOT}/server/templates/${file}" >"${BATS_TEST_TMPDIR}/deny"
     grep -q 'error_log /var/log/nginx/owpanel-hidden.log;' "${BATS_TEST_TMPDIR}/deny"
     grep -q 'deny all;' "${BATS_TEST_TMPDIR}/deny"

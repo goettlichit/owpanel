@@ -10,6 +10,7 @@ Cmnd_Alias OWPANEL_SCRIPTS = /opt/owpanel/bin/backup-setup, \
                              /opt/owpanel/bin/db-query, \
                              /opt/owpanel/bin/firewall-confirm, \
                              /opt/owpanel/bin/firewall-rules, \
+                             /opt/owpanel/bin/gateway-site, \
                              /opt/owpanel/bin/panel-backup, \
                              /opt/owpanel/bin/panel-backup-files, \
                              /opt/owpanel/bin/panel-backups, \

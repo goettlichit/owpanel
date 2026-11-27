@@ -113,16 +113,17 @@ render() {
   source "${ROOT}/server/lib/common.sh"
   source "${ROOT}/server/lib/site.sh"
   local site="${BATS_TEST_TMPDIR}/site.conf"
-  owp_site_nginx "${ROOT}/server/templates/nginx" "$site" https example.de ow38217 /var/www/ow38217 1 1
+  owp_site_backend "${ROOT}/server/templates/nginx" "$site" example.de ow38217 /var/www/ow38217 72 90 127.0.0.1 127.0.0.1
   # Every include of the OWPanel headers is followed by the own headers.
-  [ "$(grep -c 'include /etc/nginx/owpanel/headers.conf;' "$site")" -eq "$(grep -c 'include /etc/nginx/owpanel-site-rules/ow38217-headers.conf;' "$site")" ]
-  run awk '/owpanel\/headers.conf;/ { want = 1; next } want { if ($0 !~ /ow38217-headers.conf;/) bad = 1; want = 0 } END { exit bad }' "$site"
+  [ "$(grep -c 'include /etc/nginx/owpanel/backend-headers.conf;' "$site")" -eq "$(grep -c 'include /etc/nginx/owpanel-site-rules/ow38217-headers.conf;' "$site")" ]
+  run awk '/owpanel\/backend-headers.conf;/ { want = 1; next } want { if ($0 !~ /ow38217-headers.conf;/) bad = 1; want = 0 } END { exit bad }' "$site"
   [ "$status" -eq 0 ]
   [ "$(grep -c 'include /etc/nginx/owpanel-site-rules/ow38217-paths.conf;' "$site")" -eq 1 ]
 
-  owp_site_nginx "${ROOT}/server/templates/nginx" "$site" http example.de ow38217 /var/www/ow38217 0 0
-  [ "$(grep -c 'include /etc/nginx/owpanel-site-rules/ow38217-paths.conf;' "$site")" -eq 1 ]
-  ! grep -q 'ow38217-headers.conf' "$site"
+  # The gateway passes them through and has none of its own (E-195), so
+  # it also works where the rules files are not.
+  owp_site_gateway "${ROOT}/server/templates/nginx" "$site" https example.de ow38217 1 1 72 90 01abc
+  ! grep -q 'owpanel-site-rules' "$site"
 }
 
 @test "site-create creates the rule files and site-delete removes them" {

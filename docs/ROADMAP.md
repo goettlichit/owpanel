@@ -217,7 +217,7 @@ Am 2026-11-14 pausiert, am 2026-11-20 geklärt (E-161 bis E-168). Umgesetzt wird
 - [x] Der Panel-Server ist über eine eigene Markierung erkannt, nicht über die Adresse `127.0.0.1` (E-192)
 - [ ] „Server hinzufügen“ mit Einmal-Token und `bash get-owpanel --join <Panel-Adresse>` (E-166)
 - [ ] Steuerung über die private Adresse; Firewall der Website-Server: öffentlich nur Port 22, sonst nur das private Subnetz (E-166, E-168)
-- [ ] Gateway: Zertifikate, ACME und HTTP/3 am Panel-Server, Weiterleitung an den Server der Website, echte Besucheradresse über `set_real_ip_from`, Grenzen wie Uploadgröße je Website (E-161, E-168)
+- [x] Gateway: Zertifikate, ACME und HTTP/3 am Panel-Server, Weiterleitung an den Server der Website über TLS mit gepinntem Zertifikat, echte Besucheradresse über `set_real_ip_from`, Grenzen wie Uploadgröße je Website (E-161, E-168, E-186, E-195)
 - [x] Eingangsadressen als Einstellung; DNS der Websites zeigt darauf, SFTP hinter dem Gateway über den Hostnamen des Servers (E-162, E-193)
 - [ ] Eine IPv6 je Website aus Präfix und festem Teil (E-162)
 - [ ] Serverauswahl beim Anlegen mit Vorschlag nach Reserve, erlaubte Server je Paket (E-161)

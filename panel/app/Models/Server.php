@@ -10,6 +10,7 @@ use App\Support\PanelRelease;
 use Carbon\CarbonInterface;
 use Database\Factories\ServerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -206,6 +207,42 @@ class Server extends Model
     public function scriptsOutdated(): bool
     {
         return $this->scripts_version !== null && $this->scripts_version !== PanelRelease::installed();
+    }
+
+    /**
+     * Where the gateway reaches this server's backend (E-195): itself on
+     * the panel server, otherwise the address the panel connects to, which
+     * is the private one in a multi-server setup (E-161).
+     */
+    public function backendAddress(): string
+    {
+        return $this->hostsPanel() ? '127.0.0.1' : (string) $this->host;
+    }
+
+    /**
+     * The websites whose gateway runs on this server (E-195): all of them on
+     * the panel server, none on other servers. Without a known panel server
+     * each server is its own gateway.
+     *
+     * @return Builder<Site>|HasMany<Site, $this>|null
+     */
+    public function gatewaySites(): mixed
+    {
+        $panel = self::panelHost();
+
+        return match (true) {
+            $panel === null => $this->sites(),
+            $panel->is($this) => Site::query(),
+            default => null,
+        };
+    }
+
+    /**
+     * The name of this server's backend at the gateway: its id, lowercase.
+     */
+    public function backendId(): string
+    {
+        return strtolower((string) $this->getKey());
     }
 
     /**

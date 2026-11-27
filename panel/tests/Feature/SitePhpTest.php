@@ -55,7 +55,7 @@ class SitePhpTest extends TestCase
         $this->actingAs($admin)->post('/sites', ['domain' => 'shop.example.de', 'php' => '8.4'])->assertSessionHasErrors('php');
 
         $this->actingAs($admin)->post('/sites', ['domain' => 'shop.example.de'])->assertRedirect();
-        $task = ServerTask::sole();
+        $task = ServerTask::where('script', ServerScript::SiteCreate->value)->sole();
         $this->assertSame(['--php', '8.5'], array_slice($task->arguments, 6, 2));
         $this->assertSame('8.5', Site::sole()->php_version);
 
@@ -82,9 +82,12 @@ class SitePhpTest extends TestCase
             ->assertRedirect();
 
         $create = ServerTask::where('script', ServerScript::SiteCreate->value)->sole();
-        $this->assertSame(['--domain', 'shop.example.de', '--type', 'php', '--user', 'ow38217', '--tls', '--php', '8.6'], $create->arguments);
+        $this->assertSame(['--domain', 'shop.example.de', '--type', 'php', '--user', 'ow38217', '--https', '--php', '8.6'], $create->arguments);
+        // The cron jobs follow once backend and gateway are done (E-195).
+        $gateway = ServerTask::where('script', ServerScript::GatewaySite->value)->sole();
+        $this->assertSame($create->id, $gateway->after_task_id);
         $cron = ServerTask::where('script', ServerScript::SiteCron->value)->sole();
-        $this->assertSame($create->id, $cron->after_task_id);
+        $this->assertSame($gateway->id, $cron->after_task_id);
         $this->assertDatabaseHas('audit_logs', ['action' => 'site.php_changed']);
         // The version shown changes with the answer of the server.
         $this->assertSame('8.5', $site->fresh()->php_version);
@@ -128,7 +131,7 @@ class SitePhpTest extends TestCase
         $this->assertSame(0, ServerTask::count());
 
         $this->actingAs($user)->post("/my/sites/{$own->id}/php", ['php' => '8.6'])->assertRedirect();
-        $this->assertSame(['--php', '8.6'], array_slice(ServerTask::sole()->arguments, -2));
+        $this->assertSame(['--php', '8.6'], array_slice(ServerTask::where('script', ServerScript::SiteCreate->value)->sole()->arguments, -2));
     }
 
     public function test_a_server_without_a_report_offers_only_the_default(): void

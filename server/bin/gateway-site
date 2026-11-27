@@ -1,0 +1,327 @@
+#!/usr/bin/env bash
+# Writes the gateway part of a website or removes it (E-195). Runs on the
+# server that takes the visitors (the panel server); the backend part lives
+# on the website's server (site-create). Repeatable.
+#
+#   gateway-site --domain example.de --user ow10042 --backend-id <id>
+#                --backend <IPv4> [--backend-cert] [--tls] [--www]
+#                [--previous-domain old.example.de] [--suspended]
+#                [--body <MB>] [--timeout <s>]
+#   gateway-site --user ow10042 --remove
+set -euo pipefail
+
+# --backend names the backend of the website's server (127.0.0.1 on the
+# panel server itself). Its certificate is pinned (E-186): with
+# --backend-cert it comes on stdin, otherwise the backend must be this
+# server, whose own certificate is taken. --tls requests a Let's Encrypt
+# certificate; while it covers the domain, the site stays on HTTPS, also
+# without --tls. --www sends www.<domain> to the domain (E-110). A domain
+# change (E-112) keeps the old site until the certificate for the new names
+# is there. --suspended answers with the suspension page (E-127, E-151).
+
+# shellcheck source=server/lib/common.sh
+source /opt/owpanel/lib/common.sh
+# shellcheck source=server/lib/site.sh
+source /opt/owpanel/lib/site.sh
+# shellcheck source=server/lib/suspend.sh
+source /opt/owpanel/lib/suspend.sh
+
+readonly TEMPLATES="${OWP_ROOT}/templates"
+readonly ACME_ROOT="/var/lib/owpanel/acme"
+readonly NGINX_SITES="/etc/nginx/owpanel-sites"
+readonly NGINX_UPSTREAMS="/etc/nginx/owpanel-upstreams"
+readonly BACKEND_CERTS="/etc/owpanel/backends"
+readonly OWN_BACKEND_CERT="/etc/owpanel/backend/backend.crt"
+readonly MAX_CERT_BYTES=16384
+
+usage() {
+  owp_die "invalid_arguments" \
+    "usage: gateway-site --domain <domain> --user <owNNNNN> --backend-id <id> --backend <IPv4> [--backend-cert] [--tls] [--www] [--previous-domain <domain>] [--suspended] [--body <MB>] [--timeout <s>] | --user <owNNNNN> --remove"
+}
+
+# No other site may answer to one of the names.
+ensure_domain_free() {
+  local user="$1" file name
+  shift
+  for file in "${NGINX_SITES}"/*.conf; do
+    [[ -e "$file" && "$file" != "${NGINX_SITES}/${user}.conf" ]] || continue
+    for name in "$@"; do
+      if owp_server_names "$file" | grep -qxF "$name"; then
+        owp_die "domain_in_use" "${name} already belongs to $(basename "$file" .conf)"
+      fi
+    done
+  done
+}
+
+# Pins the certificate of the backend and writes its upstream (E-186).
+# Usage: ensure_backend <id> <address> <certificate file>
+ensure_backend() {
+  local id="$1" address="$2" cert="$3"
+  if [[ "$(wc -c <"$cert")" -gt "$MAX_CERT_BYTES" ]] \
+    || ! openssl x509 -in "$cert" -noout -checkhost owpanel-backend 2>/dev/null | grep -q ' does match '; then
+    owp_die "invalid_backend_certificate" "the certificate of the backend is not one of OWPanel"
+  fi
+  install -d -o root -g root -m 0755 "$BACKEND_CERTS" "$NGINX_UPSTREAMS"
+  openssl x509 -in "$cert" -out "${OWP_TMPDIR}/backend.crt" 2>/dev/null \
+    || owp_die "invalid_backend_certificate" "the certificate of the backend could not be read"
+  owp_render "${TEMPLATES}/nginx/gateway-upstream.conf" "${OWP_TMPDIR}/upstream.conf" \
+    "BACKEND=${id}" "ADDRESS=${address}" \
+    || owp_die "nginx_config_invalid" "the upstream could not be written"
+  if ! cmp -s "${OWP_TMPDIR}/backend.crt" "${BACKEND_CERTS}/${id}.crt"; then
+    install -o root -g root -m 0644 "${OWP_TMPDIR}/backend.crt" "${BACKEND_CERTS}/${id}.crt"
+    owp_log "certificate of backend ${id} pinned"
+  fi
+  owp_apply_config "${OWP_TMPDIR}/upstream.conf" "${NGINX_UPSTREAMS}/${id}.conf" \
+    0644 nginx reload -- nginx -t \
+    || owp_die "nginx_config_invalid" "nginx rejected the upstream of backend ${id}"
+}
+
+# The page and snippet for suspended websites come with the scripts.
+install_suspension_page() {
+  install -d -o root -g root -m 0755 "$OWP_SUSPEND_PAGE_DIR"
+  install -o root -g root -m 0644 "${TEMPLATES}/nginx/site-suspended.html" "${OWP_SUSPEND_PAGE_DIR}/owpanel-suspended.html"
+  install -d -o root -g root -m 0755 "$(dirname "$OWP_SUSPEND_SNIPPET")"
+  if ! cmp -s "${TEMPLATES}/nginx/site-suspended.conf" "$OWP_SUSPEND_SNIPPET" 2>/dev/null; then
+    install -o root -g root -m 0644 "${TEMPLATES}/nginx/site-suspended.conf" "$OWP_SUSPEND_SNIPPET"
+  fi
+}
+
+# True if the certificate of the site exists and is valid for the domain.
+certificate_covers() {
+  local cert="/etc/letsencrypt/live/${1}/fullchain.pem"
+  [[ -f "$cert" ]] \
+    && openssl x509 -in "$cert" -noout -checkhost "$2" 2>/dev/null | grep -q ' does match '
+}
+
+# True if the certificate has to be requested again: it does not cover the
+# domain, lacks www.<domain> with --www, or still names www.<domain> without,
+# so renewals do not fail on a www entry that may be gone.
+# Usage: needs_certificate <user> <domain> <www 0|1>
+needs_certificate() {
+  local user="$1" domain="$2" www="$3"
+  certificate_covers "$user" "$domain" || return 0
+  if [[ "$www" -eq 1 ]]; then
+    certificate_covers "$user" "www.${domain}" && return 1
+    return 0
+  fi
+  [[ "$domain" != www.* ]] && certificate_names "$user" | grep -qxF "www.${domain}"
+}
+
+# The names in the site's certificate, one per line.
+certificate_names() {
+  openssl x509 -in "/etc/letsencrypt/live/${1}/cert.pem" -noout -ext subjectAltName 2>/dev/null \
+    | grep -oE 'DNS:[^,[:space:]]+' | cut -c5- || true
+}
+
+# Expiry of the site's certificate as epoch seconds, or null (E-076).
+certificate_expiry() {
+  local end epoch
+  end="$(openssl x509 -in "/etc/letsencrypt/live/${1}/cert.pem" -noout -enddate 2>/dev/null)" || { printf 'null\n'; return 0; }
+  epoch="$(date -d "${end#notAfter=}" +%s 2>/dev/null)" || epoch=""
+  [[ "$epoch" =~ ^[0-9]+$ ]] || epoch=null
+  printf '%s\n' "$epoch"
+}
+
+# Usage: request_certificate <user> <name>... (returns 1 if refused)
+# With other names than before, certbot replaces the certificate.
+request_certificate() {
+  local user="$1" name
+  local -a domains=()
+  shift
+  for name in "$@"; do
+    domains+=(--domain "$name")
+  done
+  certbot certonly --webroot --webroot-path "$ACME_ROOT" \
+    --cert-name "$user" "${domains[@]}" \
+    --non-interactive --agree-tos --register-unsafely-without-email \
+    --keep-until-expiring
+}
+
+# Writes the gateway file for what the certificate covers right now, with
+# the suspension page if the website is suspended.
+# Usage: apply_gateway <domain> <user> <www 0|1>
+apply_gateway() {
+  local domain="$1" user="$2" www="$3" variant=http www_tls=0
+  if certificate_covers "$user" "$domain"; then
+    variant=https
+    if [[ "$www" -eq 1 ]] && certificate_covers "$user" "www.${domain}"; then
+      www_tls=1
+    fi
+  fi
+  owp_site_gateway "${TEMPLATES}/nginx" "${OWP_TMPDIR}/site.conf" "$variant" "$domain" "$user" "$www" "$www_tls" \
+    "$BODY" "$TIMEOUT" "$BACKEND_ID" \
+    || owp_die "nginx_config_invalid" "the site configuration could not be written"
+  if [[ "$SUSPENDED" -eq 1 ]]; then
+    owp_suspend_nginx_with "${OWP_TMPDIR}/site.conf" >"${OWP_TMPDIR}/suspended.conf"
+    mv -f "${OWP_TMPDIR}/suspended.conf" "${OWP_TMPDIR}/site.conf"
+  fi
+  owp_apply_config "${OWP_TMPDIR}/site.conf" "${NGINX_SITES}/${user}.conf" \
+    0644 nginx reload -- nginx -t \
+    || owp_die "nginx_config_invalid" "nginx rejected the site configuration"
+}
+
+# Changes the domain of an existing site (E-112). The site must answer to
+# its previous domain, so panel and server agree on what changes. With a
+# certificate, the one for the new names is requested first: the old
+# configuration stays and only gets a block that lets Let's Encrypt reach
+# the new names. If Let's Encrypt refuses the new domain, e.g. because its
+# DNS entry is missing, the old configuration comes back and the site stays
+# at its previous domain with its certificate. Returns 0 if the certificate
+# now covers the new domain, 1 if no certificate was needed.
+# Usage: change_domain <user> <previous> <want_tls 0|1> <www 0|1> <name>...
+change_domain() {
+  local user="$1" previous="$2" want_tls="$3" www="$4" file="${NGINX_SITES}/${1}.conf"
+  shift 4
+  [[ -f "$file" ]] || owp_die "site_not_found" "${user} has no configuration"
+  owp_server_names "$file" | grep -qxF "$previous" \
+    || owp_die "domain_mismatch" "${user} does not answer to ${previous}"
+  [[ "$want_tls" -eq 1 ]] && needs_certificate "$user" "$1" "$www" || return 1
+
+  cp "$file" "${OWP_TMPDIR}/previous.conf"
+  owp_render "${TEMPLATES}/nginx/site-acme-http.conf" "${OWP_TMPDIR}/acme.conf" "USER=${user}" "NAMES=$*" \
+    || owp_die "nginx_config_invalid" "the site configuration could not be written"
+  { cat "${OWP_TMPDIR}/previous.conf"; printf '\n'; cat "${OWP_TMPDIR}/acme.conf"; } >"${OWP_TMPDIR}/change.conf"
+  owp_apply_config "${OWP_TMPDIR}/change.conf" "$file" 0644 nginx reload -- nginx -t \
+    || owp_die "nginx_config_invalid" "nginx rejected the site configuration"
+  if request_certificate "$user" "$@"; then
+    return 0
+  fi
+  if [[ $# -gt 1 ]]; then
+    owp_warn "no certificate for www.${1}; trying ${1} alone"
+    if request_certificate "$user" "$1"; then
+      return 0
+    fi
+  fi
+  owp_apply_config "${OWP_TMPDIR}/previous.conf" "$file" 0644 nginx reload -- nginx -t \
+    || owp_warn "the previous configuration could not be restored"
+  owp_die "certificate_failed" "Let's Encrypt did not issue a certificate for ${1}; the site stays at ${previous}"
+}
+
+# Removes the gateway part: configuration, certificate and logs. Repeatable.
+remove_site() {
+  local user="$1"
+  if [[ -e "${NGINX_SITES}/${user}.conf" ]]; then
+    owp_remove_config "${NGINX_SITES}/${user}.conf" nginx reload -- nginx -t \
+      || owp_die "nginx_config_invalid" "nginx failed without the site configuration"
+    owp_log "gateway configuration removed"
+  fi
+  if [[ -e "/etc/letsencrypt/renewal/${user}.conf" ]]; then
+    certbot delete --cert-name "$user" --non-interactive \
+      || owp_die "certificate_delete_failed" "certbot could not delete the certificate"
+    owp_log "certificate removed"
+  fi
+  rm -f -- "/var/log/nginx/${user}.access.log"* "/var/log/nginx/${user}.gateway-error.log"*
+  owp_result_ok "\"user\":\"${user}\",\"removed\":true"
+}
+
+main() {
+  local domain="" user="" previous="" address="" cert_stdin=0 want_tls=0 www=0 remove=0
+  local tls=false www_tls=false expires=null certified=0 cert
+  local -a names=()
+  BACKEND_ID=""
+  SUSPENDED=0
+  BODY=72
+  TIMEOUT=90
+  owp_init "gateway-site"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --domain | --user | --previous-domain | --backend-id | --backend | --body | --timeout)
+        [[ $# -ge 2 ]] || usage
+        case "$1" in
+          --domain) domain="$2" ;;
+          --user) user="$2" ;;
+          --previous-domain) previous="$2" ;;
+          --backend-id) BACKEND_ID="$2" ;;
+          --backend) address="$2" ;;
+          --body) BODY="$2" ;;
+          --timeout) TIMEOUT="$2" ;;
+        esac
+        shift 2
+        ;;
+      --backend-cert) cert_stdin=1; shift ;;
+      --tls) want_tls=1; shift ;;
+      --www) www=1; shift ;;
+      --suspended) SUSPENDED=1; shift ;;
+      --remove) remove=1; shift ;;
+      *) usage ;;
+    esac
+  done
+  [[ -n "$user" ]] || usage
+  owp_valid_site_user "$user" || owp_die "invalid_user" "user must be ow10000 to ow59999"
+  ! owp_reserved_site_user "$user" || owp_die "reserved_user" "${user} is reserved for the panel"
+  if [[ "$remove" -eq 1 ]]; then
+    [[ -z "$domain$previous$address$BACKEND_ID" && "$want_tls$www$SUSPENDED$cert_stdin" == 0000 ]] \
+      || owp_die "invalid_arguments" "--remove takes --user only"
+    owp_require_root
+    owp_check_os
+    owp_lock 120
+    remove_site "$user"
+    return 0
+  fi
+  [[ -n "$domain" && -n "$BACKEND_ID" && -n "$address" ]] || usage
+  owp_valid_domain "$domain" || owp_die "invalid_domain" "invalid domain"
+  owp_valid_backend_id "$BACKEND_ID" || owp_die "invalid_arguments" "invalid backend id"
+  owp_valid_ipv4 "$address" || owp_die "invalid_arguments" "invalid backend address"
+  [[ "$BODY" =~ ^[1-9][0-9]{0,3}$ && "$TIMEOUT" =~ ^[1-9][0-9]{0,3}$ ]] \
+    || owp_die "invalid_arguments" "invalid --body or --timeout"
+  if [[ "$www" -eq 1 ]]; then
+    [[ "$domain" != www.* ]] || owp_die "invalid_arguments" "--www needs a domain without www."
+    owp_valid_domain "www.${domain}" || owp_die "invalid_domain" "www.${domain} is too long"
+  fi
+  if [[ -n "$previous" ]]; then
+    owp_valid_domain "$previous" || owp_die "invalid_domain" "invalid previous domain"
+    [[ "$previous" != "$domain" ]] || owp_die "invalid_arguments" "--previous-domain equals --domain"
+  fi
+  owp_require_root
+  owp_check_os
+  [[ -d "$NGINX_SITES" && -d "$ACME_ROOT" ]] \
+    || owp_die "server_not_provisioned" "run server-provision first"
+  owp_lock 120
+  owp_tmpdir
+
+  # The certificate of the backend: from the panel, or this server's own.
+  cert="${OWP_TMPDIR}/backend-in.crt"
+  if [[ "$cert_stdin" -eq 1 ]]; then
+    head -c "$((MAX_CERT_BYTES + 1))" >"$cert"
+  elif [[ "$address" == 127.0.0.1 && -f "$OWN_BACKEND_CERT" ]]; then
+    cp "$OWN_BACKEND_CERT" "$cert"
+  else
+    owp_die "invalid_backend_certificate" "the certificate of a backend on another server comes with --backend-cert"
+  fi
+  ensure_backend "$BACKEND_ID" "$address" "$cert"
+
+  names=("$domain")
+  [[ "$www" -eq 0 ]] || names+=("www.${domain}")
+  ensure_domain_free "$user" "${names[@]}"
+  [[ "$SUSPENDED" -eq 0 ]] || install_suspension_page
+  if [[ -n "$previous" ]] && change_domain "$user" "$previous" "$want_tls" "$www" "${names[@]}"; then
+    certified=1
+  fi
+
+  # First the configuration for the certificate as it is, so Let's Encrypt
+  # reaches every name on port 80; then a new certificate if the names
+  # changed; then the configuration for the new certificate.
+  apply_gateway "$domain" "$user" "$www"
+  if [[ "$want_tls" -eq 1 && "$certified" -eq 0 ]] && needs_certificate "$user" "$domain" "$www"; then
+    if ! request_certificate "$user" "${names[@]}"; then
+      [[ "$www" -eq 1 ]] || owp_die "certificate_failed" "Let's Encrypt did not issue a certificate for ${domain}"
+      owp_warn "no certificate for www.${domain}; trying ${domain} alone"
+      if ! certificate_covers "$user" "$domain"; then
+        request_certificate "$user" "$domain" \
+          || owp_die "certificate_failed" "Let's Encrypt did not issue a certificate for ${domain}"
+      fi
+    fi
+    apply_gateway "$domain" "$user" "$www"
+  fi
+  if certificate_covers "$user" "$domain"; then
+    tls=true
+    expires="$(certificate_expiry "$user")"
+    if [[ "$www" -eq 1 ]] && certificate_covers "$user" "www.${domain}"; then
+      www_tls=true
+    fi
+  fi
+
+  owp_result_ok "\"domain\":\"${domain}\",\"user\":\"${user}\",\"tls\":${tls},\"www\":$([[ "$www" -eq 1 ]] && echo true || echo false),\"www_tls\":${www_tls},\"certificate_expires\":${expires},\"suspended\":$([[ "$SUSPENDED" -eq 1 ]] && echo true || echo false)"
+}
+
+main "$@"

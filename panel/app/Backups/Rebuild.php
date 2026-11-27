@@ -10,6 +10,7 @@ use App\Models\Site;
 use App\Models\User;
 use App\Servers\ScriptCall;
 use App\Sites\PhpSettings;
+use App\Sites\SiteDeploy;
 use App\Sites\WebserverRules;
 use App\Support\Audit;
 use Illuminate\Support\Collection;
@@ -37,7 +38,9 @@ final class Rebuild
     {
         $server = $site->server;
 
-        $first = $previous = ServerTask::start($server, ScriptCall::siteCreate($site->domain, $site->system_user, false, $site->www, php: $server->phpFor($site), settings: PhpSettings::effective($site)), $user, $site, after: $after);
+        // Backend, then gateway (E-195).
+        $previous = SiteDeploy::configure($site, $user, false, php: $server->phpFor($site), settings: PhpSettings::effective($site), after: $after);
+        $first = $previous->after()->first() ?? $previous;
         // Own nginx rules, read when the task runs (E-184).
         if (WebserverRules::any($site)) {
             $previous = ServerTask::start($server, ScriptCall::siteNginx($site->system_user, [], []), $user, $site, after: $previous);
@@ -58,11 +61,11 @@ final class Rebuild
             $previous = ServerTask::start($server, ScriptCall::siteSftp($site->system_user, false), $user, $site, after: $previous);
         }
         if ($site->tls) {
-            $previous = ServerTask::start($server, ScriptCall::siteCreate($site->domain, $site->system_user, true, $site->www), $user, $site, after: $previous);
+            $previous = SiteDeploy::configure($site, $user, true, after: $previous);
         }
         // A suspended website comes back suspended (E-127).
         if ($site->isSuspended()) {
-            ServerTask::start($server, ScriptCall::siteSuspend($site->system_user), $user, $site, after: $previous);
+            SiteDeploy::suspend($site, $user, after: $previous);
         }
 
         Audit::record('site.rebuild_started', $site, [

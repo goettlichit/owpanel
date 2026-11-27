@@ -68,6 +68,9 @@ class SitePhpSettingsTest extends TestCase
         $this->assertSame([512, 100, 120, true], [$site->php_memory_mb, $site->php_upload_mb, $site->php_time_s, $site->php_display_errors]);
         $task = ServerTask::where('script', ServerScript::SiteCreate->value)->sole();
         $this->assertSame(['--domain', 'shop.example.de', '--type', 'php', '--user', 'ow38217', ...self::settingArgs(512, 100, 120, 6, true)], $task->arguments);
+        // The gateway takes the same uploads and waits as long (E-173, E-195).
+        $gateway = ServerTask::where('script', ServerScript::GatewaySite->value)->sole();
+        $this->assertSame(['--body', '108', '--timeout', '150'], array_slice($gateway->arguments, -4));
         $this->assertDatabaseHas('audit_logs', ['action' => 'site.php_settings_changed']);
     }
 
@@ -88,7 +91,7 @@ class SitePhpSettingsTest extends TestCase
 
         // Administrators can, within what the server accepts.
         $this->actingAs($this->admin())->post("/sites/{$site->id}/php/settings", ['memory' => 2048, 'upload' => 64, 'time' => 60])->assertRedirect();
-        $this->assertSame(1, ServerTask::count());
+        $this->assertSame(1, ServerTask::where('script', ServerScript::SiteCreate->value)->count());
     }
 
     public function test_a_smaller_package_cuts_the_settings_of_its_websites_at_once(): void

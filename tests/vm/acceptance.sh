@@ -133,7 +133,7 @@ agent_denied() {
 }
 
 main() {
-  local domain="" key_file="" user="ow10001" timezone="Europe/Berlin" tls=1 delete_cycle=0 log php uid site_flags=()
+  local domain="" key_file="" user="ow10001" timezone="Europe/Berlin" tls=1 delete_cycle=0 log php uid site_flags=() gateway=()
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -162,6 +162,8 @@ main() {
   exec > >(tee "$log") 2>&1
   echo "OWPanel acceptance test, $(date -Is), scripts from ${REPO}"
   [[ "$tls" -eq 1 ]] && site_flags=(--tls)
+  # The gateway passes the website to the backend on this server (E-195).
+  gateway=(--domain "$domain" --user "$user" --backend-id acceptance --backend 127.0.0.1)
 
   echo "##### Agent and base services"
   run_script "setup-agent, run 1" "" "${REPO}/server/provision/setup-agent" --public-key-file "$key_file"
@@ -224,18 +226,36 @@ main() {
 
   echo
   echo "##### Website ${domain} as ${user}"
-  # Without --tls a certificate from an earlier run still counts, because
-  # site-create keeps a site on HTTPS while its certificate covers the domain.
-  local expected="" site_tls
+  # Backend first, then the gateway with the certificate (E-195). Without
+  # --tls a certificate from an earlier run still counts, because the
+  # gateway keeps a site on HTTPS while its certificate covers the domain.
+  local expected="" site_tls want_scheme
+  local -a https_flag=()
   [[ "$tls" -eq 1 ]] && expected='"tls":true'
-  run_script "site-create, run 1" "$expected" as_agent "${BIN}/site-create" --domain "$domain" --type php --user "$user" "${site_flags[@]}"
+  run_script "site-create, run 1" "" as_agent "${BIN}/site-create" --domain "$domain" --type php --user "$user"
   abort_on_failure "site-create did not finish"
+  run_script "gateway-site, run 1" "$expected" as_agent "${BIN}/gateway-site" "${gateway[@]}" "${site_flags[@]}"
+  abort_on_failure "gateway-site did not finish"
   site_tls=0
   [[ "$LAST_LINE" == *'"tls":true'* ]] && site_tls=1
   [[ "$site_tls" -eq 1 && "$tls" -eq 0 ]] && printf '[%s] the site keeps its certificate from an earlier run\n' "$(elapsed)"
   expected='"tls":false'
   [[ "$site_tls" -eq 1 ]] && expected='"tls":true'
-  run_script "site-create, run 2" "$expected" as_agent "${BIN}/site-create" --domain "$domain" --type php --user "$user" "${site_flags[@]}"
+  https_flag=()
+  want_scheme=http
+  if [[ "$site_tls" -eq 1 ]]; then
+    https_flag=(--https)
+    want_scheme=https
+  fi
+  run_script "site-create, run 2" "" as_agent "${BIN}/site-create" --domain "$domain" --type php --user "$user" "${https_flag[@]}"
+  run_script "gateway-site, run 2" "$expected" as_agent "${BIN}/gateway-site" "${gateway[@]}" "${site_flags[@]}"
+  check "backend listens on 127.0.0.1:8443 only" sh -c "ss -tln | grep -q '127.0.0.1:8443' && ! ss -tln | grep -qE '(0\\.0\\.0\\.0|\\*|\\[::\\]):8443'"
+  check "the gateway pins the backend certificate" cmp -s /etc/owpanel/backend/backend.crt /etc/owpanel/backends/acceptance.crt
+  # shellcheck disable=SC2016  # PHP code, not shell
+  runuser -u "$user" -- tee "/var/www/${user}/htdocs/public/scheme.php" >/dev/null <<<'<?php echo $_SERVER["REQUEST_SCHEME"], " ", $_SERVER["REMOTE_ADDR"];'
+  check "PHP sees the visitor's scheme and address" \
+    sh -c "[ \"\$(curl -sk -L --resolve '${domain}:80:127.0.0.1' --resolve '${domain}:443:127.0.0.1' 'http://${domain}/scheme.php')\" = '${want_scheme} 127.0.0.1' ]"
+  rm -f "/var/www/${user}/htdocs/public/scheme.php"
   check "site user has UID and GID ${uid}" sh -c "[ \"\$(id -u '$user'):\$(id -g '$user')\" = '${uid}:${uid}' ]"
   check "/etc/passwd does not contain the domain" sh -c "! grep -qF '${domain}' /etc/passwd /etc/group"
   check "site scripts refuse the panel user ow10000" \
@@ -250,6 +270,8 @@ main() {
   [[ "$site_tls" -eq 1 ]] && scheme=https port=443
   printf '* * * * *\tdate\n' | as_agent "${BIN}/site-cron" --user "$user" >/dev/null 2>&1 || true
   before="$(sha256sum "/etc/nginx/owpanel-sites/${user}.conf")"
+  # The gateway shows the page, the server rests the rest (E-195).
+  run_script "gateway-site --suspended" '"suspended":true' as_agent "${BIN}/gateway-site" "${gateway[@]}" --suspended
   run_script "site-suspend, run 1" '"suspended":true' as_agent "${BIN}/site-suspend" --user "$user"
   run_script "site-suspend, run 2" '"suspended":true' as_agent "${BIN}/site-suspend" --user "$user"
   sleep 2
@@ -265,6 +287,8 @@ main() {
   check "runuser still works for panel scripts" runuser -u "$user" -- true
   run_script "site-unsuspend, run 1" '"suspended":false' as_agent "${BIN}/site-unsuspend" --user "$user"
   run_script "site-unsuspend, run 2" '"suspended":false' as_agent "${BIN}/site-unsuspend" --user "$user"
+  run_script "site-create after unsuspend" "" as_agent "${BIN}/site-create" --domain "$domain" --type php --user "$user" --existing "${https_flag[@]}"
+  run_script "gateway-site after unsuspend" '"suspended":false' as_agent "${BIN}/gateway-site" "${gateway[@]}"
   check "nginx config is exactly as before" sh -c "[ \"\$(sha256sum '/etc/nginx/owpanel-sites/${user}.conf')\" = '${before}' ]"
   check "PHP-FPM pool is back" test -f "/etc/php/${php}/fpm/pool.d/owpanel-${user}.conf"
   check "account no longer expires" sh -c "[ -z \"\$(getent shadow '$user' | cut -d: -f8)\" ]"
@@ -276,18 +300,23 @@ main() {
   if [[ "$delete_cycle" -eq 1 ]]; then
     echo
     echo "##### Delete and create again"
+    run_script "gateway-site --remove" '"removed":true' as_agent "${BIN}/gateway-site" --user "$user" --remove
     run_script "site-delete, run 1" "" as_agent "${BIN}/site-delete" --user "$user"
     run_script "site-delete, run 2" "" as_agent "${BIN}/site-delete" --user "$user"
     check "site user is gone" sh -c "! getent passwd '$user'"
     check "nginx left the site group" sh -c "! id -nG nginx | tr ' ' '\n' | grep -qx '$user'"
     check "site files are gone" test ! -e "/var/www/${user}"
     check "nginx config is gone" test ! -e "/etc/nginx/owpanel-sites/${user}.conf"
+    check "backend config is gone" test ! -e "/etc/nginx/owpanel-backend/${user}.conf"
     check "certificate is gone" test ! -e "/etc/letsencrypt/renewal/${user}.conf"
     # Only --tls requests a new certificate here; without it the site comes
-    # back on HTTP, because site-delete removed the old certificate.
+    # back on HTTP, because the removal took the old certificate.
     expected='"tls":false'
     [[ "$tls" -eq 1 ]] && expected='"tls":true'
-    run_script "site-create after delete" "$expected" as_agent "${BIN}/site-create" --domain "$domain" --type php --user "$user" "${site_flags[@]}"
+    https_flag=()
+    [[ "$tls" -eq 1 ]] && https_flag=(--https)
+    run_script "site-create after delete" "" as_agent "${BIN}/site-create" --domain "$domain" --type php --user "$user" "${https_flag[@]}"
+    run_script "gateway-site after delete" "$expected" as_agent "${BIN}/gateway-site" "${gateway[@]}" "${site_flags[@]}"
     check_site "$domain" "$user" "$tls" "$php"
   fi
 

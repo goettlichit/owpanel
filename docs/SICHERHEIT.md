@@ -115,7 +115,7 @@ Grundlage ist Entscheidung E-024.
 
 Grundlage sind E-161 bis E-168. Die Regeln gelten ab der Umsetzung in Meilenstein 5.
 
-1. Weitere Server hängen im privaten Hetzner-Netz des Panel-Servers. Das Panel steuert sie nur über die private Adresse. Hetzner trennt Netze verschiedener Projekte, verschlüsselt sie aber nicht; deshalb laufen über das Netz nur SSH und HTTPS vom Gateway, nie etwas im Klartext. Das Gateway prüft das Zertifikat jedes Website-Servers gegen das beim Einbinden gemeldete (E-186), so wie das Panel den SSH-Host-Schlüssel prüft.
+1. Weitere Server hängen im privaten Hetzner-Netz des Panel-Servers. Das Panel steuert sie nur über die private Adresse. Hetzner trennt Netze verschiedener Projekte, verschlüsselt sie aber nicht; deshalb laufen über das Netz nur SSH und HTTPS vom Gateway, nie etwas im Klartext. Das Gateway prüft das Zertifikat jedes Website-Servers gegen das beim Einbinden gemeldete (E-186), so wie das Panel den SSH-Host-Schlüssel prüft. Das Backend eines Servers lauscht auf Port 8443 nur auf seiner privaten Adresse, auf einem einzelnen Server nur auf `127.0.0.1`, und nimmt nur TLS 1.3 an. Sein Schlüssel verlässt den Server nie; das Panel erfährt das Zertifikat über `server-status` auf dem geprüften SSH-Weg (E-195).
 2. Auf Website-Servern ist öffentlich nur Port 22 für SSH und SFTP offen. HTTP und alles andere nehmen sie nur aus dem privaten Subnetz an. Die Regeln für SSH und die automatische Rücknahme der Firewall gelten unverändert.
 3. Der NGINX eines Website-Servers übernimmt die Besucheradresse aus Kopfzeilen nur von der privaten Adresse des Gateways (`set_real_ip_from`), nie von anderen Absendern.
 4. Ein Panel steuert keine ändernden Aufgaben auf einem Server, dessen Skriptversion abweicht (E-167).

@@ -9,7 +9,7 @@
         <div class="col-12">
             @php($certificate = $site->certificateState())
             @php($requesting = $busy && $site->wants_tls && ! $site->tls && $site->status === \App\Enums\SiteStatus::Active)
-            @php($requestFailed = ! $busy && ! $site->tls && $site->status === \App\Enums\SiteStatus::Active && $lastTask?->script === \App\Enums\ServerScript::SiteCreate && $lastTask?->status === \App\Enums\TaskStatus::Failed)
+            @php($requestFailed = ! $busy && ! $site->tls && $site->status === \App\Enums\SiteStatus::Active && in_array($lastTask?->script, [\App\Enums\ServerScript::SiteCreate, \App\Enums\ServerScript::GatewaySite], true) && $lastTask?->status === \App\Enums\TaskStatus::Failed)
             <x-feature-card :title="__('sites.encryption.title')" :description="__('sites.encryption.description')" :active="$site->tls">
                 @if ($site->tls)
                     <p class="mb-2">{{ __('sites.encryption.active') }}</p>
@@ -59,7 +59,7 @@
                 @if ($site->canRequestCertificate())
                     @can('requestCertificate', $site)
                         <x-slot:actions>
-                            <form data-ow-busy="{{ __('tasks.busy.certificate') }}" data-ow-task="site-create" method="POST" action="{{ route('sites.certificate', $site) }}">
+                            <form data-ow-busy="{{ __('tasks.busy.certificate') }}" data-ow-task="site-create gateway-site" method="POST" action="{{ route('sites.certificate', $site) }}">
                                 @csrf
                                 <button type="submit" class="btn btn-primary">
                                     <x-icon name="certificate" class="me-1" />{{ __('sites.certificate.request') }}

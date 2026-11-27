@@ -20,6 +20,7 @@ source /opt/owpanel/lib/site-rules.sh
 
 readonly SITES_ROOT="/var/www"
 readonly NGINX_SITES="/etc/nginx/owpanel-sites"
+readonly NGINX_BACKEND="/etc/nginx/owpanel-backend"
 readonly SITE_COMMENT="OWPanel site"
 
 usage() {
@@ -134,8 +135,12 @@ main() {
   # The website goes offline first, then its parts are removed. Config files
   # carry OWPanel names; certificate and files are only touched when the site
   # user proves that the site was created by OWPanel.
+  # The gateway part goes first (gateway-site --remove, E-195); on the
+  # panel server its file is removed here too, if it is still there.
   owp_remove_config "${NGINX_SITES}/${user}.conf" nginx reload -- nginx -t \
     || owp_die "nginx_config_invalid" "nginx failed without the site configuration"
+  owp_remove_config "${NGINX_BACKEND}/${user}.conf" nginx reload -- nginx -t \
+    || owp_die "nginx_config_invalid" "nginx failed without the backend configuration"
   # Only the site configuration included them (E-184).
   owp_rules_remove "$user"
   remove_pools "$user"

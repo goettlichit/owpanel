@@ -5,9 +5,8 @@ namespace App\Http\Controllers;
 use App\Customers\CustomerAccess;
 use App\Enums\ServerScript;
 use App\Enums\SiteStatus;
-use App\Models\ServerTask;
 use App\Models\Site;
-use App\Servers\ScriptCall;
+use App\Sites\SiteDeploy;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -65,7 +64,7 @@ class SiteSuspensionController extends Controller
                 CustomerAccess::lock($account, $request->user());
             }
 
-            return ServerTask::start($site->server, ScriptCall::siteSuspend($site->system_user), $request->user(), $site);
+            return SiteDeploy::suspend($site, $request->user());
         });
 
         return redirect()->route('sites.suspension', $site);
@@ -89,7 +88,7 @@ class SiteSuspensionController extends Controller
             Audit::record('site.unsuspended', $site, ['domain' => $site->domain, 'by' => $site->suspended_by], $request->user());
             $site->forceFill(['suspended_at' => null, 'suspended_by' => null, 'suspend_note' => null])->save();
 
-            return ServerTask::start($site->server, ScriptCall::siteSuspend($site->system_user, false), $request->user(), $site);
+            return SiteDeploy::suspend($site, $request->user(), false);
         });
 
         return redirect()->route('sites.suspension', $site);

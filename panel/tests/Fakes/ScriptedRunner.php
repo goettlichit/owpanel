@@ -25,6 +25,16 @@ class ScriptedRunner implements ScriptRunner
     {
         $this->calls[] = $call;
         $script = $call->script->value;
+        // A website runs as backend and gateway (E-195): without an own
+        // answer the gateway answers like the backend step it follows.
+        if ($script === 'gateway-site' && ! array_key_exists($script, $this->answers)) {
+            foreach (['site-create', 'site-suspend', 'site-unsuspend', 'site-delete'] as $other) {
+                if (array_key_exists($other, $this->answers)) {
+                    $this->answers[$script] = $this->answers[$other];
+                    break;
+                }
+            }
+        }
 
         if (! array_key_exists($script, $this->answers)) {
             $line = json_encode(['ok' => false, 'script' => $script, 'error' => 'test_failed'])."\n";

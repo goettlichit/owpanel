@@ -70,17 +70,18 @@ owp_server_names() {
   sed -nE 's/^[[:space:]]*server_name[[:space:]]+([^;]*);.*$/\1/p' "$1" | tr -s ' \t' '\n' | sed '/^$/d'
 }
 
-# Writes the nginx configuration of a site: the main block, over HTTPS if
-# the certificate covers the domain, and for --www a block for www.<domain>
-# that sends everything to the main address; over HTTPS as well once the
-# certificate covers that name too (E-110).
-# Usage: owp_site_nginx <templates> <output> <http|https> <domain> <user> <root> <www 0|1> <www_tls 0|1> [<body MB> <timeout s>]
-owp_site_nginx() {
-  local templates="$1" output="$2" variant="$3" domain="$4" user="$5" root="$6" www="$7" www_tls="$8"
-  local body="${9:-72}" timeout="${10:-90}" part="${output}.part" scheme=http
+# Writes the gateway part of a site (E-195): over HTTPS if the certificate
+# covers the domain, and for --www a block for www.<domain> that sends
+# everything to the main address; over HTTPS as well once the certificate
+# covers that name too (E-110). The site passes everything else to the
+# backend <backend> (an id of the panel's server list).
+# Usage: owp_site_gateway <templates> <output> <http|https> <domain> <user> <www 0|1> <www_tls 0|1> <body MB> <timeout s> <backend>
+owp_site_gateway() {
+  local templates="$1" output="$2" variant="$3" domain="$4" user="$5" www="$6" www_tls="$7"
+  local body="$8" timeout="$9" backend="${10}" part="${output}.part" scheme=http
   [[ "$variant" == https ]] && scheme=https
-  owp_render "${templates}/site-php-${variant}.conf" "$output" \
-    "DOMAIN=${domain}" "USER=${user}" "ROOT=${root}" "BODY=${body}" "TIMEOUT=${timeout}" || return 1
+  owp_render "${templates}/gateway-site-${variant}.conf" "$output" \
+    "DOMAIN=${domain}" "USER=${user}" "BODY=${body}" "TIMEOUT=${timeout}" "BACKEND=${backend}" || return 1
   [[ "$www" -eq 1 ]] || return 0
   owp_render "${templates}/site-www-http.conf" "$part" "DOMAIN=${domain}" "SCHEME=${scheme}" || return 1
   { printf '\n'; cat "$part"; } >>"$output"
@@ -89,4 +90,29 @@ owp_site_nginx() {
     { printf '\n'; cat "$part"; } >>"$output"
   fi
   rm -f "$part"
+}
+
+# Writes the backend part of a site (E-195): PHP on <listen>:8443 over TLS,
+# reached only by the gateway at <gateway>. <names> is the domain, during a
+# domain change (E-112) followed by the previous one.
+# Usage: owp_site_backend <templates> <output> <names> <user> <root> <body MB> <timeout s> <listen> <gateway>
+owp_site_backend() {
+  owp_render "${1}/site-backend.conf" "$2" \
+    "NAMES=${3}" "USER=${4}" "ROOT=${5}" "BODY=${6}" "TIMEOUT=${7}" "LISTEN=${8}" "GATEWAY=${9}"
+}
+
+# A backend id: the panel's id of the server, lowercase (E-195).
+owp_valid_backend_id() {
+  [[ "$1" =~ ^[0-9a-z]{1,40}$ ]]
+}
+
+# An IPv4 address for the backend listener or the gateway.
+owp_valid_ipv4() {
+  local -a parts=()
+  local part
+  [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
+  IFS=. read -r -a parts <<<"$1"
+  for part in "${parts[@]}"; do
+    [[ "$part" =~ ^(0|[1-9][0-9]*)$ ]] && ((part <= 255)) || return 1
+  done
 }

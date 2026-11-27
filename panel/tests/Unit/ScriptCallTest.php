@@ -63,11 +63,16 @@ class ScriptCallTest extends TestCase
         new ScriptCall(ServerScript::PanelTest, ['steps' => '3']);
     }
 
-    public function test_site_create_passes_domain_type_user_and_tls(): void
+    public function test_site_create_passes_domain_type_user_and_https(): void
     {
         $this->assertSame(
-            "sudo -n '/opt/owpanel/bin/site-create' '--domain' 'shop.example.de' '--type' 'php' '--user' 'ow38217' '--tls'",
+            "sudo -n '/opt/owpanel/bin/site-create' '--domain' 'shop.example.de' '--type' 'php' '--user' 'ow38217' '--https'",
             ScriptCall::siteCreate('shop.example.de', 'ow38217', true)->commandLine(),
+        );
+        // A backend on another server, during a domain change (E-195, E-112).
+        $this->assertSame(
+            ['--domain', 'new.example.de', '--type', 'php', '--user', 'ow10001', '--listen', '10.0.0.3', '--gateway', '10.0.0.2', '--alias', 'old.example.de'],
+            ScriptCall::siteCreate('new.example.de', 'ow10001', false, listen: '10.0.0.3', gateway: '10.0.0.2', alias: 'old.example.de')->arguments,
         );
         $this->assertSame(
             ['--domain', 'xn--mller-kva.de', '--type', 'php', '--user', 'ow10001'],
@@ -85,6 +90,39 @@ class ScriptCallTest extends TestCase
             ['--domain', 'example.de', '--type', 'php', '--user', 'ow10001', '--php-memory', '512', '--php-upload', '64', '--php-time', '60', '--php-processes', '4', '--php-errors', 'on'],
             ScriptCall::siteCreate('example.de', 'ow10001', false, settings: ['memory' => 512, 'upload' => 64, 'time' => 60, 'processes' => 4, 'errors' => true])->arguments,
         );
+    }
+
+    public function test_gateway_site_passes_the_backend_and_its_certificate(): void
+    {
+        $local = ScriptCall::gatewaySite('shop.example.de', 'ow38217', '01abc', '127.0.0.1', null, true, true, 'old.example.de', true, 136, 330);
+        $this->assertSame(
+            ['--domain', 'shop.example.de', '--user', 'ow38217', '--backend-id', '01abc', '--backend', '127.0.0.1', '--tls', '--www', '--previous-domain', 'old.example.de', '--suspended', '--body', '136', '--timeout', '330'],
+            $local->arguments,
+        );
+        $this->assertNull($local->stdin);
+
+        $remote = ScriptCall::gatewaySite('shop.example.de', 'ow38217', '01abc', '10.0.0.3', "-----BEGIN CERTIFICATE-----\n", false);
+        $this->assertContains('--backend-cert', $remote->arguments);
+        $this->assertSame("-----BEGIN CERTIFICATE-----\n", $remote->stdin);
+
+        $this->assertSame(['--user', 'ow38217', '--remove'], ScriptCall::gatewayRemove('ow38217')->arguments);
+
+        foreach ([
+            fn () => ScriptCall::gatewaySite('shop.example.de', 'ow38217', '01ABC', '127.0.0.1', null, false),
+            fn () => ScriptCall::gatewaySite('shop.example.de', 'ow38217', '01abc', 'gw.example.de', null, false),
+            fn () => ScriptCall::gatewaySite('shop.example.de', 'ow38217', '01abc', '10.0.0.3', null, false),
+            fn () => ScriptCall::gatewaySite('shop.example.de', 'ow38217', '01abc', '127.0.0.1', null, false, body: 0),
+            fn () => ScriptCall::gatewaySite('shop.example.de', 'ow10000', '01abc', '127.0.0.1', null, false),
+            fn () => ScriptCall::siteCreate('shop.example.de', 'ow38217', false, listen: '10.0.0.300'),
+            fn () => ScriptCall::siteCreate('shop.example.de', 'ow38217', false, alias: 'shop.example.de'),
+        ] as $i => $call) {
+            try {
+                $call();
+                $this->fail("accepted call {$i}");
+            } catch (InvalidArgumentException) {
+                $this->addToAssertionCount(1);
+            }
+        }
     }
 
     public function test_site_delete_passes_only_the_user(): void

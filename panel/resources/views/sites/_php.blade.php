@@ -5,7 +5,7 @@
 --}}
 @php($phpVersions = $site->server->phpVersions())
 <div class="col-12">
-    <form data-ow-busy="{{ __('tasks.busy.php') }}" data-ow-task="site-create" method="POST" action="{{ $action }}" class="h-100">
+    <form data-ow-busy="{{ __('tasks.busy.php') }}" data-ow-task="site-create gateway-site" method="POST" action="{{ $action }}" class="h-100">
         @csrf
         <x-card :title="__('sites.php.title')" class="h-100">
             <p class="text-secondary">{{ __('sites.php.text', ['version' => $site->php_version ?? '–']) }}</p>

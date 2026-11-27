@@ -43,19 +43,19 @@
 
                     <x-slot:footer>
                         @if ($running === \App\Enums\ServerScript::SiteSuspend)
-                            <form method="POST" action="{{ route('sites.suspension.store', $site) }}" data-ow-task="site-suspend" data-ow-busy="{{ __('sites.suspension.working') }}">
+                            <form method="POST" action="{{ route('sites.suspension.store', $site) }}" data-ow-task="site-suspend gateway-site" data-ow-busy="{{ __('sites.suspension.working') }}">
                                 @csrf
                                 <button type="submit" class="btn btn-danger" disabled><x-icon name="lock" class="me-1" />{{ __('sites.suspension.submit') }}</button>
                             </form>
                         @else
                         <div class="d-flex flex-wrap gap-2">
-                            <form method="POST" action="{{ route('sites.suspension.destroy', $site) }}" data-ow-task="site-unsuspend" data-ow-busy="{{ __('sites.suspension.unsuspend_working') }}">
+                            <form method="POST" action="{{ route('sites.suspension.destroy', $site) }}" data-ow-task="site-unsuspend site-create gateway-site" data-ow-busy="{{ __('sites.suspension.unsuspend_working') }}">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn btn-primary"><x-icon name="lock-open" class="me-1" />{{ __('sites.suspension.unsuspend') }}</button>
                             </form>
                             @if ($failed && $lastTask->script === \App\Enums\ServerScript::SiteSuspend)
-                                <form method="POST" action="{{ route('sites.suspension.store', $site) }}" data-ow-task="site-suspend" data-ow-busy="{{ __('sites.suspension.working') }}">
+                                <form method="POST" action="{{ route('sites.suspension.store', $site) }}" data-ow-task="site-suspend gateway-site" data-ow-busy="{{ __('sites.suspension.working') }}">
                                     @csrf
                                     <button type="submit" class="btn btn-outline-danger">{{ __('sites.suspension.retry') }}</button>
                                 </form>
@@ -68,7 +68,7 @@
                 <x-card :title="__('sites.suspension.active_title')" tone="danger">
                     <p class="text-secondary mb-0">{{ __('sites.suspension.unsuspend_text') }}</p>
                     <x-slot:footer>
-                        <form method="POST" action="{{ route('sites.suspension.destroy', $site) }}" data-ow-task="site-unsuspend" data-ow-busy="{{ __('sites.suspension.unsuspend_working') }}">
+                        <form method="POST" action="{{ route('sites.suspension.destroy', $site) }}" data-ow-task="site-unsuspend site-create gateway-site" data-ow-busy="{{ __('sites.suspension.unsuspend_working') }}">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="btn btn-primary" disabled><x-icon name="lock-open" class="me-1" />{{ __('sites.suspension.unsuspend') }}</button>
@@ -76,7 +76,7 @@
                     </x-slot:footer>
                 </x-card>
             @else
-                <form method="POST" action="{{ route('sites.suspension.store', $site) }}" novalidate data-ow-task="site-suspend" data-ow-busy="{{ __('sites.suspension.working') }}">
+                <form method="POST" action="{{ route('sites.suspension.store', $site) }}" novalidate data-ow-task="site-suspend gateway-site" data-ow-busy="{{ __('sites.suspension.working') }}">
                     @csrf
                     <x-card :title="__('sites.suspension.title')" tone="danger">
                         @if ($failed && $lastTask->script === \App\Enums\ServerScript::SiteUnsuspend)

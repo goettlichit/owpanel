@@ -9,6 +9,7 @@ use App\Servers\ScriptCall;
 use App\Servers\ScriptResult;
 use App\Servers\ScriptRunner;
 use App\Servers\ServerConnectionException;
+use App\Sites\SiteDeploy;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -62,7 +63,10 @@ class ReadLog implements ShouldBeEncrypted, ShouldQueue
             if ($site === null) {
                 return ['error' => 'site_not_found'];
             }
-            [$server, $call] = [$site->server, ScriptCall::siteLogs($site->system_user, $this->log, $this->lines)];
+            // The access log is written at the gateway, PHP and nginx errors
+            // where the website runs (E-195).
+            $server = $this->log === 'access' ? SiteDeploy::gatewayServer($site) : $site->server;
+            $call = ScriptCall::siteLogs($site->system_user, $this->log, $this->lines);
         } else {
             $server = Server::find($this->targetId);
             if ($server === null) {
