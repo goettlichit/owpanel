@@ -46,15 +46,6 @@ unlock_sftp() {
   owp_log "SFTP unlocked"
 }
 
-restore_nginx() {
-  local file="${OWP_NGINX_SITES}/${1}.conf"
-  [[ -f "$file" ]] || owp_die "site_not_found" "${file} is missing"
-  owp_tmpdir
-  owp_suspend_nginx_without "$file" >"${OWP_TMPDIR}/site.conf"
-  owp_apply_config "${OWP_TMPDIR}/site.conf" "$file" 0644 nginx reload -- nginx -t \
-    || owp_die "nginx_config_invalid" "nginx rejected the configuration; the website stays suspended"
-}
-
 main() {
   local user state
   owp_init "site-unsuspend"
@@ -66,13 +57,12 @@ main() {
   getent passwd "$user" >/dev/null || owp_die "site_not_found" "website ${user} does not exist"
 
   state="${OWP_SUSPEND_DIR}/${user}"
-  # PHP first, so the website works the moment nginx serves it again.
+  # The gateway serves the website again afterwards (gateway-site, E-195).
   if [[ -d "$state" ]]; then
     restore_pools "$user" "$state"
     restore_cron "$user" "$state"
     unlock_sftp "$user" "$state"
   fi
-  restore_nginx "$user"
   rm -rf -- "$state"
 
   owp_result_ok "\"user\":\"${user}\",\"suspended\":false"

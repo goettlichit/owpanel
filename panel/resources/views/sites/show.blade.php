@@ -118,7 +118,7 @@
         @if ($site->canRetryCreate())
             @can('retry', $site)
                 <div class="col-12">
-                    <form data-ow-busy="{{ __('tasks.busy.retry') }}" data-ow-task="site-create" method="POST" action="{{ route('sites.retry', $site) }}" class="h-100">
+                    <form data-ow-busy="{{ __('tasks.busy.retry') }}" data-ow-task="site-create gateway-site" method="POST" action="{{ route('sites.retry', $site) }}" class="h-100">
                         @csrf
                         <x-card :title="__('sites.retry.title')" tone="info" class="h-100">
                             <p class="text-secondary mb-0">{{ __('sites.retry.text') }}</p>

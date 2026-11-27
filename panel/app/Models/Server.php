@@ -209,6 +209,24 @@ class Server extends Model
     }
 
     /**
+     * Where the gateway reaches this server's backend (E-195): itself on
+     * the panel server, otherwise the address the panel connects to, which
+     * is the private one in a multi-server setup (E-161).
+     */
+    public function backendAddress(): string
+    {
+        return $this->hostsPanel() ? '127.0.0.1' : (string) $this->host;
+    }
+
+    /**
+     * The name of this server's backend at the gateway: its id, lowercase.
+     */
+    public function backendId(): string
+    {
+        return strtolower((string) $this->getKey());
+    }
+
+    /**
      * The server the panel runs on, if it is in the list (E-099).
      */
     public static function panelHost(): ?self

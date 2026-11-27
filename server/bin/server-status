@@ -16,6 +16,8 @@ set -euo pipefail
 # scripts, or null for scripts from a checkout. "release_keys" lists the
 # fingerprints (SHA256) of the keys in /etc/owpanel/release-signers.
 # "php_versions" lists the PHP versions installed for websites (E-172).
+# "backend_cert" is the certificate of the backend (PEM), which the gateway
+# pins (E-186, E-195), or null before server-provision.
 
 # shellcheck source=server/lib/common.sh
 source /opt/owpanel/lib/common.sh
@@ -32,6 +34,7 @@ OWP_SITES_ROOT="${OWP_SITES_ROOT:-/var/www}"
 OWP_STATUS_PHP_FPM="${OWP_STATUS_PHP_FPM:-/usr/sbin/php-fpm}"
 OWP_SYSTEMCTL="${OWP_SYSTEMCTL:-systemctl}"
 OWP_STATUS_VERSION_FILE="${OWP_STATUS_VERSION_FILE:-${OWP_ROOT}/VERSION}"
+OWP_STATUS_BACKEND_CERT="${OWP_STATUS_BACKEND_CERT:-/etc/owpanel/backend/backend.crt}"
 OWP_STATUS_SIGNERS_FILE="${OWP_STATUS_SIGNERS_FILE:-/etc/owpanel/release-signers}"
 
 # Helpers print nothing when a value is missing; main() checks every value
@@ -201,6 +204,19 @@ php_versions_json() {
   printf '[%s]' "$list"
 }
 
+# The backend certificate as a JSON string with \n, or null (E-195). Only
+# base64 lines between the PEM markers, so nothing else can reach the JSON.
+backend_cert_json() {
+  local pem
+  [[ -f "$OWP_STATUS_BACKEND_CERT" ]] || { printf 'null'; return 0; }
+  pem="$(sed -n '/^-----BEGIN CERTIFICATE-----$/,/^-----END CERTIFICATE-----$/p' "$OWP_STATUS_BACKEND_CERT" 2>/dev/null | head -n 60)"
+  if [[ -z "$pem" ]] || grep -qvE '^(-----(BEGIN|END) CERTIFICATE-----|[A-Za-z0-9+/=]{1,76})$' <<<"$pem"; then
+    printf 'null'
+    return 0
+  fi
+  printf '"%s"' "$(awk '{printf "%s\\n", $0}' <<<"$pem")"
+}
+
 # Version of the server scripts as a JSON string, or null (E-167).
 scripts_version_json() {
   local version=""
@@ -282,11 +298,11 @@ main() {
   number network "$rx"
   number network "$tx"
 
-  owp_result_ok "$(printf '"hostname":"%s","os":"%s","kernel":"%s","uptime":%s,"cpu_cores":%s,"cpu":%s.%s,"load":[%s,%s,%s],"memory":{"total":%s,"used":%s},"swap":{"total":%s,"used":%s},"disk":{"total":%s,"used":%s},"network":{"rx":%s,"tx":%s,"interfaces":%s},"reboot_required":%s,"sites":%s,"services":%s,"scripts_version":%s,"release_keys":%s,"php_versions":%s' \
+  owp_result_ok "$(printf '"hostname":"%s","os":"%s","kernel":"%s","uptime":%s,"cpu_cores":%s,"cpu":%s.%s,"load":[%s,%s,%s],"memory":{"total":%s,"used":%s},"swap":{"total":%s,"used":%s},"disk":{"total":%s,"used":%s},"network":{"rx":%s,"tx":%s,"interfaces":%s},"reboot_required":%s,"sites":%s,"services":%s,"scripts_version":%s,"release_keys":%s,"php_versions":%s,"backend_cert":%s' \
     "$(host_name)" "$(os_name)" "$(kernel_release)" "$uptime" "$cores" \
     "$((cpu / 10))" "$((cpu % 10))" "$load1" "$load5" "$load15" \
     "$mem_total" "$((mem_total - mem_available))" "$swap_total" "$((swap_total - swap_free))" \
-    "$disk_total" "$disk_used" "$rx" "$tx" "$(network_interfaces_json)" "$reboot" "$(site_users_json)" "$(services_json)" "$(scripts_version_json)" "$(release_keys_json)" "$(php_versions_json)")"
+    "$disk_total" "$disk_used" "$rx" "$tx" "$(network_interfaces_json)" "$reboot" "$(site_users_json)" "$(services_json)" "$(scripts_version_json)" "$(release_keys_json)" "$(php_versions_json)" "$(backend_cert_json)")"
 }
 
 main "$@"

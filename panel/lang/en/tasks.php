@@ -112,6 +112,7 @@ return [
         'server-ssh' => 'SSH login',
         'site-certificates' => 'Check certificates',
         'server-timezone' => 'Set time zone',
+        'gateway-site' => 'Set up website gateway',
         'site-create' => 'Create website',
         'site-cron' => 'Send cron jobs',
         'site-delete' => 'Delete website',

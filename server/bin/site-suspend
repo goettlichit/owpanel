@@ -7,9 +7,8 @@
 # site-unsuspend brings back exactly the state before.
 set -euo pipefail
 
-# - nginx answers domain and www with a neutral page and HTTP 503; the path
-#   for Let's Encrypt stays reachable (checked with nginx -t, else the old
-#   configuration stays).
+# - The gateway answers with the suspension page (gateway-site --suspended,
+#   E-195); the panel sends that first, so this script only rests the rest.
 # - The PHP-FPM pool rests: kept aside and removed (checked with php-fpm -t).
 # - The cron file is kept aside.
 # - SFTP is locked by letting the account expire, open sessions end. The
@@ -23,26 +22,6 @@ source /opt/owpanel/lib/site.sh
 # shellcheck source=server/lib/suspend.sh
 source /opt/owpanel/lib/suspend.sh
 
-readonly TEMPLATES="${OWP_ROOT}/templates"
-
-# Snippet and page come with the scripts, so no base setup is needed first.
-install_page() {
-  install -d -o root -g root -m 0755 "$OWP_SUSPEND_PAGE_DIR"
-  install -o root -g root -m 0644 "${TEMPLATES}/nginx/site-suspended.html" "${OWP_SUSPEND_PAGE_DIR}/owpanel-suspended.html"
-  install -d -o root -g root -m 0755 "$(dirname "$OWP_SUSPEND_SNIPPET")"
-  if ! cmp -s "${TEMPLATES}/nginx/site-suspended.conf" "$OWP_SUSPEND_SNIPPET" 2>/dev/null; then
-    install -o root -g root -m 0644 "${TEMPLATES}/nginx/site-suspended.conf" "$OWP_SUSPEND_SNIPPET"
-  fi
-}
-
-suspend_nginx() {
-  local user="$1" file="${OWP_NGINX_SITES}/${1}.conf"
-  [[ -f "$file" ]] || owp_die "site_not_found" "${file} is missing"
-  owp_tmpdir
-  owp_suspend_nginx_with "$file" >"${OWP_TMPDIR}/site.conf"
-  owp_apply_config "${OWP_TMPDIR}/site.conf" "$file" 0644 nginx reload -- nginx -t \
-    || owp_die "nginx_config_invalid" "nginx rejected the suspended configuration; the website stays online"
-}
 
 suspend_pools() {
   local user="$1" state="$2" pool version
@@ -90,8 +69,6 @@ main() {
   state="${OWP_SUSPEND_DIR}/${user}"
   install -d -o root -g root -m 0700 "$OWP_SUSPEND_DIR" "$state"
 
-  install_page
-  suspend_nginx "$user"
   suspend_pools "$user" "$state"
   suspend_cron "$user" "$state"
   lock_sftp "$user" "$state"

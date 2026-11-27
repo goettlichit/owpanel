@@ -112,6 +112,7 @@ return [
         'server-ssh' => 'SSH-Anmeldung',
         'site-certificates' => 'Zertifikate prüfen',
         'server-timezone' => 'Zeitzone setzen',
+        'gateway-site' => 'Gateway der Webseite einrichten',
         'site-create' => 'Webseite anlegen',
         'site-cron' => 'Cronjobs übertragen',
         'site-delete' => 'Webseite löschen',

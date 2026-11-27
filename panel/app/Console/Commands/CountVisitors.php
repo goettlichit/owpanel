@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Enums\SiteStatus;
 use App\Jobs\CollectSiteStats;
 use App\Models\Server;
+use App\Models\Site;
 use Illuminate\Console\Command;
 
 /**
@@ -19,8 +20,12 @@ class CountVisitors extends Command
 
     public function handle(): int
     {
-        Server::whereHas('sites', fn ($query) => $query->where('status', SiteStatus::Active->value))
-            ->each(fn (Server $server) => CollectSiteStats::dispatch($server->getKey()));
+        // The access logs of all websites are at the gateway on the panel
+        // server (E-195).
+        $server = Server::panelHost();
+        if ($server !== null && Site::where('status', SiteStatus::Active->value)->exists()) {
+            CollectSiteStats::dispatch($server->getKey());
+        }
 
         return self::SUCCESS;
     }

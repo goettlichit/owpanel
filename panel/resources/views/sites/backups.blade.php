@@ -36,7 +36,7 @@
         @if ($missing && $ready && Gate::allows('configureBackups', $site))
             {{-- The server lacks the website (E-106). --}}
             <div class="col-12">
-                <form data-ow-busy="{{ __('tasks.busy.rebuild') }}" data-ow-task="site-create" method="POST" action="{{ route('sites.backups.rebuild', $site) }}">
+                <form data-ow-busy="{{ __('tasks.busy.rebuild') }}" data-ow-task="site-create gateway-site" method="POST" action="{{ route('sites.backups.rebuild', $site) }}">
                     @csrf
                     <x-card :title="__('backups.rebuild.title')" accent="orange">
                         <p class="text-secondary">{{ __('backups.rebuild.text', ['server' => $site->server->display_name]) }}</p>

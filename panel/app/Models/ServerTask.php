@@ -192,6 +192,13 @@ class ServerTask extends Model
             // Firewall rules and fail2ban exceptions as they are now (E-090).
             $this->script === ServerScript::FirewallRules => $this->server->firewallCall(),
             $this->script === ServerScript::ServerFail2ban && ($this->arguments[1] ?? null) === 'ignore' => $this->server->fail2banIgnoreCall(),
+            // The pinned certificate of the website's backend as the last
+            // status check saw it (E-186, E-195).
+            $this->script === ServerScript::GatewaySite && in_array('--backend-cert', $this->arguments, true) => new ScriptCall(
+                $this->script,
+                $this->arguments,
+                $this->site?->server?->backend_cert ?? throw new \RuntimeException('The certificate of the backend is not known yet.'),
+            ),
             // All blocklists and exceptions as they are now (E-170).
             $this->script === ServerScript::ServerBlocklist => $this->server->blocklistCall(),
             default => new ScriptCall(
@@ -241,7 +248,7 @@ class ServerTask extends Model
         $server = $this->server;
 
         return match (true) {
-            $this->script === ServerScript::SiteDelete || ($this->script === ServerScript::SiteCreate && $site === null) => [
+            $this->script === ServerScript::SiteDelete || (in_array($this->script, [ServerScript::SiteCreate, ServerScript::GatewaySite], true) && $site === null) => [
                 'url' => route('sites.index'),
                 'name' => __('tasks.back.sites'),
             ],

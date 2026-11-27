@@ -19,7 +19,7 @@
                     <x-card :title="__('dns.certificate.title')" accent="orange">
                         <p class="mb-0">{{ __('dns.certificate.text') }}</p>
                         <x-slot:footer>
-                            <form data-ow-busy="{{ __('tasks.busy.certificate') }}" data-ow-task="site-create" method="POST" action="{{ route('sites.certificate', $site) }}" class="text-end">
+                            <form data-ow-busy="{{ __('tasks.busy.certificate') }}" data-ow-task="site-create gateway-site" method="POST" action="{{ route('sites.certificate', $site) }}" class="text-end">
                                 @csrf
                                 <button type="submit" class="btn btn-primary"><x-icon name="certificate" class="me-1" />{{ __('dns.certificate.request') }}</button>
                             </form>

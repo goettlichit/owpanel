@@ -193,7 +193,12 @@ class MaintenanceCheck
             'panel_certificate_expires_at' => $expiry['ow10000'] ?? null,
         ])->save();
 
-        $server->sites()->each(function (Site $site) use ($expiry) {
+        // The certificates of all websites live at the gateway on the panel
+        // server (E-195); other servers have none.
+        if (! $server->hostsPanel()) {
+            return;
+        }
+        Site::query()->each(function (Site $site) use ($expiry) {
             $site->forceFill(['certificate_expires_at' => $expiry[$site->system_user] ?? null])->save();
         });
     }

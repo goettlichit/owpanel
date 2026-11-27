@@ -30,7 +30,7 @@ setup() {
   source "${ROOT}/server/lib/site.sh"
   source "${ROOT}/server/lib/suspend.sh"
   local site="${BATS_TEST_TMPDIR}/site.conf"
-  owp_site_nginx "${ROOT}/server/templates/nginx" "$site" https shop.example ow38217 /var/www/ow38217 1 1
+  owp_site_gateway "${ROOT}/server/templates/nginx" "$site" https shop.example ow38217 1 1 72 90 01abc
 
   owp_suspend_nginx_with "$site" >"${BATS_TEST_TMPDIR}/suspended.conf"
   [ "$(grep -c 'server_name' "$site")" -eq "$(grep -c '# owpanel-suspended' "${BATS_TEST_TMPDIR}/suspended.conf")" ]

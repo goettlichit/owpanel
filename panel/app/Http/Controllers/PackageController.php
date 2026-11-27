@@ -4,10 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Enums\SiteStatus;
 use App\Models\Package;
-use App\Models\ServerTask;
 use App\Models\Site;
-use App\Servers\ScriptCall;
 use App\Sites\PhpSettings;
+use App\Sites\SiteDeploy;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -123,12 +122,7 @@ class PackageController extends Controller
             ->where('status', SiteStatus::Active->value)->whereNull('suspended_at')
             ->with(['server', 'customer.package'])->get()
             ->reject(fn (Site $site) => $site->hasOpenTasks())
-            ->each(fn (Site $site) => ServerTask::start(
-                $site->server,
-                ScriptCall::siteCreate($site->domain, $site->system_user, false, $site->www, settings: PhpSettings::effective($site)),
-                $request->user(),
-                $site,
-            ));
+            ->each(fn (Site $site) => SiteDeploy::configure($site, $request->user(), false, settings: PhpSettings::effective($site)));
     }
 
     /**

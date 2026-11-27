@@ -222,19 +222,22 @@ final readonly class ScriptCall
     }
 
     /**
-     * Creates a PHP website or repairs it (server/bin/site-create). With
-     * $tls, Let's Encrypt issues a certificate and the site runs on HTTPS
-     * with HTTP/3 (E-035).
+     * Creates the backend part of a website or brings it into shape
+     * (server/bin/site-create, E-195): user, files, PHP-FPM and the nginx
+     * backend on $listen:8443, reached by the gateway at $gateway. $https
+     * says whether visitors use HTTPS (secure session cookies, E-176).
+     * $alias keeps the previous domain during a domain change (E-112).
      *
      * @param  array{memory: int, upload: int, time: int, processes: int, errors: bool}|null  $settings
      */
-    public static function siteCreate(string $domain, string $user, bool $tls, bool $www = false, ?string $previousDomain = null, bool $existingOnly = false, ?string $php = null, ?array $settings = null): self
+    public static function siteCreate(string $domain, string $user, bool $https, string $listen = '127.0.0.1', string $gateway = '127.0.0.1', bool $existingOnly = false, ?string $php = null, ?array $settings = null, ?string $alias = null): self
     {
-        if (! Domain::isValid($domain) || ($www && ! Site::wwwPossible($domain))
-            || ($previousDomain !== null && (! Domain::isValid($previousDomain) || $previousDomain === $domain))) {
+        if (! Domain::isValid($domain) || ($alias !== null && (! Domain::isValid($alias) || $alias === $domain))) {
             throw new InvalidArgumentException('Invalid domain.');
         }
         self::assertSiteUser($user);
+        self::assertIpv4($listen);
+        self::assertIpv4($gateway);
         // The form only; the panel and the server check which versions are offered.
         if ($php !== null && preg_match('/^[0-9]{1,2}\.[0-9]{1,2}$/', $php) !== 1) {
             throw new InvalidArgumentException('Invalid PHP version.');
@@ -257,11 +260,11 @@ final readonly class ScriptCall
             '--domain', $domain,
             '--type', Site::TYPE_PHP,
             '--user', $user,
-            ...($tls ? ['--tls'] : []),
-            // www.<domain> sends everything to the domain (E-110).
-            ...($www ? ['--www'] : []),
-            // The site moves from this domain to $domain (E-112).
-            ...($previousDomain !== null ? ['--previous-domain', $previousDomain] : []),
+            ...($https ? ['--https'] : []),
+            ...($listen !== '127.0.0.1' ? ['--listen', $listen] : []),
+            ...($gateway !== '127.0.0.1' ? ['--gateway', $gateway] : []),
+            // The previous domain during a domain change (E-112).
+            ...($alias !== null ? ['--alias', $alias] : []),
             // Only rewrite a website that is there; a missing one is rebuilt from its backup (E-171).
             ...($existingOnly ? ['--existing'] : []),
             // Without --php the website keeps its version (E-172).
@@ -269,6 +272,66 @@ final readonly class ScriptCall
             // Without them the website keeps its settings (E-173).
             ...$settingArgs,
         ]);
+    }
+
+    /**
+     * Writes the gateway part of a website (server/bin/gateway-site, E-195):
+     * certificate, HTTP/3, www, suspension page, and the way to the backend
+     * $backendId at $backendAddress, whose certificate is pinned (E-186).
+     * The certificate goes on stdin; for the panel server's own backend the
+     * script takes it from the server.
+     */
+    public static function gatewaySite(
+        string $domain,
+        string $user,
+        string $backendId,
+        string $backendAddress,
+        ?string $backendCert,
+        bool $tls,
+        bool $www = false,
+        ?string $previousDomain = null,
+        bool $suspended = false,
+        int $body = 72,
+        int $timeout = 90,
+    ): self {
+        if (! Domain::isValid($domain) || ($www && ! Site::wwwPossible($domain))
+            || ($previousDomain !== null && (! Domain::isValid($previousDomain) || $previousDomain === $domain))) {
+            throw new InvalidArgumentException('Invalid domain.');
+        }
+        self::assertSiteUser($user);
+        self::assertIpv4($backendAddress);
+        if (preg_match('/^[0-9a-z]{1,40}$/', $backendId) !== 1 || $body < 1 || $body > 9999 || $timeout < 1 || $timeout > 9999) {
+            throw new InvalidArgumentException('Invalid gateway argument.');
+        }
+        if ($backendCert === null && $backendAddress !== '127.0.0.1') {
+            throw new InvalidArgumentException('A backend on another server needs its certificate.');
+        }
+
+        return new self(ServerScript::GatewaySite, [
+            '--domain', $domain,
+            '--user', $user,
+            '--backend-id', $backendId,
+            '--backend', $backendAddress,
+            ...($backendCert !== null ? ['--backend-cert'] : []),
+            ...($tls ? ['--tls'] : []),
+            // www.<domain> sends everything to the domain (E-110).
+            ...($www ? ['--www'] : []),
+            // The site moves from this domain to $domain (E-112).
+            ...($previousDomain !== null ? ['--previous-domain', $previousDomain] : []),
+            ...($suspended ? ['--suspended'] : []),
+            '--body', (string) $body,
+            '--timeout', (string) $timeout,
+        ], stdin: $backendCert);
+    }
+
+    /**
+     * Removes the gateway part of a website with its certificate (E-195).
+     */
+    public static function gatewayRemove(string $user): self
+    {
+        self::assertSiteUser($user);
+
+        return new self(ServerScript::GatewaySite, ['--user', $user, '--remove']);
     }
 
     /**
@@ -697,6 +760,13 @@ final readonly class ScriptCall
     /**
      * ow10001 to ow59999; ow10000 is the panel itself (E-041).
      */
+    private static function assertIpv4(string $address): void
+    {
+        if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+            throw new InvalidArgumentException('Invalid IPv4 address.');
+        }
+    }
+
     private static function assertSiteUser(string $user): void
     {
         if (! preg_match('/^ow([1-5][0-9]{4})$/', $user, $match)
