@@ -9,9 +9,12 @@ use App\Models\ServerJoinToken;
 use App\Models\ServerTask;
 use App\Models\Site;
 use App\Models\User;
+use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -193,6 +196,17 @@ class ServerJoinTest extends TestCase
         }
         $this->assertSame(1, Server::count());
         $this->assertNull(ServerJoinToken::sole()->used_at);
+    }
+
+    public function test_the_join_routes_skip_the_csrf_check(): void
+    {
+        // Tests run without the CSRF check, so the route itself is checked.
+        foreach (['join.info', 'join.archive', 'join.signature', 'join.register'] as $name) {
+            $route = Route::getRoutes()->getByName($name);
+            $this->assertContains(PreventRequestForgery::class, $route->excludedMiddleware(), $name);
+        }
+        // And it is the one the web group runs.
+        $this->assertContains(PreventRequestForgery::class, app(Kernel::class)->getMiddlewareGroups()['web']);
     }
 
     public function test_the_join_routes_are_rate_limited(): void

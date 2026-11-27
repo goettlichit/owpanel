@@ -40,7 +40,7 @@ use App\Http\Controllers\SiteWebserverController;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\UserController;
 use App\Oidc\OidcSettings;
-use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Support\Facades\Route;
 
 // Login, logout, two-factor authentication and password change come from
@@ -48,7 +48,7 @@ use Illuminate\Support\Facades\Route;
 
 // A new server joins with its one-time code (E-166, E-196). No session or
 // CSRF token: the code in the Authorization header is the only key.
-Route::middleware('throttle:20,1')->withoutMiddleware([ValidateCsrfToken::class])->prefix('/join')->group(function () {
+Route::middleware('throttle:20,1')->withoutMiddleware([PreventRequestForgery::class])->prefix('/join')->group(function () {
     Route::get('/info', [JoinController::class, 'info'])->name('join.info');
     Route::get('/archive', [JoinController::class, 'archive'])->name('join.archive');
     Route::get('/signature', [JoinController::class, 'signature'])->name('join.signature');
