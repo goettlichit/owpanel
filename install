@@ -263,8 +263,12 @@ parse_arguments() {
 
 check_release() {
   local file
-  for file in VERSION panel/artisan panel/vendor/autoload.php panel/public/build/manifest.json \
-    server/provision/setup-agent server/bin/server-provision; do
+  local -a files=(VERSION server/provision/setup-agent server/bin/server-provision)
+  # A website server needs no panel; a test build's archive has none (E-196).
+  if [[ -z "$JOIN_DOMAIN" && -z "$JOIN_VIA" ]]; then
+    files+=(panel/artisan panel/vendor/autoload.php panel/public/build/manifest.json)
+  fi
+  for file in "${files[@]}"; do
     [[ -e "${SOURCE_ROOT}/${file}" ]] \
       || owp_die "not_a_release" "${file} is missing; run the installer from a release archive"
   done
