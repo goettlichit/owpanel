@@ -51,13 +51,17 @@ Danach prüfen:
 
 Voraussetzung: Die Subdomain zeigt per A-Eintrag auf die öffentliche IPv4 der VM, und Port 80 ist aus dem Internet erreichbar. `<domain>` ist die Test-Subdomain.
 
+Jede Website hat zwei Teile (E-195): das Backend auf ihrem Server (`site-create`) und das Gateway auf dem Panel-Server (`gateway-site`), das Zertifikat und HTTP/3 trägt.
+
 ```bash
 cd /
-sudo -u owpanel-agent sudo -n /opt/owpanel/bin/site-create --domain <domain> --type php --user ow10001 --tls
-sudo -u owpanel-agent sudo -n /opt/owpanel/bin/site-create --domain <domain> --type php --user ow10001 --tls
+sudo -u owpanel-agent sudo -n /opt/owpanel/bin/site-create --domain <domain> --type php --user ow10001
+sudo -u owpanel-agent sudo -n /opt/owpanel/bin/gateway-site --domain <domain> --user ow10001 --backend-id test --backend 127.0.0.1 --tls
+sudo -u owpanel-agent sudo -n /opt/owpanel/bin/site-create --domain <domain> --type php --user ow10001 --https
+sudo -u owpanel-agent sudo -n /opt/owpanel/bin/gateway-site --domain <domain> --user ow10001 --backend-id test --backend 127.0.0.1 --tls
 ```
 
-Mit `--tls` akzeptierst du die Nutzungsbedingungen von Let's Encrypt. Der zweite Lauf meldet nur `unchanged`, und beide Läufe enden mit `"tls":true`.
+Mit `--tls` akzeptierst du die Nutzungsbedingungen von Let's Encrypt. Der zweite Lauf meldet nur `unchanged`, und beide Läufe von `gateway-site` enden mit `"tls":true`.
 
 Danach prüfen:
 

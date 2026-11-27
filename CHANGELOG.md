@@ -6,6 +6,10 @@ Hier steht nur, was sich in einer Version für die Nutzer von OWPanel tatsächli
 
 ## [Unreleased]
 
+### Changed
+- Every website now has two parts: the gateway on the panel server takes the visitors (certificate, HTTP/3, www, suspension page, access log) and passes them over an encrypted connection to the backend on the website's server (PHP, own rules, error log). On a single server both run there; visitors notice nothing, and PHP still sees their address and HTTPS. The installer converts all websites on the update; each shows two tasks, "Create website" and "Set up website gateway".
+- Suspending a website shows the suspension page at the gateway first; deleting removes the gateway with the certificate first.
+
 ### Fixed
 - After an update of the panel, the configuration of every website failed with "The server scripts have another version than the panel", with one notification each, because the panel still knew the version from before the update. A task now asks the server first and, if the scripts really differ, waits up to 30 minutes for the panel to bring them up to date instead of failing at once.
 
