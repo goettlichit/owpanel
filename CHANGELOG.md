@@ -8,6 +8,12 @@ Hier steht nur, was sich in einer Version für die Nutzer von OWPanel tatsächli
 
 ### Added
 - Add server: under Servers → Add server the panel shows a one-time code and the command `bash get-owpanel --join <panel domain> --via <private address>`. A fresh Debian 13 server in the same private Hetzner network becomes a website server: it loads the scripts from the panel over the private network, gets NGINX, PHP and MariaDB, is reachable from the public by SSH only, and its websites run through the gateway of the panel.
+- When the server of a website cannot be reached, visitors see a neutral page “temporarily unavailable” instead of an NGINX error.
+- The server list shows how long each online server has been running.
+
+### Changed
+- The firewall page shows the fixed ports by role: a website server is open to the public on SSH only and takes everything else from the private network.
+- The DNS pages say when a zone is not in the Hetzner project of the token.
 
 ## [0.4.0] - 2026-11-27
 

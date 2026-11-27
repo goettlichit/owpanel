@@ -136,7 +136,9 @@ render_https() {
 @test "the gateway announces HTTP/3 for the TLS block, the backend sets the other headers (E-195)" {
   render_https
   [ "$(grep -c 'include /etc/nginx/owpanel/gateway-headers.conf;' "${BATS_TEST_TMPDIR}/https.conf")" -eq 1 ]
-  ! grep -q 'add_header' "${BATS_TEST_TMPDIR}/https.conf"
+  # Own headers only on the page for an unreachable backend (E-197).
+  [ "$(grep -c 'add_header' "${BATS_TEST_TMPDIR}/https.conf")" -eq 2 ]
+  awk '/location = \/owpanel-unreachable.html \{/,/\}/' "${BATS_TEST_TMPDIR}/https.conf" | grep -q 'add_header Retry-After'
   grep -qF "add_header Alt-Svc 'h3=\":443\"; ma=86400' always;" "${ROOT}/server/templates/nginx/gateway-headers.conf"
   ! grep -q 'Alt-Svc' "${ROOT}/server/templates/nginx/backend-headers.conf"
   owp_site_backend "${ROOT}/server/templates/nginx" "${BATS_TEST_TMPDIR}/backend.conf" example.de ow38217 /var/www/ow38217 72 90 127.0.0.1 127.0.0.1
@@ -540,4 +542,19 @@ LOG
   run fail2ban-regex "${BATS_TEST_TMPDIR}/hidden.log" "${ROOT}/server/templates/fail2ban/owpanel-hidden.conf"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Lines: 3 lines, 0 ignored, 2 matched, 1 missed"* ]]
+}
+
+@test "the gateway shows a neutral page when the backend is unreachable (E-197)" {
+  local file
+  for file in gateway-site-http.conf gateway-site-https.conf; do
+    owp_render "${ROOT}/server/templates/nginx/${file}" "${BATS_TEST_TMPDIR}/${file}" \
+      DOMAIN=example.de USER=ow38217 BODY=72 TIMEOUT=90 BACKEND=01abc
+    grep -q '^    error_page 502 504 =503 /owpanel-unreachable.html;$' "${BATS_TEST_TMPDIR}/${file}"
+    awk '/location = \/owpanel-unreachable.html \{/,/\}/' "${BATS_TEST_TMPDIR}/${file}" >"${BATS_TEST_TMPDIR}/page"
+    grep -q 'internal;' "${BATS_TEST_TMPDIR}/page"
+    grep -q 'alias /var/lib/owpanel/suspended-page/owpanel-suspended.html;' "${BATS_TEST_TMPDIR}/page"
+  done
+  # Errors of the backend itself pass through.
+  ! grep -q 'proxy_intercept_errors' "${ROOT}/server/templates/nginx/gateway-proxy.conf"
+  grep -q '^proxy_connect_timeout 4s;$' "${ROOT}/server/templates/nginx/gateway-proxy.conf"
 }

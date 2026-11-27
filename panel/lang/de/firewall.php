@@ -22,6 +22,10 @@ return [
         'http' => 'HTTP und Let’s-Encrypt-Prüfung',
         'https' => 'HTTPS',
         'http3' => 'HTTP/3 über QUIC',
+        'private' => 'Gateway und Steuerung durch das Panel; HTTP und HTTPS sind von außen zu',
+        'all_ports' => 'alle',
+        'any_protocol' => 'TCP und UDP',
+        'private_network' => 'privates Netz',
     ],
     'rules' => [
         'title' => 'Freigegebene Ports',

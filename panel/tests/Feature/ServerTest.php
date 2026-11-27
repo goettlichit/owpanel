@@ -254,4 +254,17 @@ class ServerTest extends TestCase
         $this->assertSame($sudo, $allowlist);
         $this->assertSame($scripts, $allowlist);
     }
+
+    public function test_the_list_shows_how_long_an_online_server_runs(): void
+    {
+        $online = Server::factory()->create(['name' => 'web1', 'checked_at' => now(), 'last_seen_at' => now(), 'booted_at' => now()->subDays(3)]);
+        Server::factory()->create(['name' => 'web2', 'checked_at' => now(), 'last_seen_at' => now()->subHour(), 'booted_at' => now()->subDays(5)]);
+        $admin = User::factory()->admin()->withTwoFactor()->create();
+
+        $page = $this->actingAs($admin)->get('/servers')->assertOk();
+        $page->assertSee(__('servers.system.uptime', ['time' => '3 Tage']));
+        // An offline server shows no uptime that may be long over.
+        $page->assertDontSee(__('servers.system.uptime', ['time' => '5 Tage']));
+        $this->assertSame('online', $online->onlineState());
+    }
 }

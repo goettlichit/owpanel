@@ -49,6 +49,10 @@
                     @elseif ($dns['zone_error'])
                         <dt class="col-sm-4">{{ __('dns.fields.zone') }}</dt>
                         <dd class="col-sm-8 text-secondary">{{ __('dns.zone_error', ['error' => __('snapshots.errors.'.$dns['zone_error'])]) }}</dd>
+                    @elseif ($dns['hetzner'])
+                        {{-- The token sees only the zones of its own project (E-197). --}}
+                        <dt class="col-sm-4">{{ __('dns.fields.zone') }}</dt>
+                        <dd class="col-sm-8 text-secondary">{{ __('dns.zone_missing') }}</dd>
                     @endif
                     <dt class="col-sm-4">{{ __('dns.fields.nameservers') }}</dt>
                     <dd class="col-sm-8 mb-0">

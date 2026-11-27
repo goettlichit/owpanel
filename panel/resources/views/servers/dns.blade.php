@@ -45,6 +45,9 @@
                     @elseif ($records && $records['zone_error'])
                         <dt class="col-sm-4">{{ __('dns.fields.zone') }}</dt>
                         <dd class="col-sm-8 text-secondary">{{ __('dns.zone_error', ['error' => __('snapshots.errors.'.$records['zone_error'])]) }}</dd>
+                    @elseif ($records && $records['hetzner'])
+                        <dt class="col-sm-4">{{ __('dns.fields.zone') }}</dt>
+                        <dd class="col-sm-8 text-secondary">{{ __('dns.zone_missing') }}</dd>
                     @endif
                     @if ($records)
                         <dt class="col-sm-4">{{ __('dns.fields.nameservers') }}</dt>

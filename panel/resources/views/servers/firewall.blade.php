@@ -48,12 +48,17 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {{-- Fixed ports, always open so nobody locks himself out. --}}
-                            @foreach ([[$server->port, 'tcp', 'ssh'], ['80', 'tcp', 'http'], ['443', 'tcp', 'https'], ['443', 'udp', 'http3']] as [$port, $protocol, $purpose])
+                            {{-- Fixed ports, always open so nobody locks himself out. A
+                                 website server takes the web only from the private network,
+                                 where the gateway is (E-196, E-197). --}}
+                            @php($fixed = $server->hostsPanel()
+                                ? [[$server->port, 'tcp', 'ssh', null], ['80', 'tcp', 'http', null], ['443', 'tcp', 'https', null], ['443', 'udp', 'http3', null]]
+                                : [[$server->port, 'tcp', 'ssh', null], [__('firewall.fixed.all_ports'), 'any', 'private', __('firewall.fixed.private_network')]])
+                            @foreach ($fixed as [$port, $protocol, $purpose, $source])
                                 <tr class="text-secondary">
                                     <td><code>{{ $port }}</code></td>
-                                    <td>{{ $protocolLabel($protocol) }}</td>
-                                    <td>{{ __('firewall.rules.anyone') }}</td>
+                                    <td>{{ $protocol === 'any' ? __('firewall.fixed.any_protocol') : $protocolLabel($protocol) }}</td>
+                                    <td>{{ $source ?? __('firewall.rules.anyone') }}</td>
                                     <td>{{ __('firewall.fixed.'.$purpose) }}</td>
                                     <td class="text-end"><span class="badge bg-secondary-lt" title="{{ __('firewall.fixed.hint') }}"><x-icon name="lock" class="me-1" />{{ __('firewall.fixed.label') }}</span></td>
                                 </tr>
