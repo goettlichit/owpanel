@@ -181,6 +181,24 @@ class ServerJoinTest extends TestCase
         $this->assertSame(2, Server::count());
     }
 
+    public function test_the_same_server_may_join_again_after_an_aborted_run(): void
+    {
+        $this->withToken($this->code())->post('/join/register', $this->registration())->assertOk();
+        $server = Server::where('host', '10.0.0.3')->sole();
+
+        // A new code with another name; same machine, same host key.
+        $this->withToken($this->code('web3'))->post('/join/register', $this->registration(['hostname' => 'web2b.example.de']))->assertOk();
+        $this->assertSame(2, Server::count());
+        $this->assertSame('web2', $server->fresh()->name);
+        $this->assertSame('web2b.example.de', $server->fresh()->hostname);
+        $this->assertSame(2, ServerTask::where('server_id', $server->id)->count());
+
+        // Another machine on that address is refused.
+        $other = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOe3rYOKp4b8QsHyUJ43Ef/SCOQbiGmFG5N/eCpW0hOp';
+        $this->withToken($this->code('web4'))->post('/join/register', $this->registration(['host_key' => $other]))->assertStatus(409);
+        $this->assertSame(self::HOST_KEY, $server->fresh()->host_key);
+    }
+
     public function test_registering_checks_what_the_server_sends(): void
     {
         $code = $this->code();

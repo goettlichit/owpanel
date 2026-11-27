@@ -80,20 +80,25 @@ class JoinController extends Controller
         ]);
         abort_if($validator->fails(), 422, 'invalid');
         $data = $validator->validated();
-        // An address the panel already knows, its own included.
-        abort_if(Server::where('host', $data['private_ipv4'])->orWhere('private_ipv4', $data['private_ipv4'])->exists(), 409, 'known');
+        // An address the panel already knows, its own included, is taken.
+        // Only the same machine may join again, recognised by its pinned
+        // host key, e.g. after an aborted run; it keeps its name.
+        $hostKey = HostKey::normalize($data['host_key']);
+        $known = Server::where('host', $data['private_ipv4'])->orWhere('private_ipv4', $data['private_ipv4'])->get();
+        $again = $known->count() === 1 && ! $known->first()->hostsPanel() && hash_equals((string) $known->first()->host_key, $hostKey) ? $known->first() : null;
+        abort_if($known->isNotEmpty() && $again === null, 409, 'known');
 
-        $server = DB::transaction(function () use ($token, $data) {
+        $server = DB::transaction(function () use ($token, $data, $hostKey, $again) {
             // Used up first, so a second request with the same code fails.
             $used = ServerJoinToken::whereKey($token->getKey())->whereNull('used_at')->update(['used_at' => now()]);
             abort_if($used !== 1, 404);
 
-            $server = new Server;
+            $server = $again ?? new Server;
             $server->forceFill([
-                'name' => $token->name,
+                'name' => $again?->name ?? $token->name,
                 'host' => $data['private_ipv4'],
                 'port' => (int) $data['ssh_port'],
-                'host_key' => HostKey::normalize($data['host_key']),
+                'host_key' => $hostKey,
                 'hostname' => $data['hostname'],
                 'public_ipv4' => $data['public_ipv4'] ?? null,
                 'public_ipv6' => $data['public_ipv6'] ?? null,
@@ -101,7 +106,7 @@ class JoinController extends Controller
                 'backend_cert' => rtrim($data['backend_cert'], "\n")."\n",
             ])->save();
             $token->forceFill(['server_id' => $server->getKey()])->save();
-            Audit::record('server.joined', $server, ['name' => $server->name, 'private_ipv4' => $server->private_ipv4, 'hostname' => $server->hostname], $token->user);
+            Audit::record('server.joined', $server, ['name' => $server->name, 'private_ipv4' => $server->private_ipv4, 'hostname' => $server->hostname, 'again' => $again !== null], $token->user);
             // Within the 60 seconds of the rollback (E-044).
             ServerTask::start($server, ScriptCall::firewallConfirm(), null);
 

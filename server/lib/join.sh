@@ -31,6 +31,8 @@ JOIN_PUBLIC_IPV6=""
 join_cleanup() {
   [[ -z "$JOIN_HEADERS" ]] || rm -f "$JOIN_HEADERS"
   [[ -z "$JOIN_KEY_FILE" ]] || rm -f "$JOIN_KEY_FILE"
+  # Also after an abort, the automatic updates go on.
+  owp_apt_resume_updates
 }
 
 # HTTPS to the panel by name over its private address, with the code.
@@ -152,7 +154,11 @@ join_wait_for_firewall() {
     sleep 2
     waited=$((waited + 2))
   done
-  if [[ -e "$JOIN_FW_PENDING" ]] || ! nft list table inet owpanel 2>/dev/null | grep -q 'OWPanel private network'; then
+  # Read first: grep -q in a pipe ends early, nft then dies of SIGPIPE and
+  # pipefail would call a confirmed firewall a failure.
+  local rules
+  rules="$(nft list table inet owpanel 2>/dev/null || true)"
+  if [[ -e "$JOIN_FW_PENDING" || "$rules" != *'OWPanel private network'* ]]; then
     owp_die "firewall_not_confirmed" "the panel did not confirm the firewall; it was rolled back. Check SSH from the panel over ${JOIN_PRIVATE_IP}"
   fi
   ok "firewall confirmed by the panel"
