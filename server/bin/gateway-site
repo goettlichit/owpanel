@@ -76,7 +76,8 @@ ensure_backend() {
     || owp_die "nginx_config_invalid" "nginx rejected the upstream of backend ${id}"
 }
 
-# The page and snippet for suspended websites come with the scripts.
+# The page and snippet for suspended websites come with the scripts; the
+# page also stands in when the backend cannot be reached (E-197).
 install_suspension_page() {
   install -d -o root -g root -m 0755 "$OWP_SUSPEND_PAGE_DIR"
   install -o root -g root -m 0644 "${TEMPLATES}/nginx/site-suspended.html" "${OWP_SUSPEND_PAGE_DIR}/owpanel-suspended.html"
@@ -293,7 +294,8 @@ main() {
   names=("$domain")
   [[ "$www" -eq 0 ]] || names+=("www.${domain}")
   ensure_domain_free "$user" "${names[@]}"
-  [[ "$SUSPENDED" -eq 0 ]] || install_suspension_page
+  # Also the page for an unreachable backend uses it (E-197).
+  install_suspension_page
   if [[ -n "$previous" ]] && change_domain "$user" "$previous" "$want_tls" "$www" "${names[@]}"; then
     certified=1
   fi

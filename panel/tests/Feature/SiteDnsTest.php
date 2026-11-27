@@ -124,6 +124,7 @@ class SiteDnsTest extends TestCase
             ->get(route('sites.dns', $site))
             ->assertOk()
             ->assertDontSee('Hetzner')
+            ->assertDontSee(__('dns.zone_missing'))
             ->assertSee(__('dns.overall.ok'))
             ->assertSee('hydrogen.ns.hetzner.com')
             ->assertDontSee('www.shop.example.de');
@@ -141,6 +142,7 @@ class SiteDnsTest extends TestCase
             ->get(route('sites.dns', $site))
             ->assertOk()
             ->assertDontSee(__('dns.fields.hetzner'))
+            ->assertSee(__('dns.zone_missing'))
             ->assertSee(__('dns.states.missing'));
     }
 

@@ -72,12 +72,13 @@ class ServerFirewallTest extends TestCase
     public function test_the_page_shows_fixed_ports_bans_and_the_own_address(): void
     {
         $this->runner(['server-fail2ban' => '{"ok":true,"script":"server-fail2ban","banned":[{"jail":"sshd","ip":"127.0.0.1","until":"2026-11-11 18:50:58"},{"jail":"sshd","ip":"203.0.113.7","until":null},{"jail":"owpanel-hidden","ip":"198.51.100.9","until":null},{"jail":"x","ip":"bad"}],"ignore":[]}']);
-        $server = Server::factory()->create(['port' => 2222]);
+        $server = Server::factory()->panel()->create(['port' => 2222]);
 
         $this->actingAs($this->admin())->get("/servers/{$server->id}/firewall")
             ->assertOk()
             ->assertSee('2222')
             ->assertSee('HTTP/3 über QUIC')
+            ->assertDontSee(__('firewall.fixed.private_network'))
             ->assertSee('203.0.113.7')
             ->assertSee('2026-11-11 18:50:58')
             // Jails with a name of their own (E-174).
@@ -87,6 +88,20 @@ class ServerFirewallTest extends TestCase
             ->assertSee('das bist du')
             ->assertDontSee('>bad<', false)
             ->assertSee('Meine aktuelle Adresse 127.0.0.1 eintragen');
+    }
+
+    public function test_a_website_server_shows_ssh_and_the_private_network_only(): void
+    {
+        $this->runner(['server-fail2ban' => '{"ok":true,"script":"server-fail2ban","banned":[],"ignore":[]}']);
+        $server = Server::factory()->create(['port' => 22, 'private_ipv4' => '10.0.0.3']);
+
+        $this->actingAs($this->admin())->get("/servers/{$server->id}/firewall")
+            ->assertOk()
+            ->assertSee(__('firewall.fixed.ssh'))
+            ->assertSee(__('firewall.fixed.private_network'))
+            ->assertSee(__('firewall.fixed.private'))
+            ->assertDontSee(__('firewall.fixed.http3'))
+            ->assertDontSee(__('firewall.fixed.http'));
     }
 
     public function test_a_rule_is_sent_as_a_whole_list_and_confirmed_right_after(): void

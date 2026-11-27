@@ -46,6 +46,9 @@
                                     @if ($server->hostname && $server->hostname !== $server->name)
                                         <div class="small text-secondary">{{ $server->name }}</div>
                                     @endif
+                                    @if ($server->booted_at && $server->onlineState() === 'online')
+                                        <div class="small text-secondary">{{ __('servers.system.uptime', ['time' => $server->booted_at->locale(app()->getLocale())->diffForHumans(syntax: \Carbon\CarbonInterface::DIFF_ABSOLUTE)]) }}</div>
+                                    @endif
                                 </td>
                                 <td>
                                     @if ($server->public_ipv4 || $server->public_ipv6)

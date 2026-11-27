@@ -216,6 +216,7 @@ Am 2026-11-14 pausiert, am 2026-11-20 geklärt (E-161 bis E-168). Umgesetzt wird
 - [x] Serveraufgaben laufen je Server nacheinander und für verschiedene Server parallel (mehrere Worker, Sperre je Server); die Statusabfrage fragt jeden Server in einem eigenen Prozess ab, damit ein ausgefallener Server die anderen nicht aufhält (E-191)
 - [x] Der Panel-Server ist über eine eigene Markierung erkannt, nicht über die Adresse `127.0.0.1` (E-192)
 - [x] „Server hinzufügen“ mit Einmal-Code und `bash get-owpanel --join <Panel-Domain> --via <private Adresse>` (E-166, E-196)
+- [x] Seite „nicht erreichbar“ am Gateway, Firewall-Seite nach Rolle, Laufzeit in der Server-Übersicht (E-197)
 - [x] Steuerung über die private Adresse; Firewall der Website-Server: öffentlich nur Port 22, sonst nur das private Subnetz (E-166, E-168, E-196)
 - [x] Gateway: Zertifikate, ACME und HTTP/3 am Panel-Server, Weiterleitung an den Server der Website über TLS mit gepinntem Zertifikat, echte Besucheradresse über `set_real_ip_from`, Grenzen wie Uploadgröße je Website (E-161, E-168, E-186, E-195)
 - [x] Eingangsadressen als Einstellung; DNS der Websites zeigt darauf, SFTP hinter dem Gateway über den Hostnamen des Servers (E-162, E-193)

@@ -30,6 +30,7 @@ return [
     ],
     'zone_hetzner' => 'bei Hetzner, über die API',
     'zone_error' => 'Hetzner-API: :error',
+    'zone_missing' => 'Nicht im Hetzner-Projekt des Tokens. Die Einträge pflegst du beim DNS-Anbieter, oder du hinterlegst unter System → Externe Dienste einen Token für das Projekt mit der Zone.',
     'no_nameservers' => 'nicht gefunden',
     'none' => 'kein Eintrag',
     'no_answer' => 'keine Antwort',
