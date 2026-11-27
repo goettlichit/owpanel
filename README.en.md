@@ -4,7 +4,7 @@
 
 **OWPanel** stands for **Open Web Panel**. It is a simple, bilingual server control panel for Debian, as easy to use as CloudPanel. Start with a single server and add more when you need them.
 
-> **Status:** Version 0.2. It runs as a single server (standalone) with websites, databases, customers and a customer area, packages, backups and restore, notifications, a firewall with blocklists, Pocket ID and DNS through the Hetzner API, and updates itself with one click or at night. Things may still change until version 1.0; next comes running several servers (see [docs/ROADMAP.md](docs/ROADMAP.md), German).
+> **Status:** Version 0.3. It runs as a single server (standalone) with websites, databases, customers and a customer area, packages, backups and restore, notifications, a firewall with blocklists, Pocket ID and DNS through the Hetzner API, and updates itself with one click or at night. Things may still change until version 1.0; next comes running several servers (see [docs/ROADMAP.md](docs/ROADMAP.md), German).
 
 ## Core idea
 
@@ -48,7 +48,7 @@ The start script `get-owpanel` downloads the newest release from GitHub, checks 
 ```sh
 curl -fsSL -o get-owpanel https://raw.githubusercontent.com/goettlichit/owpanel/main/get-owpanel
 echo "8c7d3149b9e48bf6323f3255338bde6049e8113548420d5b4723889cd9565271  get-owpanel" | sha256sum -c
-bash get-owpanel                 # newest release, --version 0.2.0 for a given one
+bash get-owpanel                 # newest release, --version 0.3.0 for a given one
 ```
 
 If you downloaded the archive from the [releases page](https://github.com/goettlichit/owpanel/releases) yourself, check and install it like this:

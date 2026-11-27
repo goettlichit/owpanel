@@ -42,7 +42,7 @@
         "home": "Zur Startseite"
     },
     "home": {
-        "status_badge": "Version 0.2",
+        "status_badge": "Version 0.3",
         "title": "Server-Panel für Debian: einfach, nativ, zweisprachig",
         "lead": "OWPanel richtet Webseiten mit HTTPS und HTTP/3, Datenbanken, Backups und Benachrichtigungen nativ auf deinem eigenen Debian-Server ein. Ohne Konfigurationsdateien, auf Deutsch und Englisch.",
         "cta_docs": "Dokumentation lesen",
