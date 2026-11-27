@@ -18,9 +18,13 @@
                         <li class="mb-2">{{ __('servers.join.step_download') }}
                             <pre class="mt-1 mb-0"><code>curl -fsSL -o get-owpanel https://raw.githubusercontent.com/goettlichit/owpanel/main/get-owpanel
 sha256sum get-owpanel</code></pre>
+                            @if (\App\Support\PanelRelease::isTestBuild())
+                                <div class="alert alert-info mt-2 mb-0">{{ __('servers.join.test_build') }}</div>
+                            @endif
                         </li>
                         <li class="mb-2">{{ __('servers.join.step_run') }}
-                            @php($command = 'bash get-owpanel --join '.$domain.' --via '.$panel?->private_ipv4)
+                            {{-- A test build has no signature, and only get-owpanel of its branch knows what it needs. --}}
+                            @php($command = 'bash get-owpanel '.(\App\Support\PanelRelease::isTestBuild() ? '--dev ' : '').'--join '.$domain.' --via '.$panel?->private_ipv4)
                             <div class="d-flex align-items-start gap-2 mt-1">
                                 <pre class="mb-0 flex-grow-1"><code>{{ $command }}</code></pre>
                                 <x-copy-button :value="$command" />

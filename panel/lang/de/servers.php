@@ -17,6 +17,7 @@ return [
         'step_run' => 'Einbinden über das private Netz:',
         'step_code' => 'Wenn danach gefragt wird, diesen Code eingeben:',
         'once' => 'Der Code gilt einmal und :minutes Minuten. Er wird nur jetzt angezeigt; lädst du die Seite neu, ist er weg und du erzeugst einen neuen.',
+        'test_build' => 'Dieses Panel ist ein Testbau. Lade get-owpanel dann vom selben Branch wie das Panel, also mit dem Branch-Namen statt main in der Adresse; die Fassung von main kennt das Einbinden womöglich noch nicht.',
         'until' => 'Gültig bis',
     ],
     'all' => 'Alle Server',

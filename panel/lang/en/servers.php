@@ -17,6 +17,7 @@ return [
         'step_run' => 'Join over the private network:',
         'step_code' => 'When asked, enter this code:',
         'once' => 'The code works once and for :minutes minutes. It is shown only now; if you reload the page it is gone and you create a new one.',
+        'test_build' => 'This panel is a test build. Then load get-owpanel from the same branch as the panel, with the branch name instead of main in the address; the version on main may not know about joining yet.',
         'until' => 'Valid until',
     ],
     'all' => 'All servers',

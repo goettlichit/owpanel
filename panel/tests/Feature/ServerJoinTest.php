@@ -91,10 +91,21 @@ class ServerJoinTest extends TestCase
         $this->assertTrue(AuditLog::where('action', 'server.join_started')->exists());
 
         $this->actingAs($admin)->get('/servers/join')->assertOk()
-            ->assertSee('--join localhost --via 10.0.0.2', false)->assertSee($code);
+            ->assertSee('bash get-owpanel --join localhost --via 10.0.0.2', false)->assertSee($code)
+            ->assertDontSee(__('servers.join.test_build'));
         $this->assertSame(hash('sha256', $code), $token->token_hash);
         // Gone after one view.
         $this->actingAs($admin)->get('/servers/join')->assertDontSee($code);
+    }
+
+    public function test_a_test_build_shows_the_dev_option(): void
+    {
+        config(['owpanel.version' => 'dev-abc1234']);
+        $admin = $this->admin();
+        $this->actingAs($admin)->post('/servers/join', ['name' => 'web2']);
+        $this->actingAs($admin)->get('/servers/join')->assertOk()
+            ->assertSee('bash get-owpanel --dev --join localhost --via 10.0.0.2', false)
+            ->assertSee(__('servers.join.test_build'));
     }
 
     public function test_a_server_name_must_be_new_and_simple(): void
