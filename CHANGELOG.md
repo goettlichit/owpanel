@@ -6,6 +6,9 @@ Hier steht nur, was sich in einer Version für die Nutzer von OWPanel tatsächli
 
 ## [Unreleased]
 
+### Fixed
+- After an update of the panel, the configuration of every website failed with "The server scripts have another version than the panel", with one notification each, because the panel still knew the version from before the update. A task now asks the server first and, if the scripts really differ, waits up to 30 minutes for the panel to bring them up to date instead of failing at once.
+
 ## [0.3.0] - 2026-11-27
 
 Update from 0.2.2 from within the panel. First steps towards several servers; a single server keeps working as before.

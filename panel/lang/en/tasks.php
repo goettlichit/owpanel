@@ -256,7 +256,7 @@ return [
         'invalid_database' => 'Invalid database name.',
         'panel_not_found' => 'The panel is not installed on this server.',
         // server-scripts-update (E-167)
-        'scripts_outdated' => 'The server scripts have another version than the panel. The panel is updating them; afterwards it works again.',
+        'scripts_outdated' => 'The server scripts had another version than the panel for 30 minutes. Check the scripts version under Server → State and start the task again afterwards.',
         'test_build' => 'A test build has no release archive.',
         'signature_required' => 'A release must be signed.',
         'unsigned_not_allowed' => 'This server takes no test builds.',
