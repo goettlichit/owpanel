@@ -83,7 +83,7 @@ class ScriptsUpdateTest extends TestCase
     /**
      * @return array<string, mixed> a server-status answer with this scripts version
      */
-    private function status(string $version): array
+    private function statusAnswer(string $version): array
     {
         return [
             'hostname' => 'web2.example.de', 'os' => 'Debian GNU/Linux 13 (trixie)', 'kernel' => '6.12.48+deb13-amd64',
@@ -97,7 +97,7 @@ class ScriptsUpdateTest extends TestCase
     public function test_changing_tasks_wait_while_the_scripts_differ(): void
     {
         $this->archive();
-        $runner = new ScriptedRunner(['server-status' => $this->status('1.2.0')]);
+        $runner = new ScriptedRunner(['server-status' => $this->statusAnswer('1.2.0')]);
         $change = ServerTask::start($this->web, ScriptCall::sshPasswordLogin(false), null);
 
         // The server is asked first; it still has 1.2.0, so the task waits.
@@ -132,7 +132,7 @@ class ScriptsUpdateTest extends TestCase
     {
         // The panel was just updated; the last check still saw the old scripts.
         $this->panel->forceFill(['scripts_version' => '1.2.0'])->save();
-        $runner = new ScriptedRunner(['server-status' => $this->status('1.3.0'), 'server-ssh' => []]);
+        $runner = new ScriptedRunner(['server-status' => $this->statusAnswer('1.3.0'), 'server-ssh' => []]);
         $change = ServerTask::start($this->panel, ScriptCall::sshPasswordLogin(false), null);
 
         $change = $this->runTask($change, $runner);
@@ -225,7 +225,7 @@ class ScriptsUpdateTest extends TestCase
     {
         $this->archive();
         $this->panel->forceFill(['scripts_version' => null])->save();
-        $this->app->instance(ScriptRunner::class, new ScriptedRunner(['server-status' => $this->status('1.2.0')]));
+        $this->app->instance(ScriptRunner::class, new ScriptedRunner(['server-status' => $this->statusAnswer('1.2.0')]));
 
         $this->artisan('owpanel:check-servers')->assertSuccessful();
 
