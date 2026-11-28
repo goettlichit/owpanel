@@ -901,6 +901,29 @@ cache_release() {
   chmod 0750 "$cache"
 }
 
+# Keeps the active release and the one before it, as a manual way back;
+# older releases and folders of aborted runs go. The database only moves
+# forward, so an older release would not run on it anyway.
+prune_releases() {
+  local dir name previous=""
+  local -a others=()
+  mapfile -t others < <(cd "${PANEL_ROOT}/releases" && ls -1t -A 2>/dev/null)
+  for name in "${others[@]}"; do
+    dir="${PANEL_ROOT}/releases/${name}"
+    [[ -d "$dir" && ! -L "$dir" && "$name" != "$VERSION" ]] || continue
+    if [[ "$name" == .new.* ]]; then
+      rm -rf -- "$dir"
+    elif [[ "$name" =~ $OWP_VERSION_RE ]]; then
+      if [[ -z "$previous" ]]; then
+        previous="$name"
+      else
+        rm -rf -- "$dir"
+        ok "removed release ${name}"
+      fi
+    fi
+  done
+}
+
 # Switches "current" in one step, then lets PHP-FPM drop cached code.
 activate_release() {
   local link="${PANEL_ROOT}/current" tmp="${PANEL_ROOT}/.current.new"
@@ -1136,6 +1159,7 @@ main() {
   write_release_key
   write_unsigned_permission
   check_release_once
+  prune_releases
   final_updates
 
   printf '\n%s%s✓ OWPanel %s is ready%s\n\n' "$C_GREEN" "$C_BOLD" "$VERSION" "$C_RESET"

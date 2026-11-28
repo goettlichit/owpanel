@@ -164,3 +164,23 @@ embedded_signers() {
     [ "$status" -ne 0 ]
   done
 }
+
+@test "get-owpanel removes only earlier unpacked installers" {
+  load_get_owpanel "$SIGNERS"
+  cd "$BATS_TEST_TMPDIR"
+  mkdir owpanel-0.4.0 owpanel-dev-063b33a4432b owpanel-0.5.0 owpanel-notes owpanel-0.3.0
+  for dir in owpanel-0.4.0 owpanel-dev-063b33a4432b owpanel-0.5.0; do
+    touch "${dir}/install"
+    printf '%s\n' "${dir#owpanel-}" >"${dir}/VERSION"
+  done
+  # Not an installer of that version: stays.
+  touch owpanel-0.3.0/install && printf '0.2.0\n' >owpanel-0.3.0/VERSION
+
+  remove_old_unpacked "${BATS_TEST_TMPDIR}/owpanel-0.5.0"
+
+  [ -d owpanel-0.5.0 ]
+  [ ! -e owpanel-0.4.0 ]
+  [ ! -e owpanel-dev-063b33a4432b ]
+  [ -d owpanel-notes ]
+  [ -d owpanel-0.3.0 ]
+}

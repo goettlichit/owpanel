@@ -81,7 +81,7 @@ Ein zweiter Lauf repariert die Installation und behält Daten, Schlüssel und Ko
 
 ```
 /var/www/ow10000/                 root:ow10000 0750
-├── releases/<Version>/panel/     Code, gehört root, für das Panel nur lesbar
+├── releases/<Version>/panel/     Code, gehört root, für das Panel nur lesbar; das aktive und ein älteres Release bleiben (E-198)
 ├── current -> releases/<Version> aktives Release, wird in einem Schritt umgestellt
 ├── shared/.env                   Einstellungen und Geheimnisse, root:ow10000 0640
 ├── shared/storage/               schreibt das Panel (Logs, Sitzungsreste, Views)

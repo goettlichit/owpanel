@@ -251,3 +251,32 @@ STUB
   run owp_set_hostname "Bad_Name"
   [[ "${lines[-1]}" == *'"error":"invalid_hostname"'* ]]
 }
+
+@test "an update keeps the active and the previous release only" {
+  local releases="${BATS_TEST_TMPDIR}/panel/releases" name
+  # shellcheck source=/dev/null
+  source <(sed -n '/^prune_releases() {$/,/^}$/p' "${ROOT}/install")
+  ok() { :; }
+  mkdir -p "$releases"
+  for name in 0.2.2 0.3.0 dev-063b33a4432b 0.4.0 .new.Ab12Cd 0.5.0; do
+    mkdir -p "${releases}/${name}"
+    touch -d "@$((1700000000 + ${#name} + RANDOM % 5))" "${releases}/${name}"
+  done
+  touch -d @1700000100 "${releases}/0.4.0"
+  touch -d @1700000200 "${releases}/0.5.0"
+  mkdir -p "${BATS_TEST_TMPDIR}/elsewhere" && ln -s "${BATS_TEST_TMPDIR}/elsewhere" "${releases}/link"
+  mkdir -p "${releases}/notes"
+
+  PANEL_ROOT="${BATS_TEST_TMPDIR}/panel" VERSION="0.5.0" prune_releases
+
+  [ -d "${releases}/0.5.0" ]
+  [ -d "${releases}/0.4.0" ]
+  [ ! -e "${releases}/0.3.0" ]
+  [ ! -e "${releases}/0.2.2" ]
+  [ ! -e "${releases}/dev-063b33a4432b" ]
+  [ ! -e "${releases}/.new.Ab12Cd" ]
+  # Anything that is no release stays.
+  [ -L "${releases}/link" ]
+  [ -d "${BATS_TEST_TMPDIR}/elsewhere" ]
+  [ -d "${releases}/notes" ]
+}

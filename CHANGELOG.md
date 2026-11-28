@@ -6,6 +6,9 @@ Hier steht nur, was sich in einer Version für die Nutzer von OWPanel tatsächli
 
 ## [Unreleased]
 
+### Changed
+- Updates no longer fill the disk: the installer keeps the active and the previous release and removes older ones, and `get-owpanel` removes the folders it unpacked on earlier runs.
+
 ## [0.5.0] - 2026-11-28
 
 Update from 0.4.0 from within the panel. On the update the installer rewrites the configuration of every website; each one shows short tasks.
