@@ -246,6 +246,20 @@ verify_signature() {
 
 # Exactly one archive with a valid name, checked against its .sha256 file,
 # unpacked into a directory of the same name next to this script's caller.
+# Earlier runs left their unpacked archive here; only folders that hold an
+# OWPanel installer and a matching VERSION go, nothing else of the user's.
+remove_old_unpacked() {
+  local keep="$1" dir version
+  for dir in "${PWD}"/owpanel-*; do
+    [[ -d "$dir" && ! -L "$dir" && "$dir" != "$keep" ]] || continue
+    version="${dir##*/owpanel-}"
+    [[ "$version" =~ $VERSION_RE && -f "${dir}/install" && -f "${dir}/VERSION" ]] || continue
+    [[ "$(<"${dir}/VERSION")" == "$version" ]] || continue
+    rm -rf -- "$dir"
+    printf 'Removed the earlier %s\n' "${dir##*/}"
+  done
+}
+
 unpack() {
   local archive name version target
   local -a found=()
@@ -262,6 +276,7 @@ unpack() {
   verify_signature "${WORK}/download/${archive}"
 
   target="${PWD}/${name}"
+  remove_old_unpacked "$target"
   rm -rf "$target"
   tar -xzf "${WORK}/download/${archive}" -C "$PWD" --no-same-owner
   [[ -x "${target}/install" && "$(<"${target}/VERSION")" == "$version" ]] \
