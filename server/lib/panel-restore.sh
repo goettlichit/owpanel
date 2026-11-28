@@ -119,7 +119,7 @@ owp_restore_worker_key() {
 owp_restore_certificates() {
   local dir="$1"
   [[ -d "${dir}${OWP_RESTORE_CERTIFICATES}/live" && ! -L "${dir}${OWP_RESTORE_CERTIFICATES}" ]] || return 1
-  install -d -o root -g root -m 0755 "$OWP_RESTORE_CERTIFICATES"
+  install -d -m 0755 "$OWP_RESTORE_CERTIFICATES"
   cp -a -- "${dir}${OWP_RESTORE_CERTIFICATES}/." "${OWP_RESTORE_CERTIFICATES}/"
 }
 

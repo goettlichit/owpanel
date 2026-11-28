@@ -118,7 +118,7 @@ class ServerJoinTest extends TestCase
             'backup_box_id' => 42, 'backup_box_name' => 'box1', 'backup_host' => 'u1.your-storagebox.de',
             'backup_path' => 'owpanel', 'backup_external' => false, 'backup_ready' => true,
             'backup_time' => '02:30', 'backup_keep_daily' => 9, 'backup_keep_weekly' => 3, 'backup_keep_monthly' => 2,
-            'backup_subaccount_id' => 7, 'backup_account' => 'u1-sub1',
+            'backup_subaccount_id' => 7, 'backup_account' => 'u123456-sub1',
         ])->save();
 
         return $panel;
@@ -171,7 +171,7 @@ class ServerJoinTest extends TestCase
         $this->withToken($this->code())->post('/join/register', $this->registration())->assertOk();
         $server = Server::where('name', 'web2')->sole();
         $this->assertNull($server->backup_box_id);
-        $server->forceFill(['backup_box_id' => 42, 'backup_host' => 'u1.your-storagebox.de', 'backup_subaccount_id' => 8, 'backup_account' => 'u1-sub2', 'backup_ready' => true])->save();
+        $server->forceFill(['backup_box_id' => 42, 'backup_host' => 'u1.your-storagebox.de', 'backup_subaccount_id' => 8, 'backup_account' => 'u123456-sub2', 'backup_ready' => true])->save();
 
         $this->withToken($this->code())->post('/join/register', $this->registration())->assertOk();
         // The same subaccount, its key installed again on the machine.
