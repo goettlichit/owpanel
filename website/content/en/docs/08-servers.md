@@ -78,9 +78,7 @@ The installer sets the server's time zone. The panel shows all times in this tim
 
 From version 0.5.0 the panel adds more servers as website servers, without reinstalling and without migration. The panel stays the gateway: every domain points to the panel, which takes care of certificates and HTTP/3 and passes each request over the private network to the server of the website. The other servers are reachable from outside only for SSH and SFTP.
 
-::: warning
-Websites on other servers are not backed up in version 0.5 yet. Backups for these servers follow with the next version; until then keep important websites on the panel server or back them up yourself.
-:::
+If the panel server has backups, the new server gets the same Storage Box, directory and schedule when it joins, but its own subaccount: it sees only its own backups. The checkbox for this is ticked by default; without backups on the panel server or without the checkbox, set them up later under **Servers → Backups** of the new server. In version 0.5 this works only by hand there.
 
 Requirements:
 

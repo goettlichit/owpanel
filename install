@@ -959,8 +959,20 @@ certificate_covers() {
     && openssl x509 -in "$cert" -noout -checkhost "$DOMAIN" 2>/dev/null | grep -q ' does match '
 }
 
+# A restore brings back the certificates of the panel and of all gateways
+# (E-199), so the panel and the websites need no new ones.
+restore_certificates() {
+  restoring || return 0
+  if owp_restore_certificates "${RESTORE_DIR}/files"; then
+    ok "certificates restored from the backup"
+  else
+    owp_warn "the backup holds no certificates; they are issued again"
+  fi
+}
+
 setup_web() {
   step "Web server and certificate"
+  restore_certificates
   if ! certificate_covers; then
     apply_nginx http
     certbot certonly --webroot --webroot-path "$ACME_ROOT" \

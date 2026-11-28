@@ -62,6 +62,17 @@ sha256sum get-owpanel</code></pre>
                         @class(['form-control', 'font-monospace', 'is-invalid' => $errors->has('name')]) @disabled(! $ready)>
                     @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     <div class="form-hint">{{ __('servers.join.name_hint') }}</div>
+                    {{-- Backups like the panel server's, with an own subaccount (E-199). --}}
+                    @if ($panel?->backupConfigured())
+                        <label class="form-check mt-3 mb-0">
+                            <input type="hidden" name="backup" value="0">
+                            <input type="checkbox" class="form-check-input" name="backup" value="1" @checked(old('backup', '1') === '1') @disabled(! $ready)>
+                            <span class="form-check-label">{{ __('servers.join.backup', ['box' => $panel->backup_box_name, 'path' => $panel->backup_path]) }}</span>
+                            <span class="form-check-description">{{ __('servers.join.backup_hint') }}</span>
+                        </label>
+                    @else
+                        <div class="form-hint mt-3">{{ __('servers.join.no_backup') }}</div>
+                    @endif
                     <x-slot:footer>
                         <button type="submit" class="btn btn-primary" @disabled(! $ready)><x-icon name="key" class="me-1" />{{ __('servers.join.submit') }}</button>
                     </x-slot:footer>

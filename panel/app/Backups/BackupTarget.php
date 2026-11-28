@@ -38,7 +38,7 @@ final class BackupTarget
      * repository can only be opened with it. The subaccount is created or
      * prepared when the task runs, see call().
      */
-    public static function setUp(Server $server, ?User $user): ?ServerTask
+    public static function setUp(Server $server, ?User $user, ?ServerTask $after = null): ?ServerTask
     {
         if (! $server->backupConfigured() || $server->backup_host === null) {
             return null;
@@ -55,7 +55,7 @@ final class BackupTarget
             (string) $server->backup_repo_password,
         );
 
-        return ServerTask::start($server, $call, $user);
+        return ServerTask::start($server, $call, $user, after: $after);
     }
 
     /**

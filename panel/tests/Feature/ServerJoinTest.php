@@ -111,6 +111,74 @@ class ServerJoinTest extends TestCase
             ->assertSee(__('servers.join.test_build'));
     }
 
+    private function panelWithBackups(): Server
+    {
+        $panel = Server::panelHost();
+        $panel->forceFill([
+            'backup_box_id' => 42, 'backup_box_name' => 'box1', 'backup_host' => 'u1.your-storagebox.de',
+            'backup_path' => 'owpanel', 'backup_external' => false, 'backup_ready' => true,
+            'backup_time' => '02:30', 'backup_keep_daily' => 9, 'backup_keep_weekly' => 3, 'backup_keep_monthly' => 2,
+            'backup_subaccount_id' => 7, 'backup_account' => 'u1-sub1',
+        ])->save();
+
+        return $panel;
+    }
+
+    public function test_a_joined_server_gets_backups_like_the_panel_server(): void
+    {
+        $this->panelWithBackups();
+        $admin = $this->admin();
+        $this->actingAs($admin)->get('/servers/join')->assertOk()->assertSee(__('servers.join.backup', ['box' => 'box1', 'path' => 'owpanel']));
+        $this->actingAs($admin)->post('/servers/join', ['name' => 'web2', 'backup' => '1'])->assertSessionHasNoErrors();
+        $this->assertTrue(ServerJoinToken::sole()->backup);
+
+        $this->withToken(session('join_code'))->post('/join/register', $this->registration())->assertOk();
+        $server = Server::where('name', 'web2')->sole();
+        $this->assertSame(42, $server->backup_box_id);
+        $this->assertSame('u1.your-storagebox.de', $server->backup_host);
+        $this->assertSame('owpanel', $server->backup_path);
+        $this->assertSame(9, $server->backup_keep_daily);
+        // An own subaccount, made when backup-setup runs.
+        $this->assertNull($server->backup_subaccount_id);
+        $this->assertNull($server->backup_account);
+        $this->assertFalse((bool) $server->backup_ready);
+
+        $confirm = ServerTask::where('server_id', $server->id)->where('script', ServerScript::FirewallConfirm->value)->sole();
+        $setup = ServerTask::where('server_id', $server->id)->where('script', ServerScript::BackupSetup->value)->sole();
+        $this->assertSame($confirm->id, $setup->after_task_id);
+        $this->assertNotNull($server->backup_repo_password);
+    }
+
+    public function test_backups_are_left_out_when_unticked_or_the_panel_has_none(): void
+    {
+        $admin = $this->admin();
+        // The panel server has no backups: the choice does not count.
+        $this->actingAs($admin)->get('/servers/join')->assertOk()->assertSee(__('servers.join.no_backup'));
+        $this->actingAs($admin)->post('/servers/join', ['name' => 'web2', 'backup' => '1']);
+        $this->assertFalse(ServerJoinToken::sole()->backup);
+
+        $this->panelWithBackups();
+        $this->actingAs($admin)->post('/servers/join', ['name' => 'web3', 'backup' => '0']);
+        $this->withToken(session('join_code'))->post('/join/register', $this->registration())->assertOk();
+        $server = Server::where('name', 'web3')->sole();
+        $this->assertNull($server->backup_box_id);
+        $this->assertSame(0, ServerTask::where('server_id', $server->id)->where('script', ServerScript::BackupSetup->value)->count());
+    }
+
+    public function test_a_server_joining_again_gets_its_backup_key_again(): void
+    {
+        $this->panelWithBackups();
+        $this->withToken($this->code())->post('/join/register', $this->registration())->assertOk();
+        $server = Server::where('name', 'web2')->sole();
+        $this->assertNull($server->backup_box_id);
+        $server->forceFill(['backup_box_id' => 42, 'backup_host' => 'u1.your-storagebox.de', 'backup_subaccount_id' => 8, 'backup_account' => 'u1-sub2', 'backup_ready' => true])->save();
+
+        $this->withToken($this->code())->post('/join/register', $this->registration())->assertOk();
+        // The same subaccount, its key installed again on the machine.
+        $this->assertSame(8, $server->fresh()->backup_subaccount_id);
+        $this->assertSame(1, ServerTask::where('server_id', $server->id)->where('script', ServerScript::BackupSetup->value)->count());
+    }
+
     public function test_a_server_name_must_be_new_and_simple(): void
     {
         $admin = $this->admin();

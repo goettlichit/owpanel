@@ -31,6 +31,7 @@ class ServerJoinToken extends Model
     protected function casts(): array
     {
         return [
+            'backup' => 'boolean',
             'expires_at' => 'datetime',
             'used_at' => 'datetime',
         ];
@@ -41,13 +42,14 @@ class ServerJoinToken extends Model
      *
      * @return array{0: self, 1: string}
      */
-    public static function issue(string $name, ?User $user): array
+    public static function issue(string $name, ?User $user, bool $backup = false): array
     {
         $code = Str::random(48);
         $token = new self;
         $token->forceFill([
             'token_hash' => hash('sha256', $code),
             'name' => $name,
+            'backup' => $backup,
             'expires_at' => now()->addMinutes(self::MINUTES),
             'user_id' => $user?->getKey(),
         ])->save();

@@ -78,9 +78,7 @@ Die Zeitzone des Servers legt der Installer fest. Das Panel zeigt alle Zeiten in
 
 Ab Version 0.5.0 bindet das Panel weitere Server als Website-Server ein, ohne Neuinstallation und ohne Migration. Das Panel bleibt das Eingangstor: Alle Domains zeigen auf das Panel, es kümmert sich um Zertifikate und HTTP/3 und reicht jede Anfrage über das private Netz an den Server der Webseite weiter. Die weiteren Server sind von außen nur für SSH und SFTP erreichbar.
 
-::: warning
-Webseiten auf weiteren Servern werden in Version 0.5 noch nicht gesichert. Die Sicherung dieser Server folgt mit der nächsten Version; bis dahin bleiben wichtige Webseiten auf dem Panel-Server oder du sicherst sie selbst.
-:::
+Hat der Panel-Server eine Sicherung, bekommt der neue Server beim Einbinden dieselbe Storage Box, dasselbe Verzeichnis und denselben Zeitplan, aber einen eigenen Subaccount: Er sieht nur seine eigenen Sicherungen. Das Häkchen dafür ist vorgegeben; ohne Sicherung am Panel-Server oder ohne Häkchen richtest du sie später unter **Server → Backups** des neuen Servers ein. In Version 0.5 geht das nur von Hand dort.
 
 Voraussetzungen:
 

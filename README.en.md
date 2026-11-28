@@ -4,7 +4,7 @@
 
 **OWPanel** stands for **Open Web Panel**. It is a simple, bilingual server control panel for Debian, as easy to use as CloudPanel. Start with a single server and add more when you need them.
 
-> **Status:** Version 0.5. It runs as a single server (standalone) or with more website servers behind the panel as the gateway, with websites, databases, customers and a customer area, packages, backups and restore, notifications, a firewall with blocklists, Pocket ID and DNS through the Hetzner API, and updates itself with one click or at night. Things may still change until version 1.0; websites on other servers are not backed up yet, that comes next (see [docs/ROADMAP.md](docs/ROADMAP.md), German).
+> **Status:** Version 0.5. It runs as a single server (standalone) or with more website servers behind the panel as the gateway, with websites, databases, customers and a customer area, packages, backups and restore, notifications, a firewall with blocklists, Pocket ID and DNS through the Hetzner API, and updates itself with one click or at night. Things may still change until version 1.0; next come choosing the server on creation and moving websites (see [docs/ROADMAP.md](docs/ROADMAP.md), German).
 
 ## Core idea
 

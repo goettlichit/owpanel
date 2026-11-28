@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Backups\BackupTarget;
 use App\Models\Server;
 use App\Models\ServerJoinToken;
 use App\Models\ServerTask;
@@ -109,14 +110,47 @@ class JoinController extends Controller
                 'backend_cert' => rtrim($data['backend_cert'], "\n")."\n",
             ])->save();
             $token->forceFill(['server_id' => $server->getKey()])->save();
-            Audit::record('server.joined', $server, ['name' => $server->name, 'private_ipv4' => $server->private_ipv4, 'hostname' => $server->hostname, 'again' => $again !== null], $token->user);
+            Audit::record('server.joined', $server, ['name' => $server->name, 'private_ipv4' => $server->private_ipv4, 'hostname' => $server->hostname, 'again' => $again !== null, 'backup' => $token->backup], $token->user);
             // Within the 60 seconds of the rollback (E-044).
-            ServerTask::start($server, ScriptCall::firewallConfirm(), null);
+            $confirmed = ServerTask::start($server, ScriptCall::firewallConfirm(), null);
+            $this->setUpBackup($server, $token, $confirmed);
 
             return $server;
         });
 
         return $this->lines(['ok' => '1', 'server' => $server->name]);
+    }
+
+    /**
+     * Backups like the panel server's (E-199): same Storage Box, directory
+     * and schedule, but an own subaccount, set up once the firewall is
+     * confirmed. A server joining again that already has a target gets its
+     * key for the box again, since the machine may be new.
+     */
+    private function setUpBackup(Server $server, ServerJoinToken $token, ServerTask $after): void
+    {
+        $panel = Server::panelHost();
+        if (! $server->backupConfigured() && $token->backup && $panel?->backupConfigured()) {
+            $server->forceFill([
+                'backup_box_id' => $panel->backup_box_id,
+                'backup_box_name' => $panel->backup_box_name,
+                'backup_host' => $panel->backup_host,
+                'backup_path' => $panel->backup_path,
+                'backup_external' => $panel->backup_external,
+                'backup_time' => $panel->backup_time,
+                'backup_interval' => $panel->backup_interval,
+                'backup_keep_hourly' => $panel->backup_keep_hourly,
+                'backup_keep_daily' => $panel->backup_keep_daily,
+                'backup_keep_weekly' => $panel->backup_keep_weekly,
+                'backup_keep_monthly' => $panel->backup_keep_monthly,
+                'backup_subaccount_id' => null,
+                'backup_account' => null,
+                'backup_ready' => false,
+            ])->save();
+        }
+        if ($server->backupConfigured()) {
+            BackupTarget::setUp($server, $token->user, $after);
+        }
     }
 
     private function token(Request $request): ServerJoinToken

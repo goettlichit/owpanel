@@ -39,10 +39,13 @@ class ServerJoinController extends Controller
         Gate::authorize('create', Server::class);
         $validated = $request->validate([
             // The name of an existing website server joins it again (E-196).
+            'backup' => ['nullable', 'boolean'],
             'name' => ['required', 'string', 'max:63', 'regex:/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', Rule::unique('servers', 'name')->where('hosts_panel', true)],
         ]);
-        [$token, $code] = ServerJoinToken::issue($validated['name'], $request->user());
-        Audit::record('server.join_started', null, ['name' => $token->name], $request->user());
+        // The backup target of the panel server, if it has one (E-199).
+        $backup = $request->boolean('backup') && (bool) Server::panelHost()?->backupConfigured();
+        [$token, $code] = ServerJoinToken::issue($validated['name'], $request->user(), $backup);
+        Audit::record('server.join_started', null, ['name' => $token->name, 'backup' => $backup], $request->user());
 
         // Shown once; the next page load no longer has it.
         return redirect()->route('servers.join')
