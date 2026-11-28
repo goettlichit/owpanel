@@ -6,7 +6,7 @@ Hier steht nur, was sich in einer Version für die Nutzer von OWPanel tatsächli
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-11-27
+## [0.5.0] - 2026-11-28
 
 Update from 0.4.0 from within the panel. On the update the installer rewrites the configuration of every website; each one shows short tasks.
 
