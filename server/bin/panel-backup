@@ -18,6 +18,9 @@ source /opt/owpanel/lib/backup.sh
 readonly PANEL_ENV="${OWP_PANEL_ROOT:-/var/www/ow10000}/shared/.env"
 readonly PANEL_STATE="/etc/owpanel/panel.conf"
 readonly WORKER_SSH="/var/lib/owpanel-worker/ssh"
+# The certificates of the panel and of every website's gateway (E-168,
+# E-199); a restore puts them back, so nothing has to be issued again.
+readonly CERTIFICATES="${OWP_CERTIFICATES:-/etc/letsencrypt}"
 readonly PANEL_DATABASE="owpanel"
 
 usage() {
@@ -71,7 +74,7 @@ main() {
     || owp_die "dump_failed" "mariadb-dump failed for ${PANEL_DATABASE}"
 
   paths=("$staging" "$PANEL_ENV")
-  for path in "$PANEL_STATE" "$WORKER_SSH"; do
+  for path in "$PANEL_STATE" "$WORKER_SSH" "$CERTIFICATES"; do
     if [[ -e "$path" && ! -L "$path" ]]; then
       paths+=("$path")
     else

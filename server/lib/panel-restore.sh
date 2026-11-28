@@ -6,6 +6,7 @@
 readonly OWP_RESTORE_PANEL_ENV="/var/www/ow10000/shared/.env"
 readonly OWP_RESTORE_WORKER_SSH="/var/lib/owpanel-worker/ssh"
 readonly OWP_RESTORE_STATE="/etc/owpanel/panel.conf"
+readonly OWP_RESTORE_CERTIFICATES="${OWP_RESTORE_CERTIFICATES:-/etc/letsencrypt}"
 readonly OWP_RESTORE_DUMP="/var/backups/owpanel/panel/owpanel.sql"
 
 owp_restore_valid_host() {
@@ -109,6 +110,17 @@ owp_restore_worker_key() {
   [[ -f "${dir}${OWP_RESTORE_WORKER_SSH}/id_ed25519" && -f "${dir}${OWP_RESTORE_WORKER_SSH}/id_ed25519.pub" ]] || return 1
   install -o "$user" -g "$user" -m 0600 "${dir}${OWP_RESTORE_WORKER_SSH}/id_ed25519" "${OWP_RESTORE_WORKER_SSH}/id_ed25519"
   install -o "$user" -g "$user" -m 0644 "${dir}${OWP_RESTORE_WORKER_SSH}/id_ed25519.pub" "${OWP_RESTORE_WORKER_SSH}/id_ed25519.pub"
+}
+
+# Puts the certificates of the panel and the gateways back (E-199), before
+# the installer and the gateways ask Let's Encrypt; certbot keeps a valid
+# one. A backup from before 0.6 has none, then they are issued again.
+# Usage: owp_restore_certificates <dir>
+owp_restore_certificates() {
+  local dir="$1"
+  [[ -d "${dir}${OWP_RESTORE_CERTIFICATES}/live" && ! -L "${dir}${OWP_RESTORE_CERTIFICATES}" ]] || return 1
+  install -d -m 0755 "$OWP_RESTORE_CERTIFICATES"
+  cp -a -- "${dir}${OWP_RESTORE_CERTIFICATES}/." "${OWP_RESTORE_CERTIFICATES}/"
 }
 
 # Puts .env back; the installer then keeps it and only updates version,

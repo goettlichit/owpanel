@@ -96,7 +96,7 @@
                 { "state": "done", "title": "Kundenbereich", "text": "Pakete, Kundenzugang, Webseiten, Datenbanken, Cronjobs, Backups, Speicherplatz und Sperren" },
                 { "state": "done", "title": "Öffentliche Version", "text": "SSH-Härtung, Sicherheitsprüfung, Sperrlisten, signierte Releases, Version 0.1" },
                 { "state": "done", "title": "Updates aus dem Panel", "text": "Panel per Klick oder nachts aktualisieren, Serverskripte ziehen selbst nach, jedes Release mit geprüfter Signatur, Version 0.2" },
-                { "state": "next", "title": "Multi-Server", "text": "Weitere Server hinter dem Panel als Eingangstor (seit 0.5), als Nächstes ihre Sicherung, Serverauswahl beim Anlegen, Webseiten mit ihren Sicherungen umziehen" },
+                { "state": "next", "title": "Multi-Server", "text": "Weitere Server hinter dem Panel als Eingangstor (seit 0.5), Sicherung über eigene Subaccounts, als Nächstes Serverauswahl beim Anlegen, Webseiten mit ihren Sicherungen umziehen" },
                 { "state": "planned", "title": "Docker-Apps", "text": "Eigene Dienste wie Pocket ID als Compose-Projekt auf einem Server, erreichbar über das Panel, nur für Administratoren" },
                 { "state": "planned", "title": "API", "text": "Anbindung der eigenen Homepage: Kunden, Pakete, Status und Hinweis auf offene Zahlungen" }
             ]

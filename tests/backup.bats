@@ -219,3 +219,29 @@ STUB
   [ "$status" -eq 0 ]
   [ "${lines[-1]}" = "latest=" ]
 }
+
+@test "the panel backup holds the certificates and the restore puts them back (E-199)" {
+  grep -q '^readonly CERTIFICATES="${OWP_CERTIFICATES:-/etc/letsencrypt}"$' "${ROOT}/server/bin/panel-backup"
+  grep -q 'for path in "$PANEL_STATE" "$WORKER_SSH" "$CERTIFICATES"; do' "${ROOT}/server/bin/panel-backup"
+
+  export OWP_RESTORE_CERTIFICATES="${BATS_TEST_TMPDIR}/letsencrypt"
+  source "${ROOT}/server/lib/common.sh"
+  source "${ROOT}/server/lib/install.sh"
+  source "${ROOT}/server/lib/panel-restore.sh"
+  local dir="${BATS_TEST_TMPDIR}/restored" backup="${BATS_TEST_TMPDIR}/restored${BATS_TEST_TMPDIR}/letsencrypt"
+
+  # An older backup without certificates: nothing happens.
+  mkdir -p "$dir"
+  ! owp_restore_certificates "$dir"
+  [ ! -e "$OWP_RESTORE_CERTIFICATES" ]
+
+  mkdir -p "${backup}/archive/ow38217" "${backup}/live/ow38217" "${backup}/renewal"
+  echo cert >"${backup}/archive/ow38217/fullchain1.pem"
+  ln -s ../../archive/ow38217/fullchain1.pem "${backup}/live/ow38217/fullchain.pem"
+  echo 'cert = x' >"${backup}/renewal/ow38217.conf"
+  owp_restore_certificates "$dir"
+  # The links of certbot stay links.
+  [ -L "${OWP_RESTORE_CERTIFICATES}/live/ow38217/fullchain.pem" ]
+  [ "$(cat "${OWP_RESTORE_CERTIFICATES}/live/ow38217/fullchain.pem")" = cert ]
+  [ -f "${OWP_RESTORE_CERTIFICATES}/renewal/ow38217.conf" ]
+}

@@ -47,7 +47,7 @@ Die Websites auf dem Panel-Server sichert der Server wie jeder andere Server sep
    2. ihre Datenbanken mit den gespeicherten Passwörtern anlegen
    3. Dateien und Datenbanken aus der neuesten automatischen oder von Hand gemachten Sicherung einspielen
    4. Cronjobs und SFTP-Zugang wieder einrichten
-   5. zuletzt das Zertifikat neu anfordern; dafür muss der DNS-Eintrag der Website auf den neuen Server zeigen
+   5. zuletzt das Zertifikat einrichten: Seit 0.6 liegen die Zertifikate in der Sicherung des Panels, und der Installer legt sie zurück; ein gültiges bleibt, nur ein fälliges oder fehlendes wird neu angefordert, wofür der DNS-Eintrag der Website auf den neuen Server zeigen muss (E-199)
 
    Jeder Schritt ist eine eigene Aufgabe mit Protokoll unter Server → Aufgaben. Schlägt einer fehl, werden die folgenden Schritte dieser Website übersprungen; die anderen Websites laufen weiter. Gibt es für eine Website noch keine Sicherung, legt das Panel sie leer an.
 

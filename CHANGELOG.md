@@ -6,6 +6,10 @@ Hier steht nur, was sich in einer Version für die Nutzer von OWPanel tatsächli
 
 ## [Unreleased]
 
+### Added
+- Add server sets up backups like the panel server's: same Storage Box, directory and schedule, with an own subaccount for the new server. A checkbox, on by default, when the panel server has backups.
+- The panel backup includes the certificates of the panel and of all websites; a restore puts them back, so no new certificates are needed.
+
 ### Changed
 - Updates no longer fill the disk: the installer keeps the active and the previous release and removes older ones, and `get-owpanel` removes the folders it unpacked on earlier runs.
 

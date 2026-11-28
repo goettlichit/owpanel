@@ -225,7 +225,8 @@ Am 2026-11-14 pausiert, am 2026-11-20 geklärt (E-161 bis E-168). Umgesetzt wird
 - [ ] Eine IPv6 je Website aus Präfix und festem Teil (E-162)
 - [ ] Serverauswahl beim Anlegen mit Vorschlag nach Reserve, erlaubte Server je Paket (E-161)
 - [x] Skriptversion abgleichen: `server-scripts-update` mit Signaturprüfung, keine ändernden Aufgaben bei abweichender Version, Meldung „Serverskripte veraltet“ (E-167, E-187, E-188; mit dem Update-Mechanismus in 0.2.0)
-- [ ] Backup-Subaccount beim Einbinden, Log des Gateways je Website, Zertifikatsprüfung auf dem Gateway, `/etc/letsencrypt` in der Panel-Sicherung (E-168)
+- [x] Backup-Subaccount beim Einbinden, Zertifikatsprüfung auf dem Gateway, `/etc/letsencrypt` in der Panel-Sicherung und bei der Wiederherstellung zurück (E-168, E-195, E-199)
+- [ ] Log des Gateways je Website als zweiter Reiter, „Server nicht erreichbar“ mit Zahl der Websites (E-168)
 - [ ] Server nur beobachten (E-189), etwa eine Mailcow-VM: einbinden wie oben, aber ohne Provisionierung; Zustand, Debian-Updates anzeigen und installieren, Neustart, Benachrichtigungen; bei Mailcow lesend `update.sh --check`
 - [ ] Wiederherstellung des Panels mit privatem Netz in `docs/WIEDERHERSTELLUNG.md`
 - [ ] Anleitung auf Deutsch und Englisch

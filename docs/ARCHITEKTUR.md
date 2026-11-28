@@ -156,7 +156,7 @@ Umgesetzt mit E-196 nach E-166 und E-167.
 4. Der Installer (`install --join`, `server/lib/join.sh`) richtet den Server ohne die Teile des Panels ein: `setup-agent` mit dem Panel-Schlüssel, Zeitzone, Hostname, `/etc/owpanel/role`, `server-provision` mit der Firewall eines Website-Servers.
 5. Er meldet über `/join/register` Hostname, private und öffentliche Adressen, SSH-Port, Host-Schlüssel und Backend-Zertifikat.
 6. Das Panel entwertet den Code, legt den Server mit der privaten Adresse und dem gepinnten Host-Schlüssel an und bestätigt die Firewall (E-044) über SSH; der Installer wartet darauf.
-7. Der Backup-Subaccount auf derselben Storage Box folgt später (E-168).
+7. Hat der Panel-Server eine Sicherung und war das Häkchen gesetzt, übernimmt der Server deren Ziel und Zeitplan, und `backup-setup` legt nach der Firewall-Bestätigung seinen eigenen Subaccount an (E-168, E-199).
 
 ## Ablauf: Website anlegen
 
