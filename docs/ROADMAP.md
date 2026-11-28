@@ -220,6 +220,7 @@ Am 2026-11-14 pausiert, am 2026-11-20 geklärt (E-161 bis E-168). Umgesetzt wird
 - [x] Steuerung über die private Adresse; Firewall der Website-Server: öffentlich nur Port 22, sonst nur das private Subnetz (E-166, E-168, E-196)
 - [x] Gateway: Zertifikate, ACME und HTTP/3 am Panel-Server, Weiterleitung an den Server der Website über TLS mit gepinntem Zertifikat, echte Besucheradresse über `set_real_ip_from`, Grenzen wie Uploadgröße je Website (E-161, E-168, E-186, E-195)
 - [x] Eingangsadressen als Einstellung; DNS der Websites zeigt darauf, SFTP hinter dem Gateway über den Hostnamen des Servers (E-162, E-193)
+- [ ] Reihenfolge nach 0.5.0 (Absprache vom 2026-11-27): 1. Sicherung der Website-Server (E-168), 2. Serverauswahl beim Anlegen, 3. Websites mit ihren Sicherungen umziehen (Meilenstein 5.1), 4. Server nur beobachten (E-189), 5. Wiederherstellung und Anleitung, 6. eine IPv6 je Website
 - [ ] Eine IPv6 je Website aus Präfix und festem Teil (E-162)
 - [ ] Serverauswahl beim Anlegen mit Vorschlag nach Reserve, erlaubte Server je Paket (E-161)
 - [x] Skriptversion abgleichen: `server-scripts-update` mit Signaturprüfung, keine ändernden Aufgaben bei abweichender Version, Meldung „Serverskripte veraltet“ (E-167, E-187, E-188; mit dem Update-Mechanismus in 0.2.0)
